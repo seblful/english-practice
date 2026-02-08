@@ -1,9 +1,10 @@
 # Folders
-data
-models
-
+data/
+models/
+logs/
 # Secrets
 .env
+
 
 # Python-generated files
 __pycache__/
@@ -12,6 +13,7 @@ build/
 dist/
 wheels/
 *.egg-info
+.vscode/
 
 # Virtual environments
 .venv
