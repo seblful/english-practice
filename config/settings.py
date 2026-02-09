@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, PostgresDsn, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,12 +17,17 @@ class PathSettings(BaseSettings):
 
     def create_directories(self) -> None:
         """Create all necessary directories."""
-        for path in [
-            self.books_dir / "fiction",
-            self.books_dir / "non_fiction",
-            self.books_dir / "textbooks",
-        ]:
+        for path in self.model_dump().values():
             path.mkdir(parents=True, exist_ok=True)
+
+
+class BookSettings(BaseSettings):
+    """Book settings."""
+
+    original_file_name: str = "murphy.pdf"
+    cut_file_name: str = "murphy_cut.pdf"
+    start_page: int = 14
+    end_page: int = 302
 
 
 class ExerciseSettings(BaseSettings):
@@ -60,6 +65,7 @@ class Settings(BaseSettings):
 
     # Nested configs
     paths: PathSettings = Field(default_factory=PathSettings)
+    book: BookSettings = Field(default_factory=BookSettings)
     exercises: ExerciseSettings = Field(default_factory=ExerciseSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)
