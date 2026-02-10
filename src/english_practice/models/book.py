@@ -1,6 +1,6 @@
 from PIL import Image
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator, model_validator
 
 
 class Answer(BaseModel):
@@ -12,8 +12,10 @@ class Answer(BaseModel):
 class Exercise(BaseModel):
     """An exercise is a single exercise in a exercise page."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     number: str = Field(description="The number of the exercise in the format '1.1'.")
-    image: Image = Field(description="The image of the exercise question.")
+    image: Image.Image = Field(description="The image of the exercise question.")
     answers: list[Answer] = Field(description="The answers to the exercise.")
 
 

@@ -14,6 +14,10 @@ class PathSettings(BaseSettings):
 
     data_dir: Path = BASE_DIR / "data"
     books_dir: Path = data_dir / "books"
+    snippets_dir: Path = data_dir / "snippets"
+    images_dir: Path = data_dir / "images"
+    units_pages_dir: Path = images_dir / "units"
+    exercises_pages_dir: Path = images_dir / "exercises"
 
     def create_directories(self) -> None:
         """Create all necessary directories."""
@@ -24,10 +28,13 @@ class PathSettings(BaseSettings):
 class BookSettings(BaseSettings):
     """Book settings."""
 
-    original_file_name: str = "murphy.pdf"
-    cut_file_name: str = "murphy_cut.pdf"
-    start_page: int = 14
-    end_page: int = 302
+    filename: str = "murphy.pdf"
+
+
+class ImageSettings(BaseSettings):
+    """Images settings."""
+
+    pages_dpi: int = 300
 
 
 class ExerciseSettings(BaseSettings):
@@ -66,6 +73,7 @@ class Settings(BaseSettings):
     # Nested configs
     paths: PathSettings = Field(default_factory=PathSettings)
     book: BookSettings = Field(default_factory=BookSettings)
+    images: ImageSettings = Field(default_factory=ImageSettings)
     exercises: ExerciseSettings = Field(default_factory=ExerciseSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)
