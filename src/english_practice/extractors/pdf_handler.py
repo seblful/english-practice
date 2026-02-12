@@ -23,11 +23,11 @@ class PDFHandler:
         file_path: Path,
         start_page: int,
         end_page: int,
-        units_pages_dir: Path,
+        grammar_pages_dir: Path,
         exercises_pages_dir: Path,
         dpi: int = 300,
     ) -> None:
-        """Separate pages from a PDF file into units pages and exercise pages."""
+        """Separate pages from a PDF file into grammar pages and exercise pages."""
         with pymupdf.open(file_path) as pdf:
             end_page = min(end_page, pdf.page_count)
 
@@ -36,8 +36,8 @@ class PDFHandler:
                 page = pdf.load_page(page_number)
                 pixmap = page.get_pixmap(dpi=dpi)
 
-                if page_number % 2 == 0:
-                    pixmap.save(units_pages_dir / f"{unit_number}.png")
-                    unit_number += 1
+                if page_number % 2 == 1:
+                    pixmap.save(grammar_pages_dir / f"{unit_number}.png")
                 else:
                     pixmap.save(exercises_pages_dir / f"{unit_number}.png")
+                    unit_number += 1

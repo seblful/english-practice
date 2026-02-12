@@ -16,8 +16,9 @@ class PathSettings(BaseSettings):
     books_dir: Path = data_dir / "books"
     snippets_dir: Path = data_dir / "snippets"
     images_dir: Path = data_dir / "images"
-    units_pages_dir: Path = images_dir / "units"
+    grammar_pages_dir: Path = images_dir / "grammar"
     exercises_pages_dir: Path = images_dir / "exercises"
+    grammar_md_dir: Path = data_dir / "grammar"
 
     def create_directories(self) -> None:
         """Create all necessary directories."""
@@ -41,6 +42,13 @@ class ExerciseSettings(BaseSettings):
     """Exercise generation settings."""
 
     pass
+
+
+class OcrSettings(BaseSettings):
+    """OCR settings (Mistral API for image text extraction)."""
+
+    api_key: str | None = None
+    model: str = "mistral-ocr-latest"
 
 
 class LLMSettings(BaseSettings):
@@ -76,6 +84,7 @@ class Settings(BaseSettings):
     images: ImageSettings = Field(default_factory=ImageSettings)
     exercises: ExerciseSettings = Field(default_factory=ExerciseSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    ocr: OcrSettings = Field(default_factory=OcrSettings)
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)
 
     # Logging
