@@ -13,12 +13,16 @@ class PathSettings(BaseSettings):
     """File paths configuration."""
 
     data_dir: Path = BASE_DIR / "data"
-    books_dir: Path = data_dir / "books"
-    snippets_dir: Path = data_dir / "snippets"
-    images_dir: Path = data_dir / "images"
+    source_dir: Path = data_dir / "source"
+    content_dir: Path = data_dir / "content"
+    books_dir: Path = source_dir
+    snippets_dir: Path = source_dir / "snippets"
+    images_dir: Path = source_dir / "images"
     grammar_pages_dir: Path = images_dir / "grammar"
     exercises_pages_dir: Path = images_dir / "exercises"
-    grammar_md_dir: Path = data_dir / "grammar"
+    grammar_md_dir: Path = content_dir / "grammar"
+    questions_dir: Path = content_dir / "questions"
+    metadata_dir: Path = content_dir / "metadata"
 
     def create_directories(self) -> None:
         """Create all necessary directories."""
