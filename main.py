@@ -4,14 +4,14 @@ import typer
 
 from config.logging import get_logger
 from config.settings import settings
-from english_practice.extractors import ImageOcrExtractor, PDFHandler
+from english_practice.extractors import ExerciseOrganizer, ImageOcrExtractor, PDFHandler
 from english_practice.models import (
-    START_CONTENT_PAGE,
+    END_ANSWER_PAGE,
     END_CONTENT_PAGE,
-    START_UNIT_PAGE,
     END_UNIT_PAGE,
     START_ANSWER_PAGE,
-    END_ANSWER_PAGE,
+    START_CONTENT_PAGE,
+    START_UNIT_PAGE,
 )
 
 logger = get_logger(__name__)
@@ -92,6 +92,20 @@ def ocr_grammar_images() -> None:
     logger.info(
         f"Wrote {len(written)} markdown file(s) to {settings.paths.grammar_md_dir}"
     )
+
+
+@app.command(
+    name="organize-exercises",
+    help="Organize exercise images into numbered folders.",
+)
+def organize_exercises() -> None:
+    """Organize exercise images into separate folders."""
+    organizer = ExerciseOrganizer()
+    created = organizer.organize(
+        file_path=settings.paths.exercises_pages_dir,
+        output_dir=settings.paths.exercises_dir,
+    )
+    logger.info(f"Organized {len(created)} exercises to {settings.paths.exercises_dir}")
 
 
 if __name__ == "__main__":

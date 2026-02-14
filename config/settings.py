@@ -21,7 +21,7 @@ class PathSettings(BaseSettings):
     grammar_pages_dir: Path = images_dir / "grammar"
     exercises_pages_dir: Path = images_dir / "exercises"
     grammar_md_dir: Path = content_dir / "grammar"
-    questions_dir: Path = content_dir / "questions"
+    exercises_dir: Path = content_dir / "exercises"
     metadata_dir: Path = content_dir / "metadata"
 
     def create_directories(self) -> None:
