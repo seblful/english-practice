@@ -1,0 +1,62 @@
+-- English Practice App Database Schema
+-- Simplified: Core content only (no user/AI tracking)
+
+-- Enable foreign keys
+PRAGMA foreign_keys = ON;
+
+-- ============================================
+-- CORE CONTENT TABLES (Static Data)
+-- ============================================
+
+-- Grammar units from your markdown files
+CREATE TABLE IF NOT EXISTS units (
+    id INTEGER PRIMARY KEY,
+    unit_number INTEGER NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    grammar_md_path TEXT NOT NULL  -- e.g., "grammar/1.md"
+);
+
+-- Individual exercises (images)
+CREATE TABLE IF NOT EXISTS exercises (
+    id INTEGER PRIMARY KEY,
+    exercise_id TEXT NOT NULL UNIQUE,  -- e.g., "1.1", "2.3"
+    unit_id INTEGER NOT NULL,
+    exercise_number INTEGER NOT NULL,
+    image_path TEXT NOT NULL,  -- e.g., "exercises/1/1.1.png"
+    FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE
+);
+
+-- Questions within exercises (from answers.json)
+CREATE TABLE IF NOT EXISTS questions (
+    id INTEGER PRIMARY KEY,
+    exercise_id INTEGER NOT NULL,
+    question_id TEXT NOT NULL,  -- e.g., "2", "2a", "10 a", "2–5" (can contain letters/ranges)
+    correct_answer TEXT NOT NULL,
+    display_order INTEGER DEFAULT 0,  -- For sorting in UI
+    FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE,
+    UNIQUE(exercise_id, question_id)
+);
+
+-- Topics/tags for categorization
+CREATE TABLE IF NOT EXISTS topics (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    parent_topic_id INTEGER,
+    FOREIGN KEY (parent_topic_id) REFERENCES topics(id)
+);
+
+-- Link units to topics (many-to-many)
+CREATE TABLE IF NOT EXISTS unit_topics (
+    unit_id INTEGER NOT NULL,
+    topic_id INTEGER NOT NULL,
+    PRIMARY KEY (unit_id, topic_id),
+    FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE,
+    FOREIGN KEY (topic_id) REFERENCES topics(id) ON DELETE CASCADE
+);
+
+-- ============================================
+-- INDEXES FOR PERFORMANCE
+-- ============================================
+
+CREATE INDEX IF NOT EXISTS idx_exercises_unit ON exercises(unit_id);
+CREATE INDEX IF NOT EXISTS idx_questions_exercise ON questions(exercise_id);
