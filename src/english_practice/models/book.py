@@ -38,7 +38,9 @@ class Exercise(BaseModel):
 class Question(BaseModel):
     """A single question within an exercise."""
 
-    question_id: str = Field(description="Question identifier (e.g., '2', '2a', '10 b')")
+    question_id: str = Field(
+        description="Question identifier (e.g., '2', '2a', '10 b')"
+    )
     correct_answer: str = Field(description="The correct answer text")
     display_order: int = Field(default=0, description="Order for display")
 

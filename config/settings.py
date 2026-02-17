@@ -2,11 +2,19 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from dotenv import load_dotenv
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _load_env() -> None:
+    """Load environment variables from .env file."""
+    env_file = BASE_DIR / ".env"
+    if env_file.exists():
+        load_dotenv(env_file, override=True)
 
 
 class PathSettings(BaseSettings):
@@ -23,11 +31,17 @@ class PathSettings(BaseSettings):
     grammar_md_dir: Path = content_dir / "grammar"
     exercises_dir: Path = content_dir / "exercises"
     metadata_dir: Path = content_dir / "metadata"
+    database_path: Path | None = None
 
     def create_directories(self) -> None:
         """Create all necessary directories."""
-        for path in self.model_dump().values():
-            path.mkdir(parents=True, exist_ok=True)
+        for name, path in self.model_dump().items():
+            if (
+                path is not None
+                and isinstance(path, Path)
+                and not path.suffix  # Skip files (paths with extensions)
+            ):
+                path.mkdir(parents=True, exist_ok=True)
 
 
 class BookSettings(BaseSettings):
@@ -55,25 +69,53 @@ class OcrSettings(BaseSettings):
     model: str = "mistral-ocr-latest"
 
 
-class LLMSettings(BaseSettings):
-    """LLM API settings."""
+class QwenSettings(BaseSettings):
+    """Qwen API settings (DashScope)."""
 
-    pass
+    model_config = SettingsConfigDict(
+        env_prefix="DASHSCOPE_",
+        case_sensitive=False,
+    )
+
+    api_key: str | None = None
+    model: str = "qwen3-vl-flash-2026-01-22"
+    base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    temperature: float = 0.7
+    max_tokens: int = 2000
+
+
+class LangSmithSettings(BaseSettings):
+    """LangSmith settings for tracing."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="LANGSMITH_",
+        case_sensitive=False,
+    )
+
+    api_key: str | None = None
+    project: str = "english-practice"
+    tracing: bool = True
 
 
 class TelegramSettings(BaseSettings):
     """Telegram bot configuration."""
 
-    pass
+    model_config = SettingsConfigDict(
+        env_prefix="TELEGRAM_",
+        case_sensitive=False,
+    )
+
+    bot_token: str | None = None
 
 
 class Settings(BaseSettings):
     """Main application settings."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=BASE_DIR / ".env",
         env_nested_delimiter="__",
         case_sensitive=False,
+        extra="ignore",
     )
 
     # Application
@@ -87,7 +129,8 @@ class Settings(BaseSettings):
     book: BookSettings = Field(default_factory=BookSettings)
     images: ImageSettings = Field(default_factory=ImageSettings)
     exercises: ExerciseSettings = Field(default_factory=ExerciseSettings)
-    llm: LLMSettings = Field(default_factory=LLMSettings)
+    qwen: QwenSettings = Field(default_factory=QwenSettings)
+    langsmith: LangSmithSettings = Field(default_factory=LangSmithSettings)
     ocr: OcrSettings = Field(default_factory=OcrSettings)
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)
 
@@ -109,4 +152,6 @@ def get_settings() -> Settings:
     return settings
 
 
+# Load env and create settings
+_load_env()
 settings = get_settings()
