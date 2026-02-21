@@ -1,7 +1,6 @@
 """Bot handlers for commands and messages."""
 
 import logging
-import re
 import random
 from pathlib import Path
 from telegram import Update
@@ -14,6 +13,7 @@ from telegram.ext import (
 )
 
 from config.settings import settings
+from src.english_practice.bot.formatter import MessageFormatter
 from src.english_practice.bot.keyboards import (
     get_exercise_keyboard,
     get_new_exercise_keyboard,
@@ -24,11 +24,6 @@ from src.english_practice.repositories.database import DatabaseRepository
 from src.english_practice.services.agent_service import AgentService
 
 logger = logging.getLogger(__name__)
-
-
-def _md_to_html(text: str) -> str:
-    """Convert markdown bold (**text**) to HTML bold (<b>text</b>)."""
-    return re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -121,15 +116,20 @@ async def send_new_exercise(
         available_questions=[q["question_id"] for q in exercise_data["questions"]],
     )
 
-    text = (
-        f"Topic: {topic_name}\n\n"
-        f"Answer question {question['question_id']} from the exercise below:"
-    )
-
     message = update.message if update.message else update.callback_query.message
 
-    await message.reply_text(text, parse_mode="HTML")
+    # Send topic message
+    await message.reply_text(
+        MessageFormatter.format_topic(topic_name), parse_mode="HTML"
+    )
 
+    # Send question prompt message
+    await message.reply_text(
+        MessageFormatter.format_question_prompt(question["question_id"]),
+        parse_mode="HTML",
+    )
+
+    # Send exercise image
     with open(image_path, "rb") as photo:
         await message.reply_photo(
             photo=photo,
@@ -184,11 +184,10 @@ async def show_unit_info(
 
     state_manager.mark_unit_shown(user_id)
 
-    text = (
-        f"📖 <b>Unit Information</b>\n\n"
-        f"🔢 Unit Number: <b>{exercise['unit_number']}</b>\n"
-        f"📌 Title: <b>{exercise['title']}</b>\n\n"
-        f"Exercise: {exercise['exercise_id']}"
+    text = MessageFormatter.format_unit_info(
+        unit_number=exercise["unit_number"],
+        title=exercise["title"],
+        exercise_id=exercise["exercise_id"],
     )
 
     await update.callback_query.message.reply_text(text, parse_mode="HTML")
@@ -250,7 +249,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 question_number=session.current_question_id,
                 user_input=user_text,
             )
-            response = f"💬 {_md_to_html(result.answer)}"
+            response = f"💬 {MessageFormatter._md_to_html(result.answer)}"
             await update.message.reply_text(response, parse_mode="HTML")
         except Exception as e:
             logger.error(f"Assistant agent error: {e}")
@@ -307,24 +306,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         state_manager.mark_answered(user_id)
 
-        if evaluation.is_correct:
-            response = (
-                f"✅ <b>Correct!</b>\n\n📖 {_md_to_html(full_answer.full_answer)}"
+        # Send evaluation message
+        eval_msg = MessageFormatter.format_evaluation(
+            evaluation.is_correct, answer_text, correct_answer
+        )
+        await update.message.reply_text(eval_msg, parse_mode="HTML")
+
+        # Send full answer message
+        full_answer_msg = MessageFormatter.format_full_answer(full_answer.full_answer)
+        await update.message.reply_text(full_answer_msg, parse_mode="HTML")
+
+        # Send rule message if available
+        if rule:
+            rule_msg = MessageFormatter.format_rule(
+                session.current_unit_number, rule.section_letter, rule.rule
             )
-            if rule:
-                rule_ref = f"{session.current_unit_number}{rule.section_letter}"
-                response += f"\n\n📋 <b>{rule_ref}:</b> {_md_to_html(rule.rule)}"
-            await update.message.reply_text(response, parse_mode="HTML")
-        else:
-            response = (
-                f"❌ <b>Not quite</b>\n\n"
-                f"✅ Correct: <b>{correct_answer}</b>\n\n"
-                f"📖 {_md_to_html(full_answer.full_answer)}"
-            )
-            if rule:
-                rule_ref = f"{session.current_unit_number}{rule.section_letter}"
-                response += f"\n\n📋 <b>{rule_ref}:</b> {_md_to_html(rule.rule)}"
-            await update.message.reply_text(response, parse_mode="HTML")
+            await update.message.reply_text(rule_msg, parse_mode="HTML")
 
     except Exception as e:
         logger.error(f"Agent error: {e}")
