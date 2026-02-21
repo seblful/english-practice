@@ -15,16 +15,14 @@ class FullAnswerOutput(BaseModel):
     """Output model for get full answer agent."""
 
     full_answer: str = Field(
-        description="Complete explanation with sentence, grammar point, and why it's correct"
+        description="Complete sentence with the correct answer included. No explanations."
     )
 
 
 class RuleOutput(BaseModel):
     """Output model for get rule agent."""
 
-    rule: str = Field(
-        description="The relevant grammar rule for this question"
-    )
+    rule: str = Field(description="The relevant grammar rule for this question")
 
 
 class AssistantOutput(BaseModel):
