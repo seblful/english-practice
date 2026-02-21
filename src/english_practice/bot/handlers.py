@@ -112,6 +112,7 @@ async def send_new_exercise(
         question_id=question["question_id"],
         question_db_id=question["id"],
         topic_id=topic_id,
+        topic_name=topic_name,
         unit_number=exercise["unit_number"],
         available_questions=[q["question_id"] for q in exercise_data["questions"]],
     )
@@ -248,6 +249,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 image_path=session.current_exercise_path,
                 question_number=session.current_question_id,
                 user_input=user_text,
+                topic_name=session.current_topic_name or "Random",
             )
             response = f"💬 {MessageFormatter._md_to_html(result.answer)}"
             await update.message.reply_text(response, parse_mode="HTML")
@@ -275,11 +277,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         agent_service = AgentService()
         repository = DatabaseRepository()
 
+        topic_name = session.current_topic_name or "Random"
+
         # Step 1: Get full answer explanation
         full_answer = agent_service.get_full_answer(
             image_path=session.current_exercise_path,
             question_number=target_question_number,
             correct_answer=correct_answer,
+            topic_name=topic_name,
         )
 
         # Step 2: Get grammar rule
@@ -293,6 +298,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 user_input=answer_text,
                 correct_answer=correct_answer,
                 full_answer=full_answer.full_answer,
+                topic_name=topic_name,
             )
 
         # Step 3: Evaluate answer using agent
@@ -302,6 +308,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             user_input=answer_text,
             correct_answer=correct_answer,
             full_answer=full_answer.full_answer,
+            topic_name=topic_name,
         )
 
         state_manager.mark_answered(user_id)
@@ -327,7 +334,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         logger.error(f"Agent error: {e}")
         await update.message.reply_text(
             "[X] Sorry, I couldn't evaluate your answer at the moment.\n\n"
-            f"✅ Correct answer is: <b>{correct_answer}</b>."
+            f"✅ Correct answer is: {correct_answer}."
         )
 
 

@@ -20,6 +20,7 @@ class EvaluateAnswerAgent(BaseAgent):
         user_input: str,
         correct_answer: str,
         full_answer: str,
+        topic_name: str,
     ) -> EvaluateAnswerOutput:
         """Evaluate if the user's answer is correct.
 
@@ -29,6 +30,7 @@ class EvaluateAnswerAgent(BaseAgent):
             user_input: The user's answer.
             correct_answer: The correct answer.
             full_answer: The full answer explanation to help evaluate.
+            topic_name: The topic name for context.
 
         Returns:
             EvaluateAnswerOutput with is_correct boolean and full_answer.
@@ -39,6 +41,7 @@ class EvaluateAnswerAgent(BaseAgent):
             user_input=user_input,
             correct_answer=correct_answer,
             full_answer=full_answer,
+            topic_name=topic_name,
         )
 
         return self.invoke_structured(

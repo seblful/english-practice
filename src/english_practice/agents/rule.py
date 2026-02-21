@@ -21,6 +21,7 @@ class GetRuleAgent(BaseAgent):
         user_input: str,
         correct_answer: str,
         full_answer: str,
+        topic_name: str,
     ) -> RuleOutput:
         """Extract the relevant grammar rule from the rules markdown.
 
@@ -31,6 +32,7 @@ class GetRuleAgent(BaseAgent):
             user_input: The user's answer.
             correct_answer: The correct answer.
             full_answer: The full answer explanation from GetFullAnswerAgent.
+            topic_name: The topic name for context.
 
         Returns:
             RuleOutput with the relevant rule.
@@ -42,6 +44,7 @@ class GetRuleAgent(BaseAgent):
             user_input=user_input,
             correct_answer=correct_answer,
             full_answer=full_answer,
+            topic_name=topic_name,
         )
 
         return self.invoke_structured(

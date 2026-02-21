@@ -36,6 +36,7 @@ class AgentService:
         user_input: str,
         correct_answer: str,
         full_answer: str,
+        topic_name: str,
     ) -> EvaluateAnswerOutput:
         """Evaluate if the user's answer is correct.
 
@@ -45,6 +46,7 @@ class AgentService:
             user_input: The user's answer.
             correct_answer: The correct answer.
             full_answer: The full answer explanation to help evaluate.
+            topic_name: The topic name for context.
 
         Returns:
             EvaluateAnswerOutput with is_correct boolean and full_answer.
@@ -55,6 +57,7 @@ class AgentService:
             user_input=user_input,
             correct_answer=correct_answer,
             full_answer=full_answer,
+            topic_name=topic_name,
         )
 
     def get_full_answer(
@@ -62,6 +65,7 @@ class AgentService:
         image_path: Path,
         question_number: str,
         correct_answer: str,
+        topic_name: str,
     ) -> FullAnswerOutput:
         """Get detailed explanation of the correct answer.
 
@@ -69,6 +73,7 @@ class AgentService:
             image_path: Path to the exercise image.
             question_number: The question number/ID.
             correct_answer: The correct answer.
+            topic_name: The topic name for context.
 
         Returns:
             FullAnswerOutput with complete explanation.
@@ -77,6 +82,7 @@ class AgentService:
             image_path=image_path,
             question_number=question_number,
             correct_answer=correct_answer,
+            topic_name=topic_name,
         )
 
     def get_rule(
@@ -87,6 +93,7 @@ class AgentService:
         user_input: str,
         correct_answer: str,
         full_answer: str,
+        topic_name: str,
     ) -> RuleOutput:
         """Extract grammar rule from rules markdown.
 
@@ -97,6 +104,7 @@ class AgentService:
             user_input: The user's answer.
             correct_answer: The correct answer.
             full_answer: The full answer explanation.
+            topic_name: The topic name for context.
 
         Returns:
             RuleOutput with the relevant rule.
@@ -108,6 +116,7 @@ class AgentService:
             user_input=user_input,
             correct_answer=correct_answer,
             full_answer=full_answer,
+            topic_name=topic_name,
         )
 
     def assist(
@@ -116,6 +125,7 @@ class AgentService:
         image_path: Path,
         question_number: str,
         user_input: str,
+        topic_name: str,
     ) -> AssistantOutput:
         """Provide conversational assistance.
 
@@ -124,6 +134,7 @@ class AgentService:
             image_path: Path to the exercise image.
             question_number: The question number/ID.
             user_input: The user's question or message.
+            topic_name: The topic name for context.
 
         Returns:
             AssistantOutput with response.
@@ -133,6 +144,7 @@ class AgentService:
             image_path=image_path,
             question_number=question_number,
             user_input=user_input,
+            topic_name=topic_name,
             chat_history_manager=self._chat_history_manager,
         )
 

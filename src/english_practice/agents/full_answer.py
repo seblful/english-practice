@@ -18,6 +18,7 @@ class GetFullAnswerAgent(BaseAgent):
         image_path: Path,
         question_number: str,
         correct_answer: str,
+        topic_name: str,
     ) -> FullAnswerOutput:
         """Generate a detailed explanation of the correct answer.
 
@@ -25,6 +26,7 @@ class GetFullAnswerAgent(BaseAgent):
             image_path: Path to the exercise image.
             question_number: The question number/ID.
             correct_answer: The correct answer.
+            topic_name: The topic name for context.
 
         Returns:
             FullAnswerOutput with complete explanation.
@@ -33,6 +35,7 @@ class GetFullAnswerAgent(BaseAgent):
             PROMPT_FULL_ANSWER,
             question_number=question_number,
             correct_answer=correct_answer,
+            topic_name=topic_name,
         )
 
         return self.invoke_structured(

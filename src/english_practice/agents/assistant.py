@@ -23,6 +23,7 @@ class AssistantAgent(BaseAgent):
         image_path: Path,
         question_number: str,
         user_input: str,
+        topic_name: str,
         chat_history_manager: "ChatHistoryManager",
     ) -> AssistantOutput:
         """Provide conversational assistance based on chat history.
@@ -32,6 +33,7 @@ class AssistantAgent(BaseAgent):
             image_path: Path to the exercise image.
             question_number: The question number/ID.
             user_input: The user's question or message.
+            topic_name: The topic name for context.
             chat_history_manager: Chat history manager instance.
 
         Returns:
@@ -45,6 +47,7 @@ class AssistantAgent(BaseAgent):
             chat_history=chat_history,
             question_number=question_number,
             user_input=user_input,
+            topic_name=topic_name,
         )
 
         result = self.invoke_structured(
