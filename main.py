@@ -1,9 +1,9 @@
 """Main entry point for Telegram English Practice Bot."""
 
+import os
 import logging
 import sys
 
-from pathlib import Path
 from telegram import Update
 from telegram.ext import Application
 
@@ -20,7 +20,6 @@ from src.english_practice.bot.handlers import (
 
 def setup_langsmith() -> None:
     """Setup LangSmith environment variables."""
-    import os
 
     if settings.langsmith.api_key:
         os.environ["LANGSMITH_API_KEY"] = settings.langsmith.api_key
@@ -75,9 +74,7 @@ def main() -> int:
     setup_langsmith()
 
     try:
-        application = Application.builder().token(
-            settings.telegram.bot_token
-        ).build()
+        application = Application.builder().token(settings.telegram.bot_token).build()
 
         application.add_handler(start_handler)
         application.add_handler(topic_handler)

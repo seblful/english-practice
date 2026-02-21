@@ -17,29 +17,6 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
-# Setup Jinja2 environment for prompts
-PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
-prompt_env = Environment(
-    loader=FileSystemLoader(PROMPTS_DIR),
-    autoescape=False,
-    trim_blocks=True,
-    lstrip_blocks=True,
-)
-
-
-def render_agent_prompt(template_name: str, **kwargs: Any) -> str:
-    """Render an agent prompt template with provided variables.
-
-    Args:
-        template_name: Name of the agent prompt template (e.g., 'agent_evaluate.j2')
-        **kwargs: Template variables
-
-    Returns:
-        Rendered template string
-    """
-    template = prompt_env.get_template(template_name)
-    return template.render(**kwargs)
-
 
 class BaseAgent:
     """Base class for all agents with structured output support."""
@@ -47,6 +24,25 @@ class BaseAgent:
     def __init__(self) -> None:
         """Initialize base agent with lazy LLM loading."""
         self._llm = None
+        self.prompt_env = Environment(
+            loader=FileSystemLoader(settings.paths.prompts_dir),
+            autoescape=False,
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
+
+    def render_agent_prompt(self, template_name: str, **kwargs: Any) -> str:
+        """Render an agent prompt template with provided variables.
+
+        Args:
+            template_name: Name of the agent prompt template (e.g., 'agent_evaluate.j2')
+            **kwargs: Template variables
+
+        Returns:
+            Rendered template string
+        """
+        template = self.prompt_env.get_template(template_name)
+        return template.render(**kwargs)
 
     @property
     def llm(self) -> ChatQwen:

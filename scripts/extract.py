@@ -56,7 +56,7 @@ def cut_pdf(
     output_path = settings.paths.snippets_dir / f"{section.value}.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     handler.cut_pdf(
-        file_path=settings.paths.books_dir / settings.book.filename,
+        file_path=settings.paths.source_dir / settings.book.filename,
         start_page=start_page,
         end_page=end_page,
         output_path=output_path,
@@ -70,7 +70,7 @@ def cut_pdf(
 def separate_page_images() -> None:
     handler = PDFHandler()
     handler.separate_page_images(
-        file_path=settings.paths.books_dir / settings.book.filename,
+        file_path=settings.paths.source_dir / settings.book.filename,
         start_page=START_UNIT_PAGE,
         end_page=END_UNIT_PAGE,
         grammar_pages_dir=settings.paths.grammar_pages_dir,

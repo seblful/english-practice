@@ -5,8 +5,9 @@ from typing import TYPE_CHECKING
 
 from langsmith import traceable
 
-from src.english_practice.agents.base import BaseAgent, render_agent_prompt
+from src.english_practice.agents.base import BaseAgent
 from src.english_practice.models.agents import AssistantOutput
+from src.english_practice.models.constants import PROMPT_ASSISTANT
 
 if TYPE_CHECKING:
     from src.english_practice.services.chat_history import ChatHistoryManager
@@ -39,8 +40,8 @@ class AssistantAgent(BaseAgent):
         # Get chat history for this user and image
         chat_history = chat_history_manager.get_history(user_id, image_path)
 
-        prompt = render_agent_prompt(
-            "agent_assistant.j2",
+        prompt = self.render_agent_prompt(
+            PROMPT_ASSISTANT,
             chat_history=chat_history,
             question_number=question_number,
             user_input=user_input,

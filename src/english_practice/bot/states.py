@@ -15,6 +15,7 @@ class UserSession:
     current_question_db_id: int | None = None
     current_topic_id: int | None = None
     unit_shown: bool = False
+    answered: bool = False
     available_questions: list[str] = field(default_factory=list)
 
     def clear_exercise(self) -> None:
@@ -24,6 +25,7 @@ class UserSession:
         self.current_question_id = None
         self.current_question_db_id = None
         self.unit_shown = False
+        self.answered = False
         self.available_questions = []
 
 
@@ -84,6 +86,7 @@ class StateManager:
         session.current_question_db_id = question_db_id
         session.current_topic_id = topic_id
         session.unit_shown = False
+        session.answered = False
         session.available_questions = available_questions
 
     def mark_unit_shown(self, user_id: int) -> None:
@@ -94,6 +97,15 @@ class StateManager:
         """
         session = self.get_session(user_id)
         session.unit_shown = True
+
+    def mark_answered(self, user_id: int) -> None:
+        """Mark question as answered for user.
+
+        Args:
+            user_id: Telegram user ID.
+        """
+        session = self.get_session(user_id)
+        session.answered = True
 
 
 state_manager = StateManager()

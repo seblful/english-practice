@@ -6,7 +6,7 @@ from langsmith import traceable
 
 from src.english_practice.agents.base import BaseAgent
 from src.english_practice.models.agents import FullAnswerOutput
-from src.english_practice.agents.base import render_agent_prompt
+from src.english_practice.models.constants import PROMPT_FULL_ANSWER
 
 
 class GetFullAnswerAgent(BaseAgent):
@@ -29,8 +29,8 @@ class GetFullAnswerAgent(BaseAgent):
         Returns:
             FullAnswerOutput with sentence and explanation.
         """
-        prompt = render_agent_prompt(
-            "agent_full_answer.j2",
+        prompt = self.render_agent_prompt(
+            PROMPT_FULL_ANSWER,
             question_number=question_number,
             right_answer=right_answer,
         )

@@ -2,7 +2,7 @@
 
 import logging
 import re
-
+import random
 from pathlib import Path
 from telegram import Update
 from telegram.ext import (
@@ -40,7 +40,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     topics = repository.get_all_topics()
 
     welcome_text = (
-        f"👋 Welcome to English Practice Bot, {user.first_name}!\n\n"
+        f"👋 Welcome to Random Murphy's English Grammar, {user.first_name}!\n\n"
         "I'll help you practice English grammar with exercises from Murphy's book.\n\n"
         "Select a topic or choose 'Random from All Topics':"
     )
@@ -101,8 +101,6 @@ async def send_new_exercise(
         await message.reply_text("[X] Exercise has no questions. Trying another...")
         await send_new_exercise(update, context, user_id, topic_id, topic_name)
         return
-
-    import random
 
     question = random.choice(exercise_data["questions"])
 
@@ -228,35 +226,8 @@ async def handle_new_exercise_selection(
         )
 
 
-def _is_help_request(text: str) -> bool:
-    """Check if the user is asking for help/assistance.
-
-    Args:
-        text: User message text.
-
-    Returns:
-        True if user is asking for help, False otherwise.
-    """
-    help_keywords = [
-        "help",
-        "explain",
-        "why",
-        "how",
-        "what",
-        "?",
-        "don't understand",
-        "dont understand",
-        "confused",
-        "can you",
-        "could you",
-        "please explain",
-    ]
-    text_lower = text.lower()
-    return any(keyword in text_lower for keyword in help_keywords)
-
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle user messages (answers to questions or help requests)."""
+    """Handle user messages (answers to questions or follow-up questions)."""
     user_id = update.effective_user.id
     session = state_manager.get_session(user_id)
 
@@ -268,8 +239,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     user_text = update.message.text.strip()
 
-    # Check if user is asking for help
-    if _is_help_request(user_text):
+    # If already answered, treat as follow-up question for assistant
+    if session.answered:
         try:
             agent_service = AgentService()
             result = agent_service.assist(
@@ -278,7 +249,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 question_number=session.current_question_id,
                 user_input=user_text,
             )
-            # Format structured assistant response with HTML conversion
             response_parts = [f"💬 {_md_to_html(result.answer)}"]
             if result.key_point:
                 response_parts.append(f"🔑 <b>Key:</b> {_md_to_html(result.key_point)}")
@@ -294,36 +264,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     # User is providing an answer
-    question_number = extract_question_number(user_text)
-    answer_text = extract_answer(user_text)
+    answer_text = user_text
 
-    if question_number:
-        repository = DatabaseRepository()
-        question = repository.get_question_by_number(
-            session.current_exercise_id,
-            question_number,
-        )
-        if question:
-            target_question_id = question["id"]
-            target_question_number = question["question_id"]
-        else:
-            await update.message.reply_text(
-                f"[X] Question {question_number} not found in this exercise. "
-                f"Available: {', '.join(session.available_questions)}"
-            )
-            return
-    else:
-        target_question_id = session.current_question_db_id
-        target_question_number = session.current_question_id
-        answer_text = user_text
-
-    if not answer_text:
-        await update.message.reply_text(
-            "[?] Please provide an answer. "
-            f"Your assigned question is: <b>{session.current_question_id}</b>",
-            parse_mode="HTML",
-        )
-        return
+    target_question_id = session.current_question_db_id
+    target_question_number = session.current_question_id
 
     # Get correct answer from database
     repository = DatabaseRepository()
@@ -341,6 +285,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             user_input=answer_text,
             right_answer=correct_answer,
         )
+
+        state_manager.mark_answered(user_id)
 
         if evaluation.is_correct:
             # Step 2: Get full answer explanation
@@ -383,57 +329,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             "[X] Sorry, I couldn't evaluate your answer at the moment. "
             f"The correct answer was: {correct_answer}"
         )
-
-    if question_number and question_number != session.current_question_id:
-        await update.message.reply_text(
-            f"\n[NOTE] Your assigned question is still: <b>{session.current_question_id}</b>",
-            parse_mode="HTML",
-        )
-
-
-def extract_question_number(text: str) -> str | None:
-    """Extract question number from text.
-
-    Args:
-        text: User message text.
-
-    Returns:
-        Question number or None.
-    """
-    patterns = [
-        r"(?:question|q)[\s:]?(\d+[a-z]?)",
-        r"(?:number|num|#)[\s:]?(\d+[a-z]?)",
-        r"^[\s]*(\d+[a-z]?)[\s]*[.:\-]?",
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            return match.group(1)
-
-    return None
-
-
-def extract_answer(text: str) -> str:
-    """Extract answer from text, removing question references.
-
-    Args:
-        text: User message text.
-
-    Returns:
-        Clean answer text.
-    """
-    patterns = [
-        r"(?:question|q)[\s:]?\d+[a-z]?[\s]*[.:\-]?\s*",
-        r"(?:number|num|#)\d+[a-z]?[\s]*[.:\-]?\s*",
-        r"^\d+[a-z]?[\s]*[.:\-]?\s*",
-    ]
-
-    answer = text
-    for pattern in patterns:
-        answer = re.sub(pattern, "", answer, flags=re.IGNORECASE)
-
-    return answer.strip()
 
 
 start_handler = CommandHandler("start", start_command)

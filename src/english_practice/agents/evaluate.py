@@ -6,7 +6,7 @@ from langsmith import traceable
 
 from src.english_practice.agents.base import BaseAgent
 from src.english_practice.models.agents import EvaluateAnswerOutput
-from src.english_practice.agents.base import render_agent_prompt
+from src.english_practice.models.constants import PROMPT_EVALUATE
 
 
 class EvaluateAnswerAgent(BaseAgent):
@@ -31,8 +31,8 @@ class EvaluateAnswerAgent(BaseAgent):
         Returns:
             EvaluateAnswerOutput with is_correct boolean.
         """
-        prompt = render_agent_prompt(
-            "agent_evaluate.j2",
+        prompt = self.render_agent_prompt(
+            PROMPT_EVALUATE,
             question_number=question_number,
             user_input=user_input,
             right_answer=right_answer,

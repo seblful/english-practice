@@ -4,7 +4,7 @@ from langsmith import traceable
 
 from src.english_practice.agents.base import BaseAgent
 from src.english_practice.models.agents import RuleOutput
-from src.english_practice.agents.base import render_agent_prompt
+from src.english_practice.models.constants import PROMPT_RULE
 
 
 class GetRuleAgent(BaseAgent):
@@ -29,8 +29,8 @@ class GetRuleAgent(BaseAgent):
         Returns:
             RuleOutput with rule and explanation.
         """
-        prompt = render_agent_prompt(
-            "agent_rule.j2",
+        prompt = self.render_agent_prompt(
+            PROMPT_RULE,
             rules_md=rules_md,
             user_input=user_input,
             right_answer=right_answer,

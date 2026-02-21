@@ -20,10 +20,12 @@ def _load_env() -> None:
 class PathSettings(BaseSettings):
     """File paths configuration."""
 
+    app_dir: Path = BASE_DIR / "src" / "english_practice"
+    prompts_dir: Path = app_dir / "prompts"
+
     data_dir: Path = BASE_DIR / "data"
     source_dir: Path = data_dir / "source"
     content_dir: Path = data_dir / "content"
-    books_dir: Path = source_dir
     snippets_dir: Path = source_dir / "snippets"
     images_dir: Path = source_dir / "images"
     grammar_pages_dir: Path = images_dir / "grammar"
@@ -54,12 +56,6 @@ class ImageSettings(BaseSettings):
     """Images settings."""
 
     pages_dpi: int = 300
-
-
-class ExerciseSettings(BaseSettings):
-    """Exercise generation settings."""
-
-    pass
 
 
 class OcrSettings(BaseSettings):
@@ -128,7 +124,6 @@ class Settings(BaseSettings):
     paths: PathSettings = Field(default_factory=PathSettings)
     book: BookSettings = Field(default_factory=BookSettings)
     images: ImageSettings = Field(default_factory=ImageSettings)
-    exercises: ExerciseSettings = Field(default_factory=ExerciseSettings)
     qwen: QwenSettings = Field(default_factory=QwenSettings)
     langsmith: LangSmithSettings = Field(default_factory=LangSmithSettings)
     ocr: OcrSettings = Field(default_factory=OcrSettings)
