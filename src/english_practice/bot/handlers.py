@@ -326,8 +326,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     except Exception as e:
         logger.error(f"Agent error: {e}")
         await update.message.reply_text(
-            "[X] Sorry, I couldn't evaluate your answer at the moment. "
-            f"The correct answer was: {correct_answer}"
+            "[X] Sorry, I couldn't evaluate your answer at the moment.\n\n"
+            f"✅ Correct answer is: <b>{correct_answer}</b>."
         )
 
 
