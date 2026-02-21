@@ -249,12 +249,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 question_number=session.current_question_id,
                 user_input=user_text,
             )
-            response_parts = [f"💬 {_md_to_html(result.answer)}"]
-            if result.key_point:
-                response_parts.append(f"🔑 <b>Key:</b> {_md_to_html(result.key_point)}")
-            if result.tip:
-                response_parts.append(f"💡 <b>Tip:</b> {_md_to_html(result.tip)}")
-            response = "\n\n".join(response_parts)
+            response = f"💬 {_md_to_html(result.answer)}"
             await update.message.reply_text(response, parse_mode="HTML")
         except Exception as e:
             logger.error(f"Assistant agent error: {e}")
@@ -278,49 +273,53 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     try:
         agent_service = AgentService()
-        # Step 1: Evaluate answer using agent
+        repository = DatabaseRepository()
+
+        # Step 1: Get full answer explanation
+        full_answer = agent_service.get_full_answer(
+            image_path=session.current_exercise_path,
+            question_number=target_question_number,
+            correct_answer=correct_answer,
+        )
+
+        # Step 2: Get grammar rule
+        rules_md = repository.get_grammar_md_for_exercise(session.current_exercise_id)
+        rule = None
+        if rules_md:
+            rule = agent_service.get_rule(
+                image_path=session.current_exercise_path,
+                question_number=target_question_number,
+                rules_md=rules_md,
+                user_input=answer_text,
+                correct_answer=correct_answer,
+                full_answer=full_answer.full_answer,
+            )
+
+        # Step 3: Evaluate answer using agent
         evaluation = agent_service.evaluate_answer(
             image_path=session.current_exercise_path,
             question_number=target_question_number,
             user_input=answer_text,
-            right_answer=correct_answer,
+            correct_answer=correct_answer,
+            full_answer=full_answer.full_answer,
         )
 
         state_manager.mark_answered(user_id)
 
         if evaluation.is_correct:
-            # Step 2: Get full answer explanation
-            full_answer = agent_service.get_full_answer(
-                image_path=session.current_exercise_path,
-                question_number=target_question_number,
-                right_answer=correct_answer,
-            )
-
-            # Format response for correct answer with HTML conversion
-            response = (
-                f"✅ <b>Correct!</b>\n\n"
-                f"📖 {_md_to_html(full_answer.sentence)}\n\n"
-                f"🔑 <b>Key:</b> {_md_to_html(full_answer.key_point)}\n"
-                f"💡 {_md_to_html(full_answer.why)}"
-            )
+            response = f"✅ <b>Correct!</b>\n\n📖 {_md_to_html(full_answer.full_answer)}"
+            if rule:
+                response += f"\n\n📋 <b>Rule:</b> {_md_to_html(rule.rule)}"
             await update.message.reply_text(response, parse_mode="HTML")
         else:
-            # Step 2: Get full answer explanation for incorrect answer
-            full_answer = agent_service.get_full_answer(
-                image_path=session.current_exercise_path,
-                question_number=target_question_number,
-                right_answer=correct_answer,
-            )
-
-            # Format response for incorrect answer with HTML conversion
             response = (
                 f"❌ <b>Not quite</b>\n\n"
                 f"📝 Your answer: <i>{answer_text}</i>\n"
                 f"✅ Correct: <b>{correct_answer}</b>\n\n"
-                f"📖 {_md_to_html(full_answer.sentence)}\n\n"
-                f"🔑 <b>Key:</b> {_md_to_html(full_answer.key_point)}\n"
-                f"💡 {_md_to_html(full_answer.why)}"
+                f"📖 {_md_to_html(full_answer.full_answer)}"
             )
+            if rule:
+                response += f"\n\n📋 <b>Rule:</b> {_md_to_html(rule.rule)}"
             await update.message.reply_text(response, parse_mode="HTML")
 
     except Exception as e:

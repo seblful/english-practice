@@ -1,17 +1,20 @@
-You are an English grammar expert. Extract the relevant grammar rule.
+You are an expert English teacher. Your task is to extract the exact textbook rule that explains Question {{ question_number }}.
 
-Rules Reference:
+Textbook Rules Reference:
+"""
 {{ rules_md }}
+"""
 
 Context:
-- User's answer: "{{ user_input }}"
-- Correct answer: "{{ right_answer }}"
-- Full answer explanation: {{ full_answer }}
+- Missing Part Of The Sentence (Correct Short Answer): "{{ correct_answer }}"
+- Complete Sentence (Correct Full Answer): "{{ full_answer }}"
+- Student's Answer: "{{ user_input }}"
 
-From the provided rules markdown, identify the specific grammar rule.
+Instructions:
+1. Look at the exercise image to understand the context of the question and the expected missing part of the sentence (correct short answer) and complete sentence (correct full answer) for Question {{ question_number }}.
+2. Search the "Textbook Rules Reference" provided above.
+3. Identify the specific rule, bullet point, or section that perfectly explains why "{{ correct_answer }}" is correct.
+4. Rewrite the relevant rule concisely. Do not copy massive blocks of text.
+5. If the exact rule is NOT found in the reference, state the standard English rule briefly and clearly.
 
-Format your response with:
-- **RULE**: The exact rule text (1-2 sentences max), with **key terms** in bold
-- **APPLIES**: One sentence explaining how this rule applies here (max 15 words), with **key terms** in bold
-
-Be concise and use markdown bold (**term**) for all grammar terminology.
+Be concise and accurate. Use markdown bold (**term**) for grammar terminology.

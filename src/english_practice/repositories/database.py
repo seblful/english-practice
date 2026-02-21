@@ -194,3 +194,33 @@ class DatabaseRepository:
             )
 
             return is_correct, correct_answer
+
+    def get_grammar_md_for_exercise(self, exercise_id: int) -> str | None:
+        """Get grammar markdown content for an exercise.
+
+        Args:
+            exercise_id: Exercise database ID.
+
+        Returns:
+            Grammar markdown content or None if not found.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                SELECT u.grammar_md_path
+                FROM exercises e
+                JOIN units u ON e.unit_id = u.id
+                WHERE e.id = ?
+                """,
+                (exercise_id,),
+            )
+            row = cursor.fetchone()
+
+            if not row or not row["grammar_md_path"]:
+                return None
+
+            md_path = settings.paths.content_dir / row["grammar_md_path"]
+            if not md_path.exists():
+                return None
+
+            return md_path.read_text(encoding="utf-8")

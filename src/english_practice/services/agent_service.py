@@ -34,7 +34,8 @@ class AgentService:
         image_path: Path,
         question_number: str,
         user_input: str,
-        right_answer: str,
+        correct_answer: str,
+        full_answer: str,
     ) -> EvaluateAnswerOutput:
         """Evaluate if the user's answer is correct.
 
@@ -42,62 +43,70 @@ class AgentService:
             image_path: Path to the exercise image.
             question_number: The question number/ID.
             user_input: The user's answer.
-            right_answer: The correct answer.
+            correct_answer: The correct answer.
+            full_answer: The full answer explanation to help evaluate.
 
         Returns:
-            EvaluateAnswerOutput with is_correct boolean.
+            EvaluateAnswerOutput with is_correct boolean and full_answer.
         """
         return self._evaluate_agent.evaluate(
             image_path=image_path,
             question_number=question_number,
             user_input=user_input,
-            right_answer=right_answer,
+            correct_answer=correct_answer,
+            full_answer=full_answer,
         )
 
     def get_full_answer(
         self,
         image_path: Path,
         question_number: str,
-        right_answer: str,
+        correct_answer: str,
     ) -> FullAnswerOutput:
         """Get detailed explanation of the correct answer.
 
         Args:
             image_path: Path to the exercise image.
             question_number: The question number/ID.
-            right_answer: The correct answer.
+            correct_answer: The correct answer.
 
         Returns:
-            FullAnswerOutput with sentence and explanation.
+            FullAnswerOutput with complete explanation.
         """
         return self._full_answer_agent.get_full_answer(
             image_path=image_path,
             question_number=question_number,
-            right_answer=right_answer,
+            correct_answer=correct_answer,
         )
 
     def get_rule(
         self,
+        image_path: Path,
+        question_number: str,
         rules_md: str,
         user_input: str,
-        right_answer: str,
+        correct_answer: str,
         full_answer: str,
     ) -> RuleOutput:
         """Extract grammar rule from rules markdown.
 
         Args:
+            image_path: Path to the exercise image.
+            question_number: The question number/ID.
             rules_md: The full rules markdown content.
             user_input: The user's answer.
-            right_answer: The correct answer.
+            correct_answer: The correct answer.
             full_answer: The full answer explanation.
 
         Returns:
-            RuleOutput with rule and explanation.
+            RuleOutput with the relevant rule.
         """
         return self._rule_agent.get_rule(
+            image_path=image_path,
+            question_number=question_number,
             rules_md=rules_md,
             user_input=user_input,
-            right_answer=right_answer,
+            correct_answer=correct_answer,
             full_answer=full_answer,
         )
 

@@ -60,18 +60,11 @@ class AssistantAgent(BaseAgent):
             role="user",
             content=user_input,
         )
-        # Combine structured response for history
-        response_parts = [result.answer]
-        if result.key_point:
-            response_parts.append(f"Key: {result.key_point}")
-        if result.tip:
-            response_parts.append(f"Tip: {result.tip}")
-        response_text = " ".join(response_parts)
         chat_history_manager.add_message(
             user_id=user_id,
             image_path=image_path,
             role="assistant",
-            content=response_text,
+            content=result.answer,
         )
 
         return result

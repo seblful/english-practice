@@ -18,7 +18,8 @@ class EvaluateAnswerAgent(BaseAgent):
         image_path: Path,
         question_number: str,
         user_input: str,
-        right_answer: str,
+        correct_answer: str,
+        full_answer: str,
     ) -> EvaluateAnswerOutput:
         """Evaluate if the user's answer is correct.
 
@@ -26,16 +27,18 @@ class EvaluateAnswerAgent(BaseAgent):
             image_path: Path to the exercise image.
             question_number: The question number/ID.
             user_input: The user's answer.
-            right_answer: The correct answer.
+            correct_answer: The correct answer.
+            full_answer: The full answer explanation to help evaluate.
 
         Returns:
-            EvaluateAnswerOutput with is_correct boolean.
+            EvaluateAnswerOutput with is_correct boolean and full_answer.
         """
         prompt = self.render_agent_prompt(
             PROMPT_EVALUATE,
             question_number=question_number,
             user_input=user_input,
-            right_answer=right_answer,
+            correct_answer=correct_answer,
+            full_answer=full_answer,
         )
 
         return self.invoke_structured(
