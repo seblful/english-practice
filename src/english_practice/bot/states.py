@@ -14,6 +14,7 @@ class UserSession:
     current_question_id: str | None = None
     current_question_db_id: int | None = None
     current_topic_id: int | None = None
+    current_unit_number: int | None = None
     unit_shown: bool = False
     answered: bool = False
     available_questions: list[str] = field(default_factory=list)
@@ -24,6 +25,7 @@ class UserSession:
         self.current_exercise_path = None
         self.current_question_id = None
         self.current_question_db_id = None
+        self.current_unit_number = None
         self.unit_shown = False
         self.answered = False
         self.available_questions = []
@@ -66,6 +68,7 @@ class StateManager:
         question_id: str,
         question_db_id: int,
         topic_id: int | None,
+        unit_number: int,
         available_questions: list[str],
     ) -> None:
         """Set current exercise for user.
@@ -77,6 +80,7 @@ class StateManager:
             question_id: Current question number.
             question_db_id: Question database ID.
             topic_id: Current topic ID (None for random).
+            unit_number: Current unit number.
             available_questions: List of available question numbers.
         """
         session = self.get_session(user_id)
@@ -85,6 +89,7 @@ class StateManager:
         session.current_question_id = question_id
         session.current_question_db_id = question_db_id
         session.current_topic_id = topic_id
+        session.current_unit_number = unit_number
         session.unit_shown = False
         session.answered = False
         session.available_questions = available_questions

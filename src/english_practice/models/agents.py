@@ -22,6 +22,9 @@ class FullAnswerOutput(BaseModel):
 class RuleOutput(BaseModel):
     """Output model for get rule agent."""
 
+    section_letter: str = Field(
+        description="The main section letter (A, B, C, etc.) where the rule is found"
+    )
     rule: str = Field(description="The relevant grammar rule for this question")
 
 

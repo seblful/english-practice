@@ -117,6 +117,7 @@ async def send_new_exercise(
         question_id=question["question_id"],
         question_db_id=question["id"],
         topic_id=topic_id,
+        unit_number=exercise["unit_number"],
         available_questions=[q["question_id"] for q in exercise_data["questions"]],
     )
 
@@ -307,19 +308,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         state_manager.mark_answered(user_id)
 
         if evaluation.is_correct:
-            response = f"✅ <b>Correct!</b>\n\n📖 {_md_to_html(full_answer.full_answer)}"
+            response = (
+                f"✅ <b>Correct!</b>\n\n📖 {_md_to_html(full_answer.full_answer)}"
+            )
             if rule:
-                response += f"\n\n📋 <b>Rule:</b> {_md_to_html(rule.rule)}"
+                rule_ref = f"{session.current_unit_number}{rule.section_letter}"
+                response += f"\n\n📋 <b>{rule_ref}:</b> {_md_to_html(rule.rule)}"
             await update.message.reply_text(response, parse_mode="HTML")
         else:
             response = (
                 f"❌ <b>Not quite</b>\n\n"
-                f"📝 Your answer: <i>{answer_text}</i>\n"
                 f"✅ Correct: <b>{correct_answer}</b>\n\n"
                 f"📖 {_md_to_html(full_answer.full_answer)}"
             )
             if rule:
-                response += f"\n\n📋 <b>Rule:</b> {_md_to_html(rule.rule)}"
+                rule_ref = f"{session.current_unit_number}{rule.section_letter}"
+                response += f"\n\n📋 <b>{rule_ref}:</b> {_md_to_html(rule.rule)}"
             await update.message.reply_text(response, parse_mode="HTML")
 
     except Exception as e:

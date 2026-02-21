@@ -16,7 +16,7 @@ You are an expert English grammar teacher. Your task is to extract the exact tex
 <Instructions>
 1. Look at the exercise image to understand the context of Question {{ question_number }}.
 2. Search the <TextbookRulesReference> provided above.
-3. Identify the specific rule, bullet point, or section that perfectly explains why the expected answer is correct.
+3. Identify the specific section (A, B, C, D, etc.) and the rule within it that explains why the expected answer is correct.
 4. Rewrite the relevant rule concisely. Do not copy massive blocks of text.
 5. If the exact rule is NOT found in the reference, state the standard English grammar rule briefly and clearly.
 </Instructions>
@@ -24,11 +24,13 @@ You are an expert English grammar teacher. Your task is to extract the exact tex
 <Constraints>
 - Be highly concise and accurate.
 - Use markdown bold (**term**) for grammar terminology.
+- The section_letter should be the main section letter (A, B, C, etc.) where the rule is found.
 </Constraints>
 
 <OutputFormat>
 Respond ONLY with a valid JSON object matching the schema below. Do not include markdown code blocks (e.g., ```json).
 {
+  "section_letter": "The main section letter (A, B, C, etc.) where the rule is found.",
   "rule": "The concisely rewritten relevant grammar rule for this question."
 }
 </OutputFormat>
