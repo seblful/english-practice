@@ -1,6 +1,34 @@
 """Message formatter for bot responses."""
 
+import random
 import re
+
+
+CORRECT_PHRASES = [
+    "✅ <b>Correct!</b>",
+    "✅ <b>Well done!</b>",
+    "✅ <b>Perfect!</b>",
+    "✅ <b>Great job!</b>",
+    "✅ <b>You nailed it!</b>",
+    "✅ <b>Excellent!</b>",
+    "✅ <b>Spot on!</b>",
+    "✅ <b>Brilliant!</b>",
+    "✅ <b>Bullseye!</b>",
+    "✅ <b>Awesome!</b>",
+]
+
+WRONG_PHRASES = [
+    "❌ <b>Not quite</b>",
+    "❌ <b>Almost there</b>",
+    "❌ <b>Close, but not quite</b>",
+    "❌ <b>Needs a little work</b>",
+    "❌ <b>Keep practicing!</b>",
+    "❌ <b>Don't give up!</b>",
+    "❌ <b>Learning opportunity!</b>",
+    "❌ <b>Take another look</b>",
+    "❌ <b>Good try!</b>",
+    "❌ <b>You'll get it next time!</b>",
+]
 
 
 class MessageFormatter:
@@ -50,8 +78,9 @@ class MessageFormatter:
             Formatted evaluation message.
         """
         if is_correct:
-            return "✅ <b>Correct!</b>"
-        return f"❌ <b>Not quite</b>\n\n✅ Correct: <b>{correct_answer}</b>"
+            return random.choice(CORRECT_PHRASES)
+        phrase = random.choice(WRONG_PHRASES)
+        return f"{phrase}\n\n✅ Correct: <b>{correct_answer}</b>"
 
     @staticmethod
     def format_full_answer(full_answer: str) -> str:
