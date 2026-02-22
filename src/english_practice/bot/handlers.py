@@ -289,58 +289,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         repository = DatabaseRepository()
 
         topic_name = session.current_topic_name or "Random"
-
-        # Step 1: Get full answer explanation
-        full_answer = await agent_service.get_full_answer(
-            image_path=session.current_exercise_path,
-            question_number=target_question_number,
-            correct_answer=correct_answer,
-            topic_name=topic_name,
+        rules_md = repository.get_grammar_md_for_exercise(
+            session.current_exercise_id
         )
 
-        # Step 2: Get grammar rule (only if enabled)
-        rule = None
-        if session.show_rule:
-            rules_md = repository.get_grammar_md_for_exercise(
-                session.current_exercise_id
-            )
-            if rules_md:
-                rule = await agent_service.get_rule(
-                    image_path=session.current_exercise_path,
-                    question_number=target_question_number,
-                    rules_md=rules_md,
-                    user_input=answer_text,
-                    correct_answer=correct_answer,
-                    full_answer=full_answer.full_answer,
-                    topic_name=topic_name,
-                )
-
-        # Step 3: Evaluate answer using agent
-        evaluation = await agent_service.evaluate_answer(
+        result = await agent_service.process_answer(
             image_path=session.current_exercise_path,
             question_number=target_question_number,
             user_input=answer_text,
             correct_answer=correct_answer,
-            full_answer=full_answer.full_answer,
             topic_name=topic_name,
+            rules_md=rules_md or "",
         )
 
         state_manager.mark_answered(user_id)
 
-        # Send evaluation message
         eval_msg = MessageFormatter.format_evaluation(
-            evaluation.is_correct, answer_text, correct_answer
+            result.is_correct, answer_text, correct_answer
         )
         await update.message.reply_text(eval_msg, parse_mode="HTML")
 
-        # Send full answer message
-        full_answer_msg = MessageFormatter.format_full_answer(full_answer.full_answer)
+        full_answer_msg = MessageFormatter.format_full_answer(result.full_answer)
         await update.message.reply_text(full_answer_msg, parse_mode="HTML")
 
-        # Send rule message if available and enabled
-        if rule and session.show_rule:
+        if session.show_rule:
             rule_msg = MessageFormatter.format_rule(
-                session.current_unit_number, rule.section_letter, rule.rule
+                session.current_unit_number, result.section_letter, result.rule
             )
             await update.message.reply_text(rule_msg, parse_mode="HTML")
 
