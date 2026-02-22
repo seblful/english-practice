@@ -17,7 +17,7 @@ class AssistantAgent(BaseAgent):
     """Agent for conversational assistance with chat history."""
 
     @traceable(name="assistant")
-    def assist(
+    async def assist(
         self,
         user_id: int,
         image_path: Path,
@@ -50,7 +50,7 @@ class AssistantAgent(BaseAgent):
             topic_name=topic_name,
         )
 
-        result = self.invoke_structured(
+        result = await self.invoke_structured(
             prompt=prompt,
             output_model=AssistantOutput,
             image_path=image_path,

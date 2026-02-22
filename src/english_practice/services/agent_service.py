@@ -29,7 +29,7 @@ class AgentService:
         self._assistant_agent = AssistantAgent()
         self._chat_history_manager = ChatHistoryManager()
 
-    def evaluate_answer(
+    async def evaluate_answer(
         self,
         image_path: Path,
         question_number: str,
@@ -51,7 +51,7 @@ class AgentService:
         Returns:
             EvaluateAnswerOutput with is_correct boolean and full_answer.
         """
-        return self._evaluate_agent.evaluate(
+        return await self._evaluate_agent.evaluate(
             image_path=image_path,
             question_number=question_number,
             user_input=user_input,
@@ -60,7 +60,7 @@ class AgentService:
             topic_name=topic_name,
         )
 
-    def get_full_answer(
+    async def get_full_answer(
         self,
         image_path: Path,
         question_number: str,
@@ -78,14 +78,14 @@ class AgentService:
         Returns:
             FullAnswerOutput with complete explanation.
         """
-        return self._full_answer_agent.get_full_answer(
+        return await self._full_answer_agent.get_full_answer(
             image_path=image_path,
             question_number=question_number,
             correct_answer=correct_answer,
             topic_name=topic_name,
         )
 
-    def get_rule(
+    async def get_rule(
         self,
         image_path: Path,
         question_number: str,
@@ -109,7 +109,7 @@ class AgentService:
         Returns:
             RuleOutput with the relevant rule.
         """
-        return self._rule_agent.get_rule(
+        return await self._rule_agent.get_rule(
             image_path=image_path,
             question_number=question_number,
             rules_md=rules_md,
@@ -119,7 +119,7 @@ class AgentService:
             topic_name=topic_name,
         )
 
-    def assist(
+    async def assist(
         self,
         user_id: int,
         image_path: Path,
@@ -139,7 +139,7 @@ class AgentService:
         Returns:
             AssistantOutput with response.
         """
-        return self._assistant_agent.assist(
+        return await self._assistant_agent.assist(
             user_id=user_id,
             image_path=image_path,
             question_number=question_number,

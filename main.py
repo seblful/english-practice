@@ -91,6 +91,7 @@ def main() -> int:
             Application.builder()
             .token(settings.telegram.bot_token)
             .post_init(post_init)
+            .concurrent_updates(True)
             .build()
         )
 

@@ -13,7 +13,7 @@ class GetRuleAgent(BaseAgent):
     """Agent for extracting grammar rules from rules markdown."""
 
     @traceable(name="get_rule")
-    def get_rule(
+    async def get_rule(
         self,
         image_path: Path,
         question_number: str,
@@ -47,7 +47,7 @@ class GetRuleAgent(BaseAgent):
             topic_name=topic_name,
         )
 
-        return self.invoke_structured(
+        return await self.invoke_structured(
             prompt=prompt,
             output_model=RuleOutput,
             image_path=image_path,

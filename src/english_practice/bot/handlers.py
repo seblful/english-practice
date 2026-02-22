@@ -255,7 +255,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if session.answered:
         try:
             agent_service = AgentService()
-            result = agent_service.assist(
+            result = await agent_service.assist(
                 user_id=user_id,
                 image_path=session.current_exercise_path,
                 question_number=session.current_question_id,
@@ -291,7 +291,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         topic_name = session.current_topic_name or "Random"
 
         # Step 1: Get full answer explanation
-        full_answer = agent_service.get_full_answer(
+        full_answer = await agent_service.get_full_answer(
             image_path=session.current_exercise_path,
             question_number=target_question_number,
             correct_answer=correct_answer,
@@ -305,7 +305,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 session.current_exercise_id
             )
             if rules_md:
-                rule = agent_service.get_rule(
+                rule = await agent_service.get_rule(
                     image_path=session.current_exercise_path,
                     question_number=target_question_number,
                     rules_md=rules_md,
@@ -316,7 +316,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 )
 
         # Step 3: Evaluate answer using agent
-        evaluation = agent_service.evaluate_answer(
+        evaluation = await agent_service.evaluate_answer(
             image_path=session.current_exercise_path,
             question_number=target_question_number,
             user_input=answer_text,

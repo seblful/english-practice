@@ -13,7 +13,7 @@ class GetFullAnswerAgent(BaseAgent):
     """Agent for generating detailed answer explanations."""
 
     @traceable(name="get_full_answer")
-    def get_full_answer(
+    async def get_full_answer(
         self,
         image_path: Path,
         question_number: str,
@@ -38,7 +38,7 @@ class GetFullAnswerAgent(BaseAgent):
             topic_name=topic_name,
         )
 
-        return self.invoke_structured(
+        return await self.invoke_structured(
             prompt=prompt,
             output_model=FullAnswerOutput,
             image_path=image_path,

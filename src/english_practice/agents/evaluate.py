@@ -13,7 +13,7 @@ class EvaluateAnswerAgent(BaseAgent):
     """Agent for evaluating if a user's answer is correct."""
 
     @traceable(name="evaluate_answer")
-    def evaluate(
+    async def evaluate(
         self,
         image_path: Path,
         question_number: str,
@@ -44,7 +44,7 @@ class EvaluateAnswerAgent(BaseAgent):
             topic_name=topic_name,
         )
 
-        return self.invoke_structured(
+        return await self.invoke_structured(
             prompt=prompt,
             output_model=EvaluateAnswerOutput,
             image_path=image_path,

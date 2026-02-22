@@ -1,5 +1,6 @@
 """Base agent class with structured output support."""
 
+import asyncio
 import base64
 import logging
 from pathlib import Path
@@ -61,7 +62,7 @@ class BaseAgent:
             )
         return self._llm
 
-    def _encode_image(self, image_path: Path) -> str:
+    async def _encode_image(self, image_path: Path) -> str:
         """Encode image to base64.
 
         Args:
@@ -70,10 +71,14 @@ class BaseAgent:
         Returns:
             Base64 encoded image string.
         """
+        return await asyncio.to_thread(self._encode_image_sync, image_path)
+
+    def _encode_image_sync(self, image_path: Path) -> str:
+        """Synchronous helper to encode image to base64."""
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode("utf-8")
 
-    def _create_message(
+    async def _create_message(
         self,
         prompt: str,
         image_path: Path | None = None,
@@ -92,7 +97,7 @@ class BaseAgent:
         ]
 
         if image_path and image_path.exists():
-            base64_image = self._encode_image(image_path)
+            base64_image = await self._encode_image(image_path)
             content.append(
                 {
                     "type": "image_url",
@@ -103,7 +108,7 @@ class BaseAgent:
         return HumanMessage(content=content)
 
     @traceable
-    def invoke_structured(
+    async def invoke_structured(
         self,
         prompt: str,
         output_model: type[T],
@@ -119,13 +124,13 @@ class BaseAgent:
         Returns:
             Parsed structured output matching the model.
         """
-        message = self._create_message(prompt, image_path)
+        message = await self._create_message(prompt, image_path)
 
         # Create structured LLM
         structured_llm = self.llm.with_structured_output(output_model)
 
         try:
-            result = structured_llm.invoke([message])
+            result = await structured_llm.ainvoke([message])
             return result
         except Exception as e:
             logger.error(f"Error invoking structured output: {e}")
