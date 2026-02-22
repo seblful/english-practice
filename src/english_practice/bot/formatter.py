@@ -36,8 +36,10 @@ class MessageFormatter:
 
     @staticmethod
     def _md_to_html(text: str) -> str:
-        """Convert markdown bold (**text**) to HTML bold (<b>text</b>)."""
-        return re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
+        """Convert markdown bold (**text**) and italic (*text*) to HTML."""
+        text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
+        text = re.sub(r"\*(.*?)\*", r"<i>\1</i>", text)
+        return text
 
     @staticmethod
     def format_topic(topic_name: str) -> str:
