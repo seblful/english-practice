@@ -7,12 +7,13 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from jinja2 import Environment, FileSystemLoader
-from langchain_qwq import ChatQwen
 from langchain_core.messages import HumanMessage
+from langchain_core.language_models.chat_models import BaseChatModel
 from langsmith import traceable
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel
 
 from config.settings import settings
+from src.english_practice.llm import get_llm
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class BaseAgent:
 
     def __init__(self) -> None:
         """Initialize base agent with lazy LLM loading."""
-        self._llm = None
+        self._llm: BaseChatModel | None = None
         self.prompt_env = Environment(
             loader=FileSystemLoader(settings.paths.prompts_dir),
             autoescape=False,
@@ -46,20 +47,10 @@ class BaseAgent:
         return template.render(**kwargs)
 
     @property
-    def llm(self) -> ChatQwen:
-        """Lazy load LLM client."""
+    def llm(self) -> BaseChatModel:
+        """Lazy load LLM client based on configured provider."""
         if self._llm is None:
-            if not settings.qwen.api_key:
-                raise ValueError(
-                    "DASHSCOPE_API_KEY not set. Please add it to your .env file."
-                )
-            self._llm = ChatQwen(
-                model=settings.qwen.model,
-                api_key=SecretStr(settings.qwen.api_key),
-                base_url=settings.qwen.base_url,
-                temperature=settings.qwen.temperature,
-                max_tokens=settings.qwen.max_tokens,
-            )
+            self._llm = get_llm()
         return self._llm
 
     async def _encode_image(self, image_path: Path) -> str:

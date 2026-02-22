@@ -77,7 +77,48 @@ class QwenSettings(BaseSettings):
     model: str = "qwen3-vl-flash-2026-01-22"
     base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     temperature: float = 0.7
-    max_tokens: int = 2000
+    max_tokens: int = 2048
+
+
+class LocalSettings(BaseSettings):
+    """Local/OpenAI-compatible API settings (llama.cpp, vLLM, Ministral, etc.)."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="LOCAL_",
+        case_sensitive=False,
+    )
+
+    model: str = "local-model"
+    base_url: str = "http://localhost:8080/v1"
+    api_key: str = "EMPTY"
+    connection_timeout: int = 10
+    read_timeout: int = 120
+    max_retries: int = 3
+    temperature: float = 0.15
+    min_p: float = 0.05
+    top_p: float = 0.95
+    top_k: int = 40
+    max_tokens: int = 2048
+
+
+class GeminiSettings(BaseSettings):
+    """Gemini API settings."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="GEMINI_",
+        case_sensitive=False,
+    )
+
+    model: str = "gemini-2.5-flash-lite"
+    api_key: str | None = None
+    connection_timeout: int = 10
+    read_timeout: int = 120
+    max_retries: int = 3
+    proxy: str | None = None
+    temperature: float = 0.7
+    max_tokens: int = 2048
+    top_p: float = 0.95
+    top_k: int = 64
 
 
 class LangSmithSettings(BaseSettings):
@@ -120,11 +161,16 @@ class Settings(BaseSettings):
     environment: Literal["development", "staging", "production"] = "development"
     debug: bool = False
 
+    # LLM Provider
+    llm_provider: Literal["qwen", "gemini", "local"] = "qwen"
+
     # Nested configs
     paths: PathSettings = Field(default_factory=PathSettings)
     book: BookSettings = Field(default_factory=BookSettings)
     images: ImageSettings = Field(default_factory=ImageSettings)
     qwen: QwenSettings = Field(default_factory=QwenSettings)
+    local: LocalSettings = Field(default_factory=LocalSettings)
+    gemini: GeminiSettings = Field(default_factory=GeminiSettings)
     langsmith: LangSmithSettings = Field(default_factory=LangSmithSettings)
     ocr: OcrSettings = Field(default_factory=OcrSettings)
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)
