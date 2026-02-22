@@ -4,15 +4,15 @@ import os
 import logging
 import sys
 
-from telegram import Update
+from telegram import MenuButtonCommands, Update
 from telegram.ext import Application
 
 from config.logging import setup_logging
 from config.settings import settings
 from src.english_practice.bot.handlers import (
     exercise_action_handler,
+    menu_handler,
     message_handler,
-    new_exercise_handler,
     start_handler,
     topic_handler,
 )
@@ -57,6 +57,14 @@ def validate_settings() -> bool:
     return True
 
 
+async def post_init(application: Application) -> None:
+    """Set up bot commands menu after initialization."""
+    await application.bot.set_my_commands(
+        [("start", "Start the bot"), ("menu", "Get new exercise")]
+    )
+    await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+
+
 def main() -> int:
     """Run the Telegram bot.
 
@@ -74,12 +82,17 @@ def main() -> int:
     setup_langsmith()
 
     try:
-        application = Application.builder().token(settings.telegram.bot_token).build()
+        application = (
+            Application.builder()
+            .token(settings.telegram.bot_token)
+            .post_init(post_init)
+            .build()
+        )
 
         application.add_handler(start_handler)
+        application.add_handler(menu_handler)
         application.add_handler(topic_handler)
         application.add_handler(exercise_action_handler)
-        application.add_handler(new_exercise_handler)
         application.add_handler(message_handler)
 
         logger.info("Bot started successfully!")

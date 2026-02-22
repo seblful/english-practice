@@ -14,14 +14,6 @@ def get_topic_keyboard(topics: list[dict]) -> InlineKeyboardMarkup:
     """
     keyboard = []
 
-    keyboard.append(
-        [
-            InlineKeyboardButton(
-                "🎲 Random from All Topics", callback_data="topic:random"
-            )
-        ]
-    )
-
     for topic in topics:
         keyboard.append(
             [InlineKeyboardButton(topic["name"], callback_data=f"topic:{topic['id']}")]
@@ -37,29 +29,26 @@ def get_exercise_keyboard() -> InlineKeyboardMarkup:
         Inline keyboard markup.
     """
     keyboard = [
-        [
-            InlineKeyboardButton("📖 Show Unit", callback_data="action:show_unit"),
-            InlineKeyboardButton(
-                "🔄 New Exercise", callback_data="action:new_exercise"
-            ),
-        ]
+        [InlineKeyboardButton("📖 Show Unit", callback_data="action:show_unit")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 
-def get_new_exercise_keyboard() -> InlineKeyboardMarkup:
-    """Create keyboard for new exercise options.
+def get_start_menu_keyboard(has_previous_topic: bool) -> InlineKeyboardMarkup:
+    """Create start menu keyboard with exercise options.
+
+    Args:
+        has_previous_topic: Whether user has a previous topic to continue.
 
     Returns:
         Inline keyboard markup.
     """
     keyboard = [
-        [
-            InlineKeyboardButton("🎲 Random", callback_data="new:random"),
-            InlineKeyboardButton("📚 Same Topic", callback_data="new:same"),
-        ],
-        [
-            InlineKeyboardButton("🏠 Change Topic", callback_data="new:change"),
-        ],
+        [InlineKeyboardButton("🎲 Random", callback_data="topic:random")],
+        [InlineKeyboardButton("📚 New Topic", callback_data="topic:new_topic")],
     ]
+    if has_previous_topic:
+        keyboard.append(
+            [InlineKeyboardButton("🔄 Same Topic", callback_data="topic:same")]
+        )
     return InlineKeyboardMarkup(keyboard)

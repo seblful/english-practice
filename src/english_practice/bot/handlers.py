@@ -16,7 +16,7 @@ from config.settings import settings
 from src.english_practice.bot.formatter import MessageFormatter
 from src.english_practice.bot.keyboards import (
     get_exercise_keyboard,
-    get_new_exercise_keyboard,
+    get_start_menu_keyboard,
     get_topic_keyboard,
 )
 from src.english_practice.bot.states import state_manager
@@ -31,18 +31,30 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user = update.effective_user
     logger.info(f"User {user.id} ({user.username}) started the bot")
 
-    repository = DatabaseRepository()
-    topics = repository.get_all_topics()
+    session = state_manager.get_session(user.id)
+    has_previous_topic = session.current_topic_id is not None
 
     welcome_text = (
         f"👋 Welcome to Random Murphy's English Grammar, {user.first_name}!\n\n"
         "I'll help you practice English grammar with exercises from Murphy's book.\n\n"
-        "Select a topic or choose 'Random from All Topics':"
+        "Choose an option:"
     )
 
     await update.message.reply_text(
         welcome_text,
-        reply_markup=get_topic_keyboard(topics),
+        reply_markup=get_start_menu_keyboard(has_previous_topic),
+    )
+
+
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /menu command."""
+    user = update.effective_user
+    session = state_manager.get_session(user.id)
+    has_previous_topic = session.current_topic_id is not None
+
+    await update.message.reply_text(
+        "Choose an option:",
+        reply_markup=get_start_menu_keyboard(has_previous_topic),
     )
 
 
@@ -58,6 +70,27 @@ async def handle_topic_selection(
     callback_data = query.data
 
     _, topic_id = callback_data.split(":")
+
+    if topic_id == "new_topic":
+        repository = DatabaseRepository()
+        topics = repository.get_all_topics()
+        await query.message.reply_text(
+            "Select a topic:",
+            reply_markup=get_topic_keyboard(topics),
+        )
+        return
+
+    if topic_id == "same":
+        session = state_manager.get_session(user_id)
+        topic_id = session.current_topic_id
+        if topic_id:
+            repository = DatabaseRepository()
+            topic = repository.get_topic_by_id(topic_id)
+            topic_name = topic["name"] if topic else "Same Topic"
+        else:
+            topic_name = "Random"
+        await send_new_exercise(update, context, user_id, topic_id, topic_name)
+        return
 
     repository = DatabaseRepository()
     if topic_id == "random":
@@ -159,11 +192,6 @@ async def handle_exercise_action(
 
     if action == "show_unit":
         await show_unit_info(update, context, user_id)
-    elif action == "new_exercise":
-        await query.message.reply_text(
-            "Choose exercise type:",
-            reply_markup=get_new_exercise_keyboard(),
-        )
 
 
 async def show_unit_info(
@@ -192,39 +220,6 @@ async def show_unit_info(
     )
 
     await update.callback_query.message.reply_text(text, parse_mode="HTML")
-
-
-async def handle_new_exercise_selection(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-) -> None:
-    """Handle new exercise selection."""
-    query = update.callback_query
-    await query.answer()
-
-    user_id = update.effective_user.id
-    session = state_manager.get_session(user_id)
-
-    _, choice = query.data.split(":")
-
-    if choice == "random":
-        await send_new_exercise(update, context, user_id, None, "Random")
-    elif choice == "same":
-        topic_id = session.current_topic_id
-        repository = DatabaseRepository()
-        if topic_id:
-            topic = repository.get_topic_by_id(topic_id)
-            topic_name = topic["name"] if topic else "Same Topic"
-        else:
-            topic_name = "Random"
-        await send_new_exercise(update, context, user_id, topic_id, topic_name)
-    elif choice == "change":
-        repository = DatabaseRepository()
-        topics = repository.get_all_topics()
-        await query.message.reply_text(
-            "Select a topic:",
-            reply_markup=get_topic_keyboard(topics),
-        )
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -330,6 +325,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
             await update.message.reply_text(rule_msg, parse_mode="HTML")
 
+        # Send new exercise options
+        await update.message.reply_text(
+            "Choose next exercise:",
+            reply_markup=get_start_menu_keyboard(session.current_topic_id is not None),
+        )
+
     except Exception as e:
         logger.error(f"Agent error: {e}")
         await update.message.reply_text(
@@ -339,6 +340,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 start_handler = CommandHandler("start", start_command)
+menu_handler = CommandHandler("menu", menu_command)
 topic_handler = CallbackQueryHandler(
     handle_topic_selection,
     pattern="^topic:",
@@ -346,10 +348,6 @@ topic_handler = CallbackQueryHandler(
 exercise_action_handler = CallbackQueryHandler(
     handle_exercise_action,
     pattern="^action:",
-)
-new_exercise_handler = CallbackQueryHandler(
-    handle_new_exercise_selection,
-    pattern="^new:",
 )
 message_handler = MessageHandler(
     filters.TEXT & ~filters.COMMAND,
