@@ -22,7 +22,7 @@ class GeminiLLM(BaseLLM):
 
     def _supports_thinking_level(self, model: str) -> bool:
         """Check if model supports thinking_level (Gemini 3+ only)."""
-        return any(m in model for m in self.THINKING_LEVEL_MODELS)
+        return model in self.THINKING_LEVEL_MODELS
 
     def create(self) -> ChatGoogleGenerativeAI:
         """Create Gemini LLM client with optional proxy support."""
