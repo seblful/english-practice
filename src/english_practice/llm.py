@@ -42,12 +42,22 @@ class QwenLLM(BaseLLM):
 class GeminiLLM(BaseLLM):
     """Gemini LLM provider."""
 
+    THINKING_MODELS = {
+        "gemini-3.1-pro-preview",
+        "gemini-3-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+    }
+
+    def _supports_thinking(self, model: str) -> bool:
+        """Check if model supports thinking level."""
+        return any(m in model for m in self.THINKING_MODELS)
+
     def create(self) -> ChatGoogleGenerativeAI:
         """Create Gemini LLM client with optional proxy support."""
         if not settings.gemini.api_key:
-            raise ValueError(
-                "GEMINI_API_KEY not set. Please add it to your .env file."
-            )
+            raise ValueError("GEMINI_API_KEY not set. Please add it to your .env file.")
 
         kwargs: dict[str, Any] = {
             "model": settings.gemini.model,
@@ -59,6 +69,11 @@ class GeminiLLM(BaseLLM):
 
         if settings.gemini.proxy:
             kwargs["client_args"] = {"proxy": settings.gemini.proxy}
+
+        if settings.gemini.thinking_level and self._supports_thinking(
+            settings.gemini.model
+        ):
+            kwargs["thinking_level"] = settings.gemini.thinking_level
 
         return ChatGoogleGenerativeAI(**kwargs)
 

@@ -119,6 +119,7 @@ class GeminiSettings(BaseSettings):
     max_tokens: int = 2048
     top_p: float = 0.95
     top_k: int = 64
+    thinking_level: Literal["minimal", "low", "medium", "high"] | None = "low"
 
 
 class LangSmithSettings(BaseSettings):
