@@ -13,9 +13,11 @@ class GeminiLLM(BaseLLM):
     """Gemini LLM provider."""
 
     THINKING_LEVEL_MODELS = {
-        "gemini-3.1-pro",
-        "gemini-3-pro",
-        "gemini-3-flash",
+        "gemini-3.1-pro-preview",
+        "gemini-3-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
     }
 
     def _supports_thinking_level(self, model: str) -> bool:
