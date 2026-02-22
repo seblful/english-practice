@@ -289,44 +289,65 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         repository = DatabaseRepository()
 
         topic_name = session.current_topic_name or "Random"
-        rules_md = ""
+
+        # Step 1: Get full answer explanation
+        full_answer = await agent_service.get_full_answer(
+            image_path=session.current_exercise_path,
+            question_number=target_question_number,
+            correct_answer=correct_answer,
+            topic_name=topic_name,
+        )
+
+        # Step 2: Get grammar rule (only if enabled)
+        rule = None
         if session.show_rule:
             rules_md = repository.get_grammar_md_for_exercise(
                 session.current_exercise_id
-            ) or ""
+            )
+            if rules_md:
+                rule = await agent_service.get_rule(
+                    image_path=session.current_exercise_path,
+                    question_number=target_question_number,
+                    rules_md=rules_md,
+                    user_input=answer_text,
+                    correct_answer=correct_answer,
+                    full_answer=full_answer.full_answer,
+                    topic_name=topic_name,
+                )
 
-        result = await agent_service.process_answer(
+        # Step 3: Evaluate answer using agent
+        evaluation = await agent_service.evaluate_answer(
             image_path=session.current_exercise_path,
             question_number=target_question_number,
             user_input=answer_text,
             correct_answer=correct_answer,
+            full_answer=full_answer.full_answer,
             topic_name=topic_name,
-            rules_md=rules_md,
-            include_rule=session.show_rule,
         )
 
         state_manager.mark_answered(user_id)
 
+        # Send evaluation message
         eval_msg = MessageFormatter.format_evaluation(
-            result.is_correct, answer_text, correct_answer
+            evaluation.is_correct, answer_text, correct_answer
         )
         await update.message.reply_text(eval_msg, parse_mode="HTML")
 
-        full_answer_msg = MessageFormatter.format_full_answer(result.full_answer)
+        # Send full answer message
+        full_answer_msg = MessageFormatter.format_full_answer(full_answer.full_answer)
         await update.message.reply_text(full_answer_msg, parse_mode="HTML")
 
-        if session.show_rule and result.rule:
+        # Send rule message if available and enabled
+        if rule and session.show_rule:
             rule_msg = MessageFormatter.format_rule(
-                session.current_unit_number, result.section_letter or "", result.rule
+                session.current_unit_number, rule.section_letter, rule.rule
             )
             await update.message.reply_text(rule_msg, parse_mode="HTML")
 
         # Send new exercise options
         await update.message.reply_text(
             "Choose next exercise:",
-            reply_markup=get_start_menu_keyboard(
-                session.current_topic_id is not None
-            ),
+            reply_markup=get_start_menu_keyboard(session.current_topic_id is not None),
         )
 
     except Exception as e:
