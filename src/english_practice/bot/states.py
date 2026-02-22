@@ -19,6 +19,7 @@ class UserSession:
     unit_shown: bool = False
     answered: bool = False
     available_questions: list[str] = field(default_factory=list)
+    show_rule: bool = True
 
     def clear_exercise(self) -> None:
         """Clear current exercise context."""
@@ -116,6 +117,19 @@ class StateManager:
         """
         session = self.get_session(user_id)
         session.answered = True
+
+    def toggle_show_rule(self, user_id: int) -> bool:
+        """Toggle show_rule setting for user.
+
+        Args:
+            user_id: Telegram user ID.
+
+        Returns:
+            New show_rule value.
+        """
+        session = self.get_session(user_id)
+        session.show_rule = not session.show_rule
+        return session.show_rule
 
 
 state_manager = StateManager()

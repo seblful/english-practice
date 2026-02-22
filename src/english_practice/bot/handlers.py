@@ -34,6 +34,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     session = state_manager.get_session(user.id)
     has_previous_topic = session.current_topic_id is not None
 
+    await context.bot.set_my_commands(
+        [
+            ("start", "Start the bot"),
+            ("exercise", "Get new exercise"),
+            ("rule", "Toggle rule display"),
+        ]
+    )
+
     welcome_text = (
         f"👋 Welcome to Random Murphy's English Grammar, {user.first_name}!\n\n"
         "I'll help you practice English grammar with exercises from Murphy's book.\n\n"
@@ -46,8 +54,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     )
 
 
-async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /menu command."""
+async def exercise_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /exercise command."""
     user = update.effective_user
     session = state_manager.get_session(user.id)
     has_previous_topic = session.current_topic_id is not None
@@ -56,6 +64,14 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "Choose an option:",
         reply_markup=get_start_menu_keyboard(has_previous_topic),
     )
+
+
+async def rule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /rule command to toggle rule display."""
+    user = update.effective_user
+    new_value = state_manager.toggle_show_rule(user.id)
+    status = "enabled ✅" if new_value else "disabled ❌"
+    await update.message.reply_text(f"📋 Rule display is now {status}.")
 
 
 async def handle_topic_selection(
@@ -282,19 +298,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             topic_name=topic_name,
         )
 
-        # Step 2: Get grammar rule
-        rules_md = repository.get_grammar_md_for_exercise(session.current_exercise_id)
+        # Step 2: Get grammar rule (only if enabled)
         rule = None
-        if rules_md:
-            rule = agent_service.get_rule(
-                image_path=session.current_exercise_path,
-                question_number=target_question_number,
-                rules_md=rules_md,
-                user_input=answer_text,
-                correct_answer=correct_answer,
-                full_answer=full_answer.full_answer,
-                topic_name=topic_name,
+        if session.show_rule:
+            rules_md = repository.get_grammar_md_for_exercise(
+                session.current_exercise_id
             )
+            if rules_md:
+                rule = agent_service.get_rule(
+                    image_path=session.current_exercise_path,
+                    question_number=target_question_number,
+                    rules_md=rules_md,
+                    user_input=answer_text,
+                    correct_answer=correct_answer,
+                    full_answer=full_answer.full_answer,
+                    topic_name=topic_name,
+                )
 
         # Step 3: Evaluate answer using agent
         evaluation = agent_service.evaluate_answer(
@@ -318,8 +337,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         full_answer_msg = MessageFormatter.format_full_answer(full_answer.full_answer)
         await update.message.reply_text(full_answer_msg, parse_mode="HTML")
 
-        # Send rule message if available
-        if rule:
+        # Send rule message if available and enabled
+        if rule and session.show_rule:
             rule_msg = MessageFormatter.format_rule(
                 session.current_unit_number, rule.section_letter, rule.rule
             )
@@ -328,7 +347,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Send new exercise options
         await update.message.reply_text(
             "Choose next exercise:",
-            reply_markup=get_start_menu_keyboard(session.current_topic_id is not None),
+            reply_markup=get_start_menu_keyboard(
+                session.current_topic_id is not None
+            ),
         )
 
     except Exception as e:
@@ -340,7 +361,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 start_handler = CommandHandler("start", start_command)
-menu_handler = CommandHandler("menu", menu_command)
+exercise_handler = CommandHandler("exercise", exercise_command)
+rule_handler = CommandHandler("rule", rule_command)
 topic_handler = CallbackQueryHandler(
     handle_topic_selection,
     pattern="^topic:",

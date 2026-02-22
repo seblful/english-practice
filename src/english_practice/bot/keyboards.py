@@ -35,7 +35,7 @@ def get_exercise_keyboard() -> InlineKeyboardMarkup:
 
 
 def get_start_menu_keyboard(has_previous_topic: bool) -> InlineKeyboardMarkup:
-    """Create start menu keyboard with exercise options.
+    """Create start/menu keyboard with exercise options.
 
     Args:
         has_previous_topic: Whether user has a previous topic to continue.

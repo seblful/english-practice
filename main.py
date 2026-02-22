@@ -11,8 +11,9 @@ from config.logging import setup_logging
 from config.settings import settings
 from src.english_practice.bot.handlers import (
     exercise_action_handler,
-    menu_handler,
+    exercise_handler,
     message_handler,
+    rule_handler,
     start_handler,
     topic_handler,
 )
@@ -60,7 +61,11 @@ def validate_settings() -> bool:
 async def post_init(application: Application) -> None:
     """Set up bot commands menu after initialization."""
     await application.bot.set_my_commands(
-        [("start", "Start the bot"), ("menu", "Get new exercise")]
+        [
+            ("start", "Start the bot"),
+            ("exercise", "Get new exercise"),
+            ("rule", "Toggle rule display"),
+        ]
     )
     await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
 
@@ -90,7 +95,8 @@ def main() -> int:
         )
 
         application.add_handler(start_handler)
-        application.add_handler(menu_handler)
+        application.add_handler(exercise_handler)
+        application.add_handler(rule_handler)
         application.add_handler(topic_handler)
         application.add_handler(exercise_action_handler)
         application.add_handler(message_handler)
