@@ -262,7 +262,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 user_input=user_text,
                 topic_name=session.current_topic_name or "Random",
             )
-            response = f"💬 {MessageFormatter._md_to_html(result.answer)}"
+            response = MessageFormatter.format_assistant_answer(result.answer)
             await update.message.reply_text(response, parse_mode="HTML")
         except Exception as e:
             logger.error(f"Assistant agent error: {e}")

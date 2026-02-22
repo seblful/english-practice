@@ -35,8 +35,24 @@ class MessageFormatter:
     """Format bot messages with HTML styling."""
 
     @staticmethod
+    def _normalize_bullets(text: str) -> str:
+        """Normalize bullet points to standard bullet character.
+
+        Args:
+            text: The text to normalize.
+
+        Returns:
+            Text with normalized bullet points.
+        """
+        text = re.sub(r"^- \[ \]", "•", text, flags=re.MULTILINE)
+        text = re.sub(r"^\* ", "• ", text, flags=re.MULTILINE)
+        text = re.sub(r"^☐ ", "• ", text, flags=re.MULTILINE)
+        return text
+
+    @staticmethod
     def _md_to_html(text: str) -> str:
         """Convert markdown bold (**text**) and italic (*text*) to HTML."""
+        text = MessageFormatter._normalize_bullets(text)
         text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
         text = re.sub(r"\*(.*?)\*", r"<i>\1</i>", text)
         return text
@@ -126,3 +142,16 @@ class MessageFormatter:
             Formatted unit info message.
         """
         return f"📌 Unit <b>{unit_number}</b>\n<b>{title}</b>"
+
+    @staticmethod
+    def format_assistant_answer(answer: str) -> str:
+        """Format assistant answer message.
+
+        Args:
+            answer: The assistant's answer text.
+
+        Returns:
+            Formatted assistant answer message.
+        """
+        converted = MessageFormatter._md_to_html(answer)
+        return f"💬 {converted}"
