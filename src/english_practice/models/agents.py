@@ -18,7 +18,11 @@ class AnswerOutput(BaseModel):
     full_answer: str = Field(
         description="Complete sentence with the correct answer included. No explanations."
     )
-    section_letter: str = Field(
-        description="The main section letter (A, B, C, etc.) where the rule is found"
+    section_letter: str | None = Field(
+        default=None,
+        description="The main section letter (A, B, C, etc.) where the rule is found. None if rule not requested.",
     )
-    rule: str = Field(description="The relevant grammar rule for this question")
+    rule: str | None = Field(
+        default=None,
+        description="The relevant grammar rule for this question. None if rule not requested.",
+    )

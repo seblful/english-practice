@@ -289,9 +289,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         repository = DatabaseRepository()
 
         topic_name = session.current_topic_name or "Random"
-        rules_md = repository.get_grammar_md_for_exercise(
-            session.current_exercise_id
-        )
+        rules_md = ""
+        if session.show_rule:
+            rules_md = repository.get_grammar_md_for_exercise(
+                session.current_exercise_id
+            ) or ""
 
         result = await agent_service.process_answer(
             image_path=session.current_exercise_path,
@@ -299,7 +301,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             user_input=answer_text,
             correct_answer=correct_answer,
             topic_name=topic_name,
-            rules_md=rules_md or "",
+            rules_md=rules_md,
+            include_rule=session.show_rule,
         )
 
         state_manager.mark_answered(user_id)
@@ -312,9 +315,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         full_answer_msg = MessageFormatter.format_full_answer(result.full_answer)
         await update.message.reply_text(full_answer_msg, parse_mode="HTML")
 
-        if session.show_rule:
+        if session.show_rule and result.rule:
             rule_msg = MessageFormatter.format_rule(
-                session.current_unit_number, result.section_letter, result.rule
+                session.current_unit_number, result.section_letter or "", result.rule
             )
             await update.message.reply_text(rule_msg, parse_mode="HTML")
 

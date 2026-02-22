@@ -31,8 +31,9 @@ class AgentService:
         correct_answer: str,
         topic_name: str,
         rules_md: str,
+        include_rule: bool = True,
     ) -> AnswerOutput:
-        """Process user answer: evaluate, provide full answer, and extract rule.
+        """Process user answer: evaluate, provide full answer, and optionally extract rule.
 
         Args:
             image_path: Path to the exercise image.
@@ -41,9 +42,10 @@ class AgentService:
             correct_answer: The correct answer.
             topic_name: The topic name for context.
             rules_md: The full rules markdown content.
+            include_rule: Whether to include grammar rule extraction.
 
         Returns:
-            AnswerOutput with is_correct, full_answer, section_letter, and rule.
+            AnswerOutput with is_correct, full_answer, and optional rule info.
         """
         return await self._answer_agent.process_answer(
             image_path=image_path,
@@ -52,6 +54,7 @@ class AgentService:
             correct_answer=correct_answer,
             topic_name=topic_name,
             rules_md=rules_md,
+            include_rule=include_rule,
         )
 
     async def assist(

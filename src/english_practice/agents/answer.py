@@ -21,8 +21,9 @@ class AnswerAgent(BaseAgent):
         correct_answer: str,
         topic_name: str,
         rules_md: str,
+        include_rule: bool = True,
     ) -> AnswerOutput:
-        """Evaluate answer, provide full answer, and extract grammar rule.
+        """Evaluate answer, provide full answer, and optionally extract grammar rule.
 
         Args:
             image_path: Path to the exercise image.
@@ -31,9 +32,10 @@ class AnswerAgent(BaseAgent):
             correct_answer: The correct answer.
             topic_name: The topic name for context.
             rules_md: The full rules markdown content.
+            include_rule: Whether to include grammar rule extraction.
 
         Returns:
-            AnswerOutput with is_correct, full_answer, section_letter, and rule.
+            AnswerOutput with is_correct, full_answer, and optional rule info.
         """
         prompt = self.render_agent_prompt(
             PROMPT_ANSWER,
@@ -42,6 +44,7 @@ class AnswerAgent(BaseAgent):
             correct_answer=correct_answer,
             topic_name=topic_name,
             rules_md=rules_md,
+            include_rule=include_rule,
         )
 
         return await self.invoke_structured(
