@@ -22,4 +22,5 @@ class QwenLLM(BaseLLM):
             base_url=settings.qwen.base_url,
             temperature=settings.qwen.temperature,
             max_tokens=settings.qwen.max_tokens,
+            enable_thinking=settings.qwen.enable_thinking,
         )

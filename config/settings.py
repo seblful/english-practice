@@ -78,6 +78,7 @@ class QwenSettings(BaseSettings):
     base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     temperature: float = 0.7
     max_tokens: int = 2048
+    enable_thinking: bool = False
 
 
 class GeminiSettings(BaseSettings):
