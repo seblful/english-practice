@@ -1,11 +1,12 @@
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Final, Literal
 
 from dotenv import load_dotenv
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from telegram import Update
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -124,6 +125,13 @@ class TelegramSettings(BaseSettings):
     )
 
     bot_token: str | None = None
+    connect_timeout: int = 30
+    read_timeout: int = 60
+    write_timeout: int = 60
+    pool_timeout: int = 60
+    concurrent_updates: bool = True
+    close_loop: bool = False
+    allowed_updates: list[Final] = [Update.ALL_TYPES]
 
 
 class Settings(BaseSettings):

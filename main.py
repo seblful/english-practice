@@ -4,7 +4,7 @@ import os
 import logging
 import sys
 
-from telegram import MenuButtonCommands, Update
+from telegram import MenuButtonCommands
 from telegram.ext import Application
 
 from config.logging import setup_logging
@@ -90,8 +90,12 @@ def main() -> int:
         application = (
             Application.builder()
             .token(settings.telegram.bot_token)
+            .connect_timeout(settings.telegram.connect_timeout)
+            .read_timeout(settings.telegram.read_timeout)
+            .write_timeout(settings.telegram.write_timeout)
+            .pool_timeout(settings.telegram.pool_timeout)
             .post_init(post_init)
-            .concurrent_updates(True)
+            .concurrent_updates(settings.telegram.concurrent_updates)
             .build()
         )
 
@@ -105,7 +109,10 @@ def main() -> int:
         logger.info("Bot started successfully!")
         logger.info("Press Ctrl+C to stop")
 
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        application.run_polling(
+            allowed_updates=settings.telegram.allowed_updates,
+            close_loop=settings.telegram.close_loop,
+        )
 
     except Exception as e:
         logger.error(f"Error running bot: {e}")
