@@ -207,7 +207,7 @@ class DatabaseValidator:
             FROM questions q
             JOIN exercises e ON q.exercise_id = e.id
             LEFT JOIN question_answers qa ON q.id = qa.question_id
-            WHERE qa.id IS NULL
+            WHERE qa.id IS NULL AND q.is_open_ended = 0
             """
         )
         for row in self.cursor.fetchall():
@@ -265,6 +265,7 @@ class DatabaseValidator:
             "invalid_unit_topic_unit_ids": [],
             "invalid_unit_topic_topic_ids": [],
             "invalid_topic_parents": [],
+            "invalid_question_answers": [],
         }
 
         # Exercises with invalid unit_id
@@ -490,6 +491,12 @@ class DatabaseValidator:
                 print(
                     f"  [FAIL] Questions without answers: {len(orphan['questions_without_answers'])}"
                 )
+                for item in orphan["questions_without_answers"][:10]:
+                    print(f"    - {item}")
+                if len(orphan["questions_without_answers"]) > 10:
+                    print(
+                        f"    ... and {len(orphan['questions_without_answers']) - 10} more"
+                    )
                 total_errors += len(orphan["questions_without_answers"])
             if orphan["units_without_exercises"]:
                 print(
