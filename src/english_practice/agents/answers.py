@@ -9,7 +9,7 @@ from src.english_practice.models.agents import AnswersContext, ExerciseAnswersOu
 class AnswersAgent(BaseAgent):
     """Extract full answers from exercise images."""
 
-    PROMPT_TEMPLATE = "agent_answers.j2"
+    PROMPT_TEMPLATE = "answers.j2"
 
     async def extract_exercise(
         self,

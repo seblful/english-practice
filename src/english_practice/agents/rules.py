@@ -9,7 +9,7 @@ from src.english_practice.models.agents import ExerciseRulesOutput, RulesContext
 class RulesAgent(BaseAgent):
     """Extract grammar rules from exercises."""
 
-    PROMPT_TEMPLATE = "agent_rules.j2"
+    PROMPT_TEMPLATE = "rules.j2"
 
     async def extract_exercise(
         self,

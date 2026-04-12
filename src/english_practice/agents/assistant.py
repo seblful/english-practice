@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 class AssistantAgent(BaseAgent):
     """Agent for conversational assistance with chat history."""
 
-    PROMPT_TEMPLATE = "agent_assistant.j2"
+    PROMPT_TEMPLATE = "assistant.j2"
 
     @traceable(name="assistant")
     async def assist(

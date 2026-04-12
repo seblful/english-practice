@@ -11,7 +11,7 @@ from src.english_practice.models.agents import EvaluateAnswerInput, EvaluateAnsw
 class EvaluateAnswerAgent(BaseAgent):
     """Agent for evaluating if a user's answer is correct."""
 
-    PROMPT_TEMPLATE = "agent_evaluate.j2"
+    PROMPT_TEMPLATE = "evaluate.j2"
 
     @traceable(name="evaluate_answer")
     async def evaluate(
