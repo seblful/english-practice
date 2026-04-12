@@ -9,38 +9,22 @@ from config.logging import get_logger
 from config.settings import settings
 from english_practice.agents import RulesAgent
 
+from .base_extractor import BaseExtractor
+
 logger = get_logger(__name__)
 
 
-class RulesExtractor:
+class RulesExtractor(BaseExtractor):
     """Extract grammar rules from exercise images using LLM."""
 
     def __init__(self) -> None:
         """Initialize the grammar rule extractor."""
-        self._extractor = RulesAgent()
-        self._answers_path = settings.paths.metadata_dir / "answers.json"
-        self._answers_full_path = settings.paths.metadata_dir / "answers_full.json"
-        self._output_path = settings.paths.metadata_dir / "rules.json"
-
-    def _get_image_path(self, exercise_id: str) -> Path | None:
-        """Get the image path for an exercise."""
-        parts = exercise_id.split(".")
-        if len(parts) != 2:
-            return None
-
-        page_num = parts[0]
-        image_path = settings.paths.exercises_dir / page_num / f"{exercise_id}.png"
-
-        if image_path.exists():
-            return image_path
-
-        image_path = (
-            settings.paths.content_dir / "exercises" / page_num / f"{exercise_id}.png"
+        super().__init__(
+            output_path=settings.paths.metadata_dir / "rules.json",
+            answers_path=settings.paths.metadata_dir / "answers.json",
         )
-        if image_path.exists():
-            return image_path
-
-        return None
+        self._extractor = RulesAgent()
+        self._answers_full_path = settings.paths.metadata_dir / "answers_full.json"
 
     def _get_grammar_md(self, unit_number: int) -> str | None:
         """Get grammar markdown content for a unit."""
@@ -53,12 +37,6 @@ class RulesExtractor:
             return grammar_path.read_text(encoding="utf-8")
 
         return None
-
-    def _load_answers_data(self) -> dict:
-        """Load answers data from JSON file."""
-        if not self._answers_path.exists():
-            raise FileNotFoundError(f"answers.json not found at {self._answers_path}")
-        return json.loads(self._answers_path.read_text(encoding="utf-8"))
 
     def _load_answers_full_data(self) -> dict:
         """Load answers_full data from JSON file."""
@@ -76,31 +54,13 @@ class RulesExtractor:
                     answers_map[key] = q
         return answers_map
 
-    def _load_existing_output(self) -> dict:
-        """Load existing output file if it exists."""
-        if self._output_path.exists():
-            return json.loads(self._output_path.read_text(encoding="utf-8"))
-        return {"units": []}
-
-    def _save_output(self, results: dict) -> None:
-        """Save output incrementally."""
-        self._output_path.parent.mkdir(parents=True, exist_ok=True)
-        self._output_path.write_text(
-            json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
-
-    def _get_processed_unit_ids(self, results: dict) -> set[str]:
-        """Get set of already processed unit IDs."""
-        return {u["unit_id"] for u in results.get("units", [])}
-
     async def extract(self) -> dict[str, Path]:
         """Extract grammar rules from all exercises.
 
         Returns:
-            Dict with 'output_path' key containing the output file path
+            Dict with 'output_path' key containing the output file path.
         """
         results = self._load_existing_output()
-
         data = self._load_answers_data()
         answers_full = self._load_answers_full_data()
         answers_full_map = self._build_answers_full_map(answers_full)
@@ -152,7 +112,9 @@ class RulesExtractor:
         questions_for_extraction = self._prepare_questions(exercise, answers_full_map)
 
         if self._should_skip_extraction(questions_for_extraction, image_path, rules_md):
-            return self._create_skipped_exercise_data(questions_for_extraction)
+            return self._create_skipped_exercise_data(
+                exercise_id, questions_for_extraction
+            )
 
         result = await self._extractor.extract_exercise(
             image_path=image_path,
@@ -160,7 +122,7 @@ class RulesExtractor:
             rules_md=rules_md or "",
             topic_name="English Grammar",
         )
-        return self._build_exercise_data(questions_for_extraction, result)
+        return self._build_exercise_data(exercise_id, questions_for_extraction, result)
 
     def _prepare_questions(self, exercise: dict, answers_full_map: dict) -> list[dict]:
         """Prepare questions for extraction."""
@@ -198,72 +160,68 @@ class RulesExtractor:
             return True
         return False
 
-    def _create_skipped_exercise_data(self, questions: list[dict]) -> dict:
+    def _create_skipped_exercise_data(
+        self,
+        exercise_id: str,
+        questions: list[dict],
+    ) -> dict:
         """Create exercise data when extraction is skipped."""
-        exercise_data = {
-            "exercise_id": "",
-            "questions": [],
-        }
-
-        for q in questions:
-            exercise_data["questions"].append(
+        return {
+            "exercise_id": exercise_id,
+            "questions": [
                 {
                     "question_id": q["question_id"],
                     "is_open_ended": q["is_open_ended"],
                     "section_letter": None,
                     "rule": None,
                 }
-            )
-
-        return exercise_data
+                for q in questions
+            ],
+        }
 
     def _build_exercise_data(
         self,
+        exercise_id: str,
         questions_input: list[dict],
         result,
     ) -> dict:
         """Build exercise data from extraction result."""
-        exercise_data = {
-            "exercise_id": "",
-            "questions": [],
-        }
-
         result_map = {q.question_id: q for q in result.questions}
 
+        questions = []
         for q_input in questions_input:
             question_id = q_input["question_id"]
             q_result = result_map.get(question_id)
 
-            exercise_data["questions"].append(
-                self._build_question_data(q_input, q_result)
-            )
-
-        if questions_input:
-            exercise_data["exercise_id"] = questions_input[0].get("exercise_id", "")
-
-        return exercise_data
-
-    def _build_question_data(self, q_input: dict, q_result) -> dict:
-        """Build question data from extraction result."""
-        if q_input["is_open_ended"]:
-            return {
-                "question_id": q_input["question_id"],
-                "is_open_ended": True,
-                "section_letter": None,
-                "rule": None,
-            }
-
-        if q_result:
-            return {
-                "question_id": q_input["question_id"],
-                "is_open_ended": False,
-                "section_letter": q_result.section_letter,
-                "rule": q_result.rule,
-            }
+            if q_input["is_open_ended"]:
+                questions.append(
+                    {
+                        "question_id": question_id,
+                        "is_open_ended": True,
+                        "section_letter": None,
+                        "rule": None,
+                    }
+                )
+            elif q_result:
+                questions.append(
+                    {
+                        "question_id": question_id,
+                        "is_open_ended": False,
+                        "section_letter": q_result.section_letter,
+                        "rule": q_result.rule,
+                    }
+                )
+            else:
+                questions.append(
+                    {
+                        "question_id": question_id,
+                        "is_open_ended": False,
+                        "section_letter": None,
+                        "rule": "[Missing]",
+                    }
+                )
 
         return {
-            "question_id": q_input["question_id"],
-            "is_open_ended": False,
-            "section_letter": None,
-            "rule": "[Missing]",
+            "exercise_id": exercise_id,
+            "questions": questions,
         }
