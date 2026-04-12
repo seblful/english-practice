@@ -1,23 +1,49 @@
 from english_practice.models.agents import (
     AssistantOutput,
     EvaluateAnswerOutput,
-    FullAnswerOutput,
-    RuleOutput,
+    ExerciseAnswersOutput,
+    ExerciseRulesOutput,
+    QuestionAnswerItem,
+    QuestionRuleItem,
 )
 from english_practice.models.book import (
     Exercise,
     Question,
+    QuestionAnswer,
     Topic,
     Unit,
+)
+from english_practice.models.extraction import (
+    ExtractedAnswer,
+    ExtractedExerciseAnswers,
+    ExtractedExerciseRules,
+    ExtractedFullAnswers,
+    ExtractedFullRules,
+    ExtractedQuestionAnswers,
+    ExtractedQuestionRule,
+    ExtractedUnitAnswers,
+    ExtractedUnitRules,
 )
 
 __all__ = [
     "AssistantOutput",
     "EvaluateAnswerOutput",
     "Exercise",
-    "FullAnswerOutput",
+    "ExerciseAnswersOutput",
+    "ExerciseRulesOutput",
+    "ExtractedAnswer",
+    "ExtractedExerciseAnswers",
+    "ExtractedExerciseRules",
+    "ExtractedFullAnswers",
+    "ExtractedFullRules",
+    "ExtractedQuestionAnswers",
+    "ExtractedQuestionRule",
+    "ExtractedUnitAnswers",
+    "ExtractedUnitRules",
     "Question",
-    "RuleOutput",
+    "QuestionAnswer",
+    "QuestionAnswerItem",
+    "QuestionRuleItem",
     "Topic",
     "Unit",
 ]

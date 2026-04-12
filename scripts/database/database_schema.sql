@@ -31,10 +31,22 @@ CREATE TABLE IF NOT EXISTS questions (
     id INTEGER PRIMARY KEY,
     exercise_id INTEGER NOT NULL,
     question_id TEXT NOT NULL,  -- e.g., "2", "2a", "10 a", "2–5" (can contain letters/ranges)
-    correct_answer TEXT NOT NULL,
+    is_open_ended BOOLEAN DEFAULT 0,
+    section_letter TEXT,
+    rule TEXT,
     display_order INTEGER DEFAULT 0,  -- For sorting in UI
     FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE,
     UNIQUE(exercise_id, question_id)
+);
+
+-- Question answers (multiple answers per question with full answer)
+CREATE TABLE IF NOT EXISTS question_answers (
+    id INTEGER PRIMARY KEY,
+    question_id INTEGER NOT NULL,
+    short_answer TEXT NOT NULL,
+    full_answer TEXT NOT NULL,
+    FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
+    UNIQUE(question_id, short_answer)
 );
 
 -- Topics/tags for categorization
@@ -60,3 +72,4 @@ CREATE TABLE IF NOT EXISTS unit_topics (
 
 CREATE INDEX IF NOT EXISTS idx_exercises_unit ON exercises(unit_id);
 CREATE INDEX IF NOT EXISTS idx_questions_exercise ON questions(exercise_id);
+CREATE INDEX IF NOT EXISTS idx_question_answers_question ON question_answers(question_id);

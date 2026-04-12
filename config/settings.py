@@ -22,7 +22,7 @@ class PathSettings(BaseSettings):
     """File paths configuration."""
 
     app_dir: Path = BASE_DIR / "src" / "english_practice"
-    prompts_dir: Path = app_dir / "prompts"
+    prompts_dir: Path = app_dir / "agents" / "prompts"
 
     data_dir: Path = BASE_DIR / "data"
     source_dir: Path = data_dir / "source"

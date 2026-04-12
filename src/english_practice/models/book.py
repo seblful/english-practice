@@ -41,8 +41,23 @@ class Question(BaseModel):
     question_id: str = Field(
         description="Question identifier (e.g., '2', '2a', '10 b')"
     )
-    correct_answer: str = Field(description="The correct answer text")
+    is_open_ended: bool = Field(
+        default=False, description="Whether the question is open-ended"
+    )
+    section_letter: str | None = Field(
+        default=None, description="Grammar section letter (A, B, C, etc.)"
+    )
+    rule: str | None = Field(default=None, description="Grammar rule text")
     display_order: int = Field(default=0, description="Order for display")
+
+
+class QuestionAnswer(BaseModel):
+    """An answer variant for a question with short and full answer."""
+
+    short_answer: str = Field(description="The short answer text (e.g., 'He's tying')")
+    full_answer: str = Field(
+        description="The full sentence with answer (e.g., 'Look at the boy. **He's tying** his shoes.')"
+    )
 
 
 class Topic(BaseModel):

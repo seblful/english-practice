@@ -5,12 +5,13 @@ from pathlib import Path
 from langsmith import traceable
 
 from src.english_practice.agents.base import BaseAgent
-from src.english_practice.models.agents import EvaluateAnswerOutput
-from src.english_practice.models.constants import PROMPT_EVALUATE
+from src.english_practice.models.agents import EvaluateAnswerInput, EvaluateAnswerOutput
 
 
 class EvaluateAnswerAgent(BaseAgent):
     """Agent for evaluating if a user's answer is correct."""
+
+    PROMPT_TEMPLATE = "evaluate.j2"
 
     @traceable(name="evaluate_answer")
     async def evaluate(
@@ -18,9 +19,11 @@ class EvaluateAnswerAgent(BaseAgent):
         image_path: Path,
         question_number: str,
         user_input: str,
-        correct_answer: str,
-        full_answer: str,
+        short_answers: list[str],
+        full_answers: list[str],
+        is_open_ended: bool,
         topic_name: str,
+        rule: str | None = None,
     ) -> EvaluateAnswerOutput:
         """Evaluate if the user's answer is correct.
 
@@ -28,21 +31,25 @@ class EvaluateAnswerAgent(BaseAgent):
             image_path: Path to the exercise image.
             question_number: The question number/ID.
             user_input: The user's answer.
-            correct_answer: The correct answer.
-            full_answer: The full answer explanation to help evaluate.
+            short_answers: All short answer variants.
+            full_answers: All full answer variants (parallel to short_answers).
+            is_open_ended: Whether the question allows free-form responses.
             topic_name: The topic name for context.
+            rule: Optional grammar rule for this question.
 
         Returns:
-            EvaluateAnswerOutput with is_correct boolean and full_answer.
+            EvaluateAnswerOutput with is_correct and answer_idx.
         """
-        prompt = self.render_agent_prompt(
-            PROMPT_EVALUATE,
+        context = EvaluateAnswerInput(
             question_number=question_number,
             user_input=user_input,
-            correct_answer=correct_answer,
-            full_answer=full_answer,
+            short_answers=short_answers,
+            full_answers=full_answers,
+            is_open_ended=is_open_ended,
             topic_name=topic_name,
+            rule=rule,
         )
+        prompt = self.render(context)
 
         return await self.invoke_structured(
             prompt=prompt,

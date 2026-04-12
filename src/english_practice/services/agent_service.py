@@ -4,14 +4,10 @@ import logging
 from pathlib import Path
 
 from src.english_practice.agents.evaluate import EvaluateAnswerAgent
-from src.english_practice.agents.full_answer import GetFullAnswerAgent
-from src.english_practice.agents.rule import GetRuleAgent
 from src.english_practice.agents.assistant import AssistantAgent
 from src.english_practice.models.agents import (
     AssistantOutput,
     EvaluateAnswerOutput,
-    FullAnswerOutput,
-    RuleOutput,
 )
 from src.english_practice.services.chat_history import ChatHistoryManager
 
@@ -24,8 +20,6 @@ class AgentService:
     def __init__(self) -> None:
         """Initialize agent service with all agents."""
         self._evaluate_agent = EvaluateAnswerAgent()
-        self._full_answer_agent = GetFullAnswerAgent()
-        self._rule_agent = GetRuleAgent()
         self._assistant_agent = AssistantAgent()
         self._chat_history_manager = ChatHistoryManager()
 
@@ -34,9 +28,11 @@ class AgentService:
         image_path: Path,
         question_number: str,
         user_input: str,
-        correct_answer: str,
-        full_answer: str,
+        short_answers: list[str],
+        full_answers: list[str],
+        is_open_ended: bool,
         topic_name: str,
+        rule: str | None = None,
     ) -> EvaluateAnswerOutput:
         """Evaluate if the user's answer is correct.
 
@@ -44,79 +40,24 @@ class AgentService:
             image_path: Path to the exercise image.
             question_number: The question number/ID.
             user_input: The user's answer.
-            correct_answer: The correct answer.
-            full_answer: The full answer explanation to help evaluate.
+            short_answers: All short answer variants.
+            full_answers: All full answer variants.
+            is_open_ended: Whether the question allows free-form responses.
             topic_name: The topic name for context.
+            rule: Optional grammar rule for this question.
 
         Returns:
-            EvaluateAnswerOutput with is_correct boolean and full_answer.
+            EvaluateAnswerOutput with is_correct and answer_idx.
         """
         return await self._evaluate_agent.evaluate(
             image_path=image_path,
             question_number=question_number,
             user_input=user_input,
-            correct_answer=correct_answer,
-            full_answer=full_answer,
+            short_answers=short_answers,
+            full_answers=full_answers,
+            is_open_ended=is_open_ended,
             topic_name=topic_name,
-        )
-
-    async def get_full_answer(
-        self,
-        image_path: Path,
-        question_number: str,
-        correct_answer: str,
-        topic_name: str,
-    ) -> FullAnswerOutput:
-        """Get detailed explanation of the correct answer.
-
-        Args:
-            image_path: Path to the exercise image.
-            question_number: The question number/ID.
-            correct_answer: The correct answer.
-            topic_name: The topic name for context.
-
-        Returns:
-            FullAnswerOutput with complete explanation.
-        """
-        return await self._full_answer_agent.get_full_answer(
-            image_path=image_path,
-            question_number=question_number,
-            correct_answer=correct_answer,
-            topic_name=topic_name,
-        )
-
-    async def get_rule(
-        self,
-        image_path: Path,
-        question_number: str,
-        rules_md: str,
-        user_input: str,
-        correct_answer: str,
-        full_answer: str,
-        topic_name: str,
-    ) -> RuleOutput:
-        """Extract grammar rule from rules markdown.
-
-        Args:
-            image_path: Path to the exercise image.
-            question_number: The question number/ID.
-            rules_md: The full rules markdown content.
-            user_input: The user's answer.
-            correct_answer: The correct answer.
-            full_answer: The full answer explanation.
-            topic_name: The topic name for context.
-
-        Returns:
-            RuleOutput with the relevant rule.
-        """
-        return await self._rule_agent.get_rule(
-            image_path=image_path,
-            question_number=question_number,
-            rules_md=rules_md,
-            user_input=user_input,
-            correct_answer=correct_answer,
-            full_answer=full_answer,
-            topic_name=topic_name,
+            rule=rule,
         )
 
     async def assist(

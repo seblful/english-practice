@@ -2,15 +2,20 @@ import sys
 from enum import Enum
 from pathlib import Path
 
-# Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import typer
 
 from config.logging import get_logger
 from config.settings import settings
-from english_practice.extractors import ExerciseOrganizer, ImageOcrExtractor, PDFHandler
-from english_practice.models import (
+from english_practice.extractors import (
+    AnswersExtractor,
+    ExerciseOrganizer,
+    ImageOcrExtractor,
+    PDFHandler,
+    RulesExtractor,
+)
+from english_practice.models.constants import (
     END_ANSWER_PAGE,
     END_CONTENT_PAGE,
     END_UNIT_PAGE,
@@ -111,6 +116,52 @@ def organize_exercises() -> None:
         output_dir=settings.paths.exercises_dir,
     )
     logger.info(f"Organized {len(created)} exercises to {settings.paths.exercises_dir}")
+
+
+@app.command(
+    name="extract-answers",
+    help="Extract answers from exercise images using LLM.",
+)
+def extract_answers() -> None:
+    """Extract answers from exercise images using LLM.
+
+    Processes all questions per exercise in a single LLM call.
+    Outputs to answers_full.json. Resumes from last stopped unit.
+    """
+    import asyncio
+
+    extractor = AnswersExtractor(
+        output_path=settings.paths.metadata_dir / "answers_full.json",
+        answers_path=settings.paths.metadata_dir / "answers.json",
+        exercises_dir=settings.paths.exercises_dir,
+        content_dir=settings.paths.content_dir,
+    )
+    result = asyncio.run(extractor.extract())
+    logger.info(f"Answers extracted to {result['output_path']}")
+
+
+@app.command(
+    name="extract-rules",
+    help="Extract grammar rules from exercises using LLM.",
+)
+def extract_rules() -> None:
+    """Extract grammar rules from exercises using LLM.
+
+    Processes all questions per exercise in a single LLM call.
+    Outputs to rules.json. Resumes from last stopped unit.
+    """
+    import asyncio
+
+    extractor = RulesExtractor(
+        output_path=settings.paths.metadata_dir / "rules.json",
+        answers_path=settings.paths.metadata_dir / "answers.json",
+        exercises_dir=settings.paths.exercises_dir,
+        content_dir=settings.paths.content_dir,
+        answers_full_path=settings.paths.metadata_dir / "answers_full.json",
+        grammar_md_dir=settings.paths.grammar_md_dir,
+    )
+    result = asyncio.run(extractor.extract())
+    logger.info(f"Rules extracted to {result['output_path']}")
 
 
 if __name__ == "__main__":

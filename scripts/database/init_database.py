@@ -74,22 +74,43 @@ def parse_exercise_id(exercise_id: str) -> tuple[int, int]:
 
 
 def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
-    """Import exercises and questions from answers.json."""
+    """Import exercises and questions from answers_full.json and rules.json."""
     project_root = get_project_root()
 
-    # Load answers
-    with open(
-        project_root / "data" / "content" / "metadata" / "answers.json",
-        "r",
-        encoding="utf-8",
-    ) as f:
-        data = json.load(f)
+    answers_full_path = (
+        project_root / "data" / "content" / "metadata" / "answers_full.json"
+    )
+    rules_path = project_root / "data" / "content" / "metadata" / "rules.json"
+
+    if not answers_full_path.exists():
+        raise FileNotFoundError(
+            f"answers_full.json not found at {answers_full_path}. Run extraction first."
+        )
+
+    if not rules_path.exists():
+        raise FileNotFoundError(
+            f"rules.json not found at {rules_path}. Run extraction first."
+        )
+
+    with open(answers_full_path, "r", encoding="utf-8") as f:
+        answers_data = json.load(f)
+
+    with open(rules_path, "r", encoding="utf-8") as f:
+        rules_data = json.load(f)
+
+    rules_map: dict[str, dict] = {}
+    for unit in rules_data.get("units", []):
+        for exercise in unit.get("exercises", []):
+            exercise_id = exercise["exercise_id"]
+            for q in exercise.get("questions", []):
+                rules_map[f"{exercise_id}:{q['question_id']}"] = q
 
     cursor = conn.cursor()
     exercises_imported = 0
     questions_imported = 0
+    answers_imported = 0
 
-    for unit in tqdm(data.get("units", []), desc="Importing exercises"):
+    for unit in tqdm(answers_data.get("units", []), desc="Importing exercises"):
         unit_id_db = cursor.execute(
             "SELECT id FROM units WHERE unit_number = ?", (int(unit["unit_id"]),)
         ).fetchone()
@@ -104,14 +125,13 @@ def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
             page_num, ex_num = parse_exercise_id(exercise_id)
             image_path = f"exercises/{page_num}/{exercise_id}.png"
 
-            # Check if image exists
             image_full_path = project_root / "data" / "content" / image_path
             if not image_full_path.exists():
-                image_path = None  # Will be NULL if image doesn't exist
+                image_path = None
 
             cursor.execute(
                 """
-                INSERT OR IGNORE INTO exercises 
+                INSERT OR IGNORE INTO exercises
                 (exercise_id, unit_id, exercise_number, image_path)
                 VALUES (?, ?, ?, ?)
                 """,
@@ -120,32 +140,66 @@ def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
 
             exercise_db_id = cursor.lastrowid
             if not exercise_db_id:
-                # Exercise already exists, get its ID
                 exercise_db_id = cursor.execute(
                     "SELECT id FROM exercises WHERE exercise_id = ?", (exercise_id,)
                 ).fetchone()[0]
             else:
                 exercises_imported += 1
 
-            # Import questions
             for idx, question in enumerate(exercise.get("questions", [])):
-                answer = question["answer"]
                 question_id = question["question_id"]
+                is_open_ended = question.get("is_open_ended", False)
+
+                rule_info = rules_map.get(f"{exercise_id}:{question_id}", {})
+                section_letter = rule_info.get("section_letter")
+                rule = rule_info.get("rule")
 
                 cursor.execute(
                     """
-                    INSERT OR IGNORE INTO questions 
-                    (exercise_id, question_id, correct_answer, display_order)
-                    VALUES (?, ?, ?, ?)
+                    INSERT OR IGNORE INTO questions
+                    (exercise_id, question_id, is_open_ended, section_letter, rule, display_order)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (exercise_db_id, question_id, answer, idx),
+                    (
+                        exercise_db_id,
+                        question_id,
+                        int(is_open_ended),
+                        section_letter,
+                        rule,
+                        idx,
+                    ),
                 )
 
-                if cursor.lastrowid or cursor.rowcount > 0:
+                question_db_id = cursor.lastrowid
+                if not question_db_id:
+                    question_db_id = cursor.execute(
+                        "SELECT id FROM questions WHERE exercise_id = ? AND question_id = ?",
+                        (exercise_db_id, question_id),
+                    ).fetchone()[0]
+                else:
                     questions_imported += 1
 
+                if not is_open_ended:
+                    for answer in question.get("answers", []):
+                        cursor.execute(
+                            """
+                            INSERT OR IGNORE INTO question_answers
+                            (question_id, short_answer, full_answer)
+                            VALUES (?, ?, ?)
+                            """,
+                            (
+                                question_db_id,
+                                answer["short_answer"],
+                                answer["full_answer"],
+                            ),
+                        )
+                        if cursor.lastrowid:
+                            answers_imported += 1
+
     conn.commit()
-    print(f"Imported {exercises_imported} exercises and {questions_imported} questions")
+    print(
+        f"Imported {exercises_imported} exercises, {questions_imported} questions, {answers_imported} answers"
+    )
 
 
 def import_topics(conn: sqlite3.Connection) -> None:
@@ -217,7 +271,7 @@ def main() -> int:
         print("DATABASE IMPORT SUMMARY")
         print("=" * 50)
 
-        tables = ["units", "exercises", "questions", "topics"]
+        tables = ["units", "exercises", "questions", "question_answers", "topics"]
         for table in tables:
             count = cursor.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             print(f"{table:20s}: {count:5d} rows")
