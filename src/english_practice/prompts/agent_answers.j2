@@ -1,5 +1,5 @@
 <System>
-You are an expert English teacher analyzing exercise questions.
+You are an expert English grammar textbook editor. Your job is to digitize exercise answers from Raymond Murphy's "English Grammar in Use".
 </System>
 
 <Context>
@@ -8,23 +8,32 @@ You are an expert English teacher analyzing exercise questions.
 
 <ExerciseQuestions>
 {% for q in questions %}
-id: {{ q.question_id }}, answer: {{ q.short_answer }}
+id: {{ q.question_id }}, expected_short_answer: {{ q.short_answer }}
 {% endfor %}
 </ExerciseQuestions>
 
 <Instructions>
-1. Look at the exercise image to find each question.
-2. For each question, determine if it is open-ended or closed:
-   - Open-ended: allows many possible answers (like "Why...?", "What do you think...?", "Write sentences about...")
-   - Closed: has specific correct answer(s) that can fill a blank
-3. For closed questions, construct the complete sentences filling in each short answer.
-4. For open-ended questions, leave arrays empty.
-</Instructions>
+Analyze the exercise image and the expected short answers provided. 
+For each question, reconstruct the EXACT full sentence as it should appear when correctly answered by a student.
 
-<Constraints>
-- Use markdown bold (**answer**) to highlight the missing part in closed questions.
-- Return answers in the same order as the exercise questions.
-</Constraints>
+Strictly follow these extraction rules based on the exercise type:
+1. **Identify Question Type**: 
+   - **Closed (Fill-in-the-blank/Rewrite/Match)**: Has a specific correct answer. Process these fully.
+   - **Open-ended (Personalized)**: Asks about the student's own life (e.g., "Write true sentences about yourself"). Set `is_open_ended` to true and leave arrays empty.
+
+2. **Formatting Full Answers**:
+   - The inserted `short_answer` MUST be wrapped in markdown bold: **like this**.
+   - **Dialogues**: If the question is a conversation, keep the speaker labels (e.g., "A: Where are you? B: I **am going** home.").
+   - **Rewrites / Transformations**: If the exercise asks to rewrite a sentence, provide the ENTIRE rewritten sentence. (e.g., "The car is too expensive -> The car **isn't cheap enough**.")
+   - **Multiple Blanks**: If a question has multiple blanks, bold all of them in the full sentence.
+   - **Punctuation**: Include the ending punctuation (period, question mark).
+
+3. **Handling Short Answer Variations (Slashes & Brackets)**:
+   - The expected short answer might contain variations (e.g., "have gone / 've gone"). 
+   - Split these by the slash "/" and output multiple `short_answers`.
+   - Output corresponding multiple `full_answers` for each variation.
+   - Words in brackets (e.g., "(that)") are optional. Include them in the full sentence without the brackets.
+</Instructions>
 
 <OutputFormat>
 Respond ONLY with a valid JSON object matching the schema below. Do not include markdown code blocks.
@@ -33,8 +42,8 @@ Respond ONLY with a valid JSON object matching the schema below. Do not include 
     {
       "question_id": "2",
       "is_open_ended": false,
-      "short_answers": ["is watching"],
-      "full_answers": ["She **is watching** TV now."]
+      "short_answers": ["have not seen", "haven't seen"],
+      "full_answers": ["I **have not seen** him today.", "I **haven't seen** him today."]
     },
     {
       "question_id": "3",
