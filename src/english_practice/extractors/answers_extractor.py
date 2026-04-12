@@ -20,7 +20,7 @@ class AnswersExtractor(BaseExtractor):
         )
         self._extractor = AnswersAgent()
 
-    async def _process_exercise(self, exercise: dict) -> dict:
+    async def _process_exercise(self, exercise: dict, topic_name: str) -> dict:
         """Process a single exercise."""
         exercise_id = exercise["exercise_id"]
         image_path = self._get_image_path(exercise_id)
@@ -36,7 +36,7 @@ class AnswersExtractor(BaseExtractor):
         result = await self._extractor.extract_exercise(
             image_path=image_path,
             questions=questions_for_extraction,
-            topic_name="English Grammar",
+            topic_name=topic_name,
         )
         return self._build_exercise_data(exercise_id, questions_for_extraction, result)
 

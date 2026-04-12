@@ -1,5 +1,6 @@
 """Base extractor class with shared functionality."""
 
+import json
 from pathlib import Path
 
 from tqdm import tqdm
@@ -26,6 +27,25 @@ class BaseExtractor:
         """
         self._output_path = output_path
         self._answers_path = answers_path
+        self._unit_topic_map = self._load_unit_topic_map()
+
+    def _load_unit_topic_map(self) -> dict[str, str]:
+        """Load mapping from unit_id to topic name."""
+        topic_to_unit_path = settings.paths.metadata_dir / "topic_to_unit.json"
+        if not topic_to_unit_path.exists():
+            return {}
+
+        topic_data = json.loads(topic_to_unit_path.read_text(encoding="utf-8"))
+        unit_map = {}
+        for item in topic_data:
+            topic_name = item["topic"]
+            for unit_id in item["unit_ids"]:
+                unit_map[str(unit_id)] = topic_name
+        return unit_map
+
+    def _get_topic_name(self, unit_id: str) -> str:
+        """Get topic name for a unit."""
+        return self._unit_topic_map.get(unit_id, "Unknown Topic")
 
     def _get_image_path(self, exercise_id: str) -> Path | None:
         """Get the image path for an exercise."""
@@ -53,8 +73,6 @@ class BaseExtractor:
             return {}
         if not self._answers_path.exists():
             raise FileNotFoundError(f"answers.json not found at {self._answers_path}")
-        import json
-
         return json.loads(self._answers_path.read_text(encoding="utf-8"))
 
     def _load_existing_output(self) -> dict:
@@ -83,18 +101,21 @@ class BaseExtractor:
 
         Override in subclass to implement specific exercise processing.
         """
+        unit_id = unit["unit_id"]
+        topic_name = self._get_topic_name(unit_id)
+
         unit_data = {
-            "unit_id": unit["unit_id"],
+            "unit_id": unit_id,
             "exercises": [],
         }
 
-        for exercise in tqdm(unit.get("exercises", []), desc=f"Unit {unit['unit_id']}"):
-            exercise_data = await self._process_exercise(exercise)
+        for exercise in tqdm(unit.get("exercises", []), desc=f"Unit {unit_id}"):
+            exercise_data = await self._process_exercise(exercise, topic_name)
             unit_data["exercises"].append(exercise_data)
 
         return unit_data
 
-    async def _process_exercise(self, exercise: dict) -> dict:
+    async def _process_exercise(self, exercise: dict, topic_name: str) -> dict:
         """Process a single exercise.
 
         Override in subclass.

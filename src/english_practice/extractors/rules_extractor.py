@@ -80,20 +80,22 @@ class RulesExtractor(BaseExtractor):
 
     async def _process_unit(self, unit: dict, answers_full_map: dict) -> dict:
         """Process all exercises in a unit."""
-        unit_number = int(unit["unit_id"])
+        unit_id = unit["unit_id"]
+        unit_number = int(unit_id)
         rules_md = self._get_grammar_md(unit_number)
+        topic_name = self._get_topic_name(unit_id)
 
         if not rules_md:
             logger.warning(f"Grammar markdown not found for unit {unit_number}")
 
         unit_data = {
-            "unit_id": unit["unit_id"],
+            "unit_id": unit_id,
             "exercises": [],
         }
 
-        for exercise in tqdm(unit.get("exercises", []), desc=f"Unit {unit['unit_id']}"):
+        for exercise in tqdm(unit.get("exercises", []), desc=f"Unit {unit_id}"):
             exercise_data = await self._process_exercise(
-                exercise, answers_full_map, rules_md
+                exercise, answers_full_map, rules_md, topic_name
             )
             unit_data["exercises"].append(exercise_data)
 
@@ -104,6 +106,7 @@ class RulesExtractor(BaseExtractor):
         exercise: dict,
         answers_full_map: dict,
         rules_md: str | None,
+        topic_name: str,
     ) -> dict:
         """Process a single exercise."""
         exercise_id = exercise["exercise_id"]
@@ -120,7 +123,7 @@ class RulesExtractor(BaseExtractor):
             image_path=image_path,
             questions=questions_for_extraction,
             rules_md=rules_md or "",
-            topic_name="English Grammar",
+            topic_name=topic_name,
         )
         return self._build_exercise_data(exercise_id, questions_for_extraction, result)
 
