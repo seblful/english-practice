@@ -265,7 +265,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             response = MessageFormatter.format_assistant_answer(result.answer)
             await update.message.reply_text(response, parse_mode="HTML")
         except Exception as e:
-            logger.error(f"Assistant agent error: {e}")
+            logger.error(f"Assistant error: {e}")
             await update.message.reply_text(
                 "[X] Sorry, I couldn't process your question at the moment."
             )
@@ -277,51 +277,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     target_question_id = session.current_question_db_id
     target_question_number = session.current_question_id
 
-    # Get correct answer from database
     repository = DatabaseRepository()
-    _, correct_answer = repository.check_answer(
-        target_question_id,
-        answer_text,
-    )
 
     try:
         agent_service = AgentService()
-        repository = DatabaseRepository()
 
         topic_name = session.current_topic_name or "Random"
 
-        # Step 1: Get full answer explanation
-        full_answer = await agent_service.get_full_answer(
-            image_path=session.current_exercise_path,
-            question_number=target_question_number,
-            correct_answer=correct_answer,
-            topic_name=topic_name,
-        )
+        # Get full answers and rule from database
+        all_answers = repository.get_all_answers(target_question_id)
+        rule_data = repository.get_rule(target_question_id)
 
-        # Step 2: Get grammar rule (only if enabled)
-        rule = None
-        if session.show_rule:
-            rules_md = repository.get_grammar_md_for_exercise(
-                session.current_exercise_id
-            )
-            if rules_md:
-                rule = await agent_service.get_rule(
-                    image_path=session.current_exercise_path,
-                    question_number=target_question_number,
-                    rules_md=rules_md,
-                    user_input=answer_text,
-                    correct_answer=correct_answer,
-                    full_answer=full_answer.full_answer,
-                    topic_name=topic_name,
-                )
+        first_correct_answer = all_answers[0].short_answer if all_answers else ""
+        first_full_answer = all_answers[0].full_answer if all_answers else ""
 
-        # Step 3: Evaluate answer using agent
+        # Evaluate answer using agent
         evaluation = await agent_service.evaluate_answer(
             image_path=session.current_exercise_path,
             question_number=target_question_number,
             user_input=answer_text,
-            correct_answer=correct_answer,
-            full_answer=full_answer.full_answer,
+            correct_answer=first_correct_answer,
+            full_answer=first_full_answer,
             topic_name=topic_name,
         )
 
@@ -329,18 +305,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         # Send evaluation message
         eval_msg = MessageFormatter.format_evaluation(
-            evaluation.is_correct, answer_text, correct_answer
+            evaluation.is_correct, answer_text, first_correct_answer
         )
         await update.message.reply_text(eval_msg, parse_mode="HTML")
 
-        # Send full answer message
-        full_answer_msg = MessageFormatter.format_full_answer(full_answer.full_answer)
-        await update.message.reply_text(full_answer_msg, parse_mode="HTML")
+        # Send all full answer messages
+        for answer in all_answers:
+            full_answer_msg = MessageFormatter.format_full_answer(answer.full_answer)
+            await update.message.reply_text(full_answer_msg, parse_mode="HTML")
 
         # Send rule message if available and enabled
-        if rule and session.show_rule:
+        if rule_data and session.show_rule:
             rule_msg = MessageFormatter.format_rule(
-                session.current_unit_number, rule.section_letter, rule.rule
+                session.current_unit_number,
+                rule_data["section_letter"],
+                rule_data["rule"],
             )
             await update.message.reply_text(rule_msg, parse_mode="HTML")
 
@@ -353,8 +332,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     except Exception as e:
         logger.error(f"Agent error: {e}")
         await update.message.reply_text(
-            "[X] Sorry, I couldn't evaluate your answer at the moment.\n\n"
-            f"✅ Correct answer is: {correct_answer}."
+            "[X] Sorry, I couldn't evaluate your answer at the moment."
         )
 
 

@@ -1,6 +1,6 @@
 # Prompt template filenames
-PROMPT_RULE = "agent_rule.j2"
 PROMPT_FULL_ANSWER = "agent_full_answer.j2"
+PROMPT_RULE = "agent_rule.j2"
 PROMPT_EVALUATE = "agent_evaluate.j2"
 PROMPT_ASSISTANT = "agent_assistant.j2"
 

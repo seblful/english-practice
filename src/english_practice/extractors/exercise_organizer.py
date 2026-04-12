@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 
 
-from english_practice.models import (
+from english_practice.models.constants import (
     EXERCISE_BOX_MAX_HEIGHT,
     EXERCISE_BOX_MAX_WIDTH,
     EXERCISE_BOX_MIN_HEIGHT,

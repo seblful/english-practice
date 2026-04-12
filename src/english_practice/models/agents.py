@@ -11,21 +11,41 @@ class EvaluateAnswerOutput(BaseModel):
     )
 
 
-class FullAnswerOutput(BaseModel):
-    """Output model for get full answer agent."""
+class QuestionAnswerItem(BaseModel):
+    """Single question answer item in batch extraction."""
 
-    full_answer: str = Field(
-        description="Complete sentence with the correct answer included. No explanations."
+    question_id: str = Field(description="Question ID (e.g., '2', '3a')")
+    is_open_ended: bool = Field(description="Whether the question is open-ended")
+    short_answer: str = Field(description="The short answer text")
+    full_answer: str | None = Field(
+        default=None, description="Full sentence with answer filled in"
     )
 
 
-class RuleOutput(BaseModel):
-    """Output model for get rule agent."""
+class ExerciseAnswersOutput(BaseModel):
+    """Output model for batch full answers extraction per exercise."""
 
-    section_letter: str = Field(
-        description="The main section letter (A, B, C, etc.) where the rule is found"
+    questions: list[QuestionAnswerItem] = Field(
+        description="List of questions with their answers"
     )
-    rule: str = Field(description="The relevant grammar rule for this question")
+
+
+class QuestionRuleItem(BaseModel):
+    """Single question rule item in batch extraction."""
+
+    question_id: str = Field(description="Question ID (e.g., '2', '3a')")
+    section_letter: str | None = Field(
+        default=None, description="Grammar section letter"
+    )
+    rule: str | None = Field(default=None, description="Grammar rule text")
+
+
+class ExerciseRulesOutput(BaseModel):
+    """Output model for batch rules extraction per exercise."""
+
+    questions: list[QuestionRuleItem] = Field(
+        description="List of questions with their rules"
+    )
 
 
 class AssistantOutput(BaseModel):

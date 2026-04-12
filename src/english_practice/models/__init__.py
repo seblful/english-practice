@@ -1,12 +1,15 @@
 from english_practice.models.agents import (
     AssistantOutput,
     EvaluateAnswerOutput,
-    FullAnswerOutput,
-    RuleOutput,
+    ExerciseAnswersOutput,
+    ExerciseRulesOutput,
+    QuestionAnswerItem,
+    QuestionRuleItem,
 )
 from english_practice.models.book import (
     Exercise,
     Question,
+    QuestionAnswer,
     Topic,
     Unit,
 )
@@ -15,9 +18,12 @@ __all__ = [
     "AssistantOutput",
     "EvaluateAnswerOutput",
     "Exercise",
-    "FullAnswerOutput",
+    "ExerciseAnswersOutput",
+    "ExerciseRulesOutput",
     "Question",
-    "RuleOutput",
+    "QuestionAnswer",
+    "QuestionAnswerItem",
+    "QuestionRuleItem",
     "Topic",
     "Unit",
 ]

@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 
 from config.settings import settings
+from src.english_practice.models.book import QuestionAnswer
 
 
 class DatabaseRepository:
@@ -109,7 +110,7 @@ class DatabaseRepository:
             Exercise dict with questions list, or None if not found.
         """
         with self._get_connection() as conn:
-            cursor = conn.execute(
+            exercise_row = conn.execute(
                 """
                 SELECT e.id, e.exercise_id, e.exercise_number, e.image_path,
                        u.id as unit_id, u.unit_number, u.title
@@ -118,26 +119,60 @@ class DatabaseRepository:
                 WHERE e.id = ?
                 """,
                 (exercise_id,),
-            )
-            row = cursor.fetchone()
+            ).fetchone()
 
-            if not row:
+            if not exercise_row:
                 return None
 
-            exercise = dict(row)
-
-            cursor = conn.execute(
+            questions_rows = conn.execute(
                 """
-                SELECT id, question_id, correct_answer, display_order
+                SELECT id, question_id, is_open_ended, section_letter, rule, display_order
                 FROM questions
                 WHERE exercise_id = ?
                 ORDER BY display_order, question_id
                 """,
                 (exercise_id,),
-            )
+            ).fetchall()
 
-            exercise["questions"] = [dict(row) for row in cursor.fetchall()]
-            return exercise
+            answers_rows = conn.execute(
+                """
+                SELECT question_id, short_answer, full_answer
+                FROM question_answers
+                WHERE question_id IN (SELECT id FROM questions WHERE exercise_id = ?)
+                """,
+                (exercise_id,),
+            ).fetchall()
+
+            answers_map: dict[int, list[dict]] = {}
+            for row in answers_rows:
+                q_id = row["question_id"]
+                if q_id not in answers_map:
+                    answers_map[q_id] = []
+                answers_map[q_id].append(
+                    {
+                        "short_answer": row["short_answer"],
+                        "full_answer": row["full_answer"],
+                    }
+                )
+
+            questions = []
+            for row in questions_rows:
+                questions.append(
+                    {
+                        "id": row["id"],
+                        "question_id": row["question_id"],
+                        "is_open_ended": bool(row["is_open_ended"]),
+                        "section_letter": row["section_letter"],
+                        "rule": row["rule"],
+                        "display_order": row["display_order"],
+                        "answers": answers_map.get(row["id"], []),
+                    }
+                )
+
+            return {
+                **dict(exercise_row),
+                "questions": questions,
+            }
 
     def get_question_by_number(
         self, exercise_id: int, question_number: str
@@ -152,75 +187,78 @@ class DatabaseRepository:
             Question dict or None if not found.
         """
         with self._get_connection() as conn:
-            cursor = conn.execute(
+            row = conn.execute(
                 """
-                SELECT id, question_id, correct_answer, display_order
+                SELECT id, question_id, is_open_ended, section_letter, rule, display_order
                 FROM questions
                 WHERE exercise_id = ? AND question_id = ?
                 """,
                 (exercise_id, question_number),
-            )
-            row = cursor.fetchone()
-            return dict(row) if row else None
+            ).fetchone()
 
-    def check_answer(self, question_id: int, user_answer: str) -> tuple[bool, str]:
-        """Check if user answer matches correct answer.
+            if not row:
+                return None
+
+            answers_rows = conn.execute(
+                """
+                SELECT short_answer, full_answer
+                FROM question_answers
+                WHERE question_id = ?
+                """,
+                (row["id"],),
+            ).fetchall()
+
+            return {
+                **dict(row),
+                "is_open_ended": bool(row["is_open_ended"]),
+                "answers": [
+                    {"short_answer": r["short_answer"], "full_answer": r["full_answer"]}
+                    for r in answers_rows
+                ],
+            }
+
+    def get_all_answers(self, question_id: int) -> list[QuestionAnswer]:
+        """Get all answer variants for a question.
 
         Args:
             question_id: Question database ID.
-            user_answer: User's answer.
 
         Returns:
-            Tuple of (is_correct, correct_answer).
-        """
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                "SELECT correct_answer FROM questions WHERE id = ?", (question_id,)
-            )
-            row = cursor.fetchone()
-
-            if not row:
-                return False, ""
-
-            correct_answer = row["correct_answer"]
-
-            normalized_user = user_answer.strip().lower()
-            normalized_correct = correct_answer.strip().lower()
-
-            is_correct = (
-                normalized_user == normalized_correct
-                or normalized_user in normalized_correct
-                or normalized_correct in normalized_user
-            )
-
-            return is_correct, correct_answer
-
-    def get_grammar_md_for_exercise(self, exercise_id: int) -> str | None:
-        """Get grammar markdown content for an exercise.
-
-        Args:
-            exercise_id: Exercise database ID.
-
-        Returns:
-            Grammar markdown content or None if not found.
+            List of QuestionAnswer objects.
         """
         with self._get_connection() as conn:
             cursor = conn.execute(
                 """
-                SELECT u.grammar_md_path
-                FROM exercises e
-                JOIN units u ON e.unit_id = u.id
-                WHERE e.id = ?
+                SELECT short_answer, full_answer
+                FROM question_answers
+                WHERE question_id = ?
                 """,
-                (exercise_id,),
+                (question_id,),
+            )
+            return [
+                QuestionAnswer(
+                    short_answer=row["short_answer"], full_answer=row["full_answer"]
+                )
+                for row in cursor.fetchall()
+            ]
+
+    def get_rule(self, question_id: int) -> dict | None:
+        """Get grammar rule for a question.
+
+        Args:
+            question_id: Question database ID.
+
+        Returns:
+            Dict with section_letter and rule, or None if not found.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                SELECT section_letter, rule
+                FROM questions
+                WHERE id = ?
+                """,
+                (question_id,),
             )
             row = cursor.fetchone()
-
-            if not row or not row["grammar_md_path"]:
-                return None
-
-            md_path = settings.paths.content_dir / row["grammar_md_path"]
-            if not md_path.exists():
-                return None
-
-            return md_path.read_text(encoding="utf-8")
+            return dict(row) if row else None
