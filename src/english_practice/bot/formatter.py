@@ -82,22 +82,31 @@ class MessageFormatter:
         return f"Answer question <b>{question_number}</b>:"
 
     @staticmethod
-    def format_evaluation(is_correct: bool, correct_answer: str | None = None) -> str:
+    def format_evaluation(is_correct: bool) -> str:
         """Format evaluation result message.
 
         Args:
             is_correct: Whether the user's answer is correct.
-            correct_answer: The correct answer (for wrong answers only).
 
         Returns:
             Formatted evaluation message.
         """
         if is_correct:
             return random.choice(CORRECT_PHRASES)
-        phrase = random.choice(WRONG_PHRASES)
-        if correct_answer:
-            return f"{phrase}\n\n✅ Correct: <b>{correct_answer}</b>"
-        return phrase
+        return random.choice(WRONG_PHRASES)
+
+    @staticmethod
+    def format_short_answer(short_answer: str) -> str:
+        """Format short answer message.
+
+        Args:
+            short_answer: The short answer text.
+
+        Returns:
+            Formatted short answer message.
+        """
+        converted = MessageFormatter._md_to_html(short_answer)
+        return f"Correct Answer:\n<b>{converted}</b>"
 
     @staticmethod
     def format_full_answer(full_answer: str) -> str:
@@ -107,24 +116,10 @@ class MessageFormatter:
             full_answer: The full answer sentence.
 
         Returns:
-            Formatted full answer message.
+            Formatted full answer message with code block.
         """
         converted = MessageFormatter._md_to_html(full_answer)
-        return f"📖 <b>Full Answer:</b>\n<pre>{converted}</pre>"
-
-    @staticmethod
-    def format_correct_answer(short_answer: str, full_answer: str) -> str:
-        """Format combined short and full answer message.
-
-        Args:
-            short_answer: The short answer text.
-            full_answer: The full answer sentence.
-
-        Returns:
-            Formatted combined answer message.
-        """
-        converted = MessageFormatter._md_to_html(full_answer)
-        return f"📖 <b>Correct answer:</b>\n{short_answer}\n\n{converted}"
+        return f"Full Answer:\n<pre>{converted}</pre>"
 
     @staticmethod
     def format_rule(unit_number: int, section_letter: str, rule: str) -> str:

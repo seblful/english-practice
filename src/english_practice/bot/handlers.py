@@ -308,30 +308,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         # Get matched full answer by index, or use first answer if no match
         matched_full_answer = None
-        show_all_answers = False
         if evaluation.answer_idx is not None and evaluation.answer_idx < len(
             full_answers
         ):
             matched_full_answer = full_answers[evaluation.answer_idx]
-        elif full_answers:
-            show_all_answers = True
 
-        eval_msg = MessageFormatter.format_evaluation(
-            evaluation.is_correct, matched_full_answer if not show_all_answers else None
-        )
+        eval_msg = MessageFormatter.format_evaluation(evaluation.is_correct)
         await update.message.reply_text(eval_msg, parse_mode="HTML")
 
-        # Send full answers - only matched one if found, otherwise first short+full
-        if show_all_answers:
+        short = short_answers[0] if short_answers else None
+        full = (
+            matched_full_answer
+            if matched_full_answer
+            else (full_answers[0] if full_answers else None)
+        )
+        if short:
             await update.message.reply_text(
-                MessageFormatter.format_correct_answer(
-                    short_answers[0], full_answers[0]
-                ),
+                MessageFormatter.format_short_answer(short),
                 parse_mode="HTML",
             )
-        elif matched_full_answer:
-            full_answer_msg = MessageFormatter.format_full_answer(matched_full_answer)
-            await update.message.reply_text(full_answer_msg, parse_mode="HTML")
+        if full:
+            await update.message.reply_text(
+                MessageFormatter.format_full_answer(full),
+                parse_mode="HTML",
+            )
 
         # Send rule message if available and enabled
         if rule_data and session.show_rule:
@@ -352,11 +352,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         logger.error(f"Agent error: {e}")
         await update.message.reply_text("[X] Sorry, I couldn't evaluate your answer.")
         # Show first answer on error
+        if short_answers:
+            await update.message.reply_text(
+                MessageFormatter.format_short_answer(short_answers[0]),
+                parse_mode="HTML",
+            )
         if full_answers:
             await update.message.reply_text(
-                MessageFormatter.format_correct_answer(
-                    short_answers[0], full_answers[0]
-                ),
+                MessageFormatter.format_full_answer(full_answers[0]),
                 parse_mode="HTML",
             )
         if session.show_rule and rule_data:
