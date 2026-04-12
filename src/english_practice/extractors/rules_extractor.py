@@ -138,16 +138,13 @@ class RulesExtractor(BaseExtractor):
         questions = []
         for question in exercise.get("questions", []):
             question_id = question["question_id"]
-            short_answer = question["answer"]
 
             key = f"{exercise['exercise_id']}:{question_id}"
             full_info = answers_full_map.get(key, {})
             is_open_ended = full_info.get("is_open_ended", False)
             answers = full_info.get("answers", [])
             full_answers = [a["full_answer"] for a in answers] if answers else []
-            short_answers = (
-                [a["short_answer"] for a in answers] if answers else [short_answer]
-            )
+            short_answers = [a["short_answer"] for a in answers] if answers else []
 
             questions.append(
                 {
