@@ -13,11 +13,13 @@ You are an expert English grammar teacher. Your task is to link exercise answers
 <ExerciseQuestions>
 {% for q in questions %}
 id: {{ q.question_id }}
+short_answers:
 {% for ans in q.short_answers %}
-short_answer: {{ ans }}
+{{ ans }}
 {% endfor %}
+full_answers:
 {% for ans in q.full_answers %}
-full_answer: {{ ans }}
+{{ ans }}
 {% endfor %}
 {% endfor %}
 </ExerciseQuestions>
