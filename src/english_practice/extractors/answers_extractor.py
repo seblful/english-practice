@@ -80,22 +80,9 @@ class AnswersExtractor(BaseExtractor):
         for q_input in questions_input:
             question_id = q_input["question_id"]
             short_answer = q_input["short_answer"]
-            q_result = result_map.get(question_id)
+            q_result = result_map[question_id]
 
-            if not q_result:
-                questions.append(
-                    ExtractedQuestionAnswers(
-                        question_id=question_id,
-                        is_open_ended=False,
-                        answers=[
-                            ExtractedAnswer(
-                                short_answer=short_answer,
-                                full_answer=short_answer,
-                            )
-                        ],
-                    )
-                )
-            elif q_result.is_open_ended:
+            if q_result.is_open_ended:
                 questions.append(
                     ExtractedQuestionAnswers(
                         question_id=question_id,

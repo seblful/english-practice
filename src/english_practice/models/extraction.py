@@ -42,7 +42,6 @@ class ExtractedQuestionRule(BaseModel):
     """A question with its extracted rule."""
 
     question_id: str
-    is_open_ended: bool = False
     section_letter: str | None = None
     rule: str | None = None
 

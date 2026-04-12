@@ -159,25 +159,6 @@ class RulesExtractor(BaseExtractor):
             )
         return questions
 
-    def _create_skipped_exercise_data(
-        self,
-        exercise_id: str,
-        questions: list[dict],
-    ) -> ExtractedExerciseRules:
-        """Create exercise data when extraction is skipped."""
-        return ExtractedExerciseRules(
-            exercise_id=exercise_id,
-            questions=[
-                ExtractedQuestionRule(
-                    question_id=q["question_id"],
-                    is_open_ended=q["is_open_ended"],
-                    section_letter=None,
-                    rule=None,
-                )
-                for q in questions
-            ],
-        )
-
     def _build_exercise_data(
         self,
         exercise_id: str,
@@ -190,34 +171,14 @@ class RulesExtractor(BaseExtractor):
         questions = []
         for q_input in questions_input:
             question_id = q_input["question_id"]
-            q_result = result_map.get(question_id)
+            q_result = result_map[question_id]
 
-            if q_input["is_open_ended"]:
-                questions.append(
-                    ExtractedQuestionRule(
-                        question_id=question_id,
-                        is_open_ended=True,
-                        section_letter=None,
-                        rule=None,
-                    )
+            questions.append(
+                ExtractedQuestionRule(
+                    question_id=question_id,
+                    section_letter=q_result.section_letter,
+                    rule=q_result.rule,
                 )
-            elif q_result:
-                questions.append(
-                    ExtractedQuestionRule(
-                        question_id=question_id,
-                        is_open_ended=False,
-                        section_letter=q_result.section_letter,
-                        rule=q_result.rule,
-                    )
-                )
-            else:
-                questions.append(
-                    ExtractedQuestionRule(
-                        question_id=question_id,
-                        is_open_ended=False,
-                        section_letter=None,
-                        rule="[Missing]",
-                    )
-                )
+            )
 
         return ExtractedExerciseRules(exercise_id=exercise_id, questions=questions)
