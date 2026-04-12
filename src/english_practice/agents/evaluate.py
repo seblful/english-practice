@@ -19,8 +19,9 @@ class EvaluateAnswerAgent(BaseAgent):
         image_path: Path,
         question_number: str,
         user_input: str,
-        correct_answer: str,
-        full_answer: str,
+        short_answers: list[str],
+        full_answers: list[str],
+        is_open_ended: bool,
         topic_name: str,
     ) -> EvaluateAnswerOutput:
         """Evaluate if the user's answer is correct.
@@ -29,18 +30,20 @@ class EvaluateAnswerAgent(BaseAgent):
             image_path: Path to the exercise image.
             question_number: The question number/ID.
             user_input: The user's answer.
-            correct_answer: The correct answer.
-            full_answer: The full answer explanation to help evaluate.
+            short_answers: All short answer variants.
+            full_answers: All full answer variants (parallel to short_answers).
+            is_open_ended: Whether the question allows free-form responses.
             topic_name: The topic name for context.
 
         Returns:
-            EvaluateAnswerOutput with is_correct boolean and full_answer.
+            EvaluateAnswerOutput with is_correct and matched_answer_index.
         """
         context = EvaluateAnswerInput(
             question_number=question_number,
             user_input=user_input,
-            correct_answer=correct_answer,
-            full_answer=full_answer,
+            short_answers=short_answers,
+            full_answers=full_answers,
+            is_open_ended=is_open_ended,
             topic_name=topic_name,
         )
         prompt = self.render(context)

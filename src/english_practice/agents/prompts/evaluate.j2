@@ -5,32 +5,59 @@ You are an expert English teacher evaluating a student's answer for a grammar ex
 <Context>
 <Topic>{{ topic_name }}</Topic>
 <QuestionNumber>{{ question_number }}</QuestionNumber>
-<ExpectedShortAnswer>{{ correct_answer }}</ExpectedShortAnswer>
-<ExpectedFullAnswer>{{ full_answer }}</ExpectedFullAnswer>
+<QuestionType>{% if is_open_ended %}OPEN{% else %}CLOSED{% endif %}</QuestionType>
 <StudentAnswer>{{ user_input }}</StudentAnswer>
 </Context>
 
+{% if not is_open_ended %}
+<CorrectAnswers>
+{% for i in range(short_answers | length) %}
+- index={{ i }}: short="{{ short_answers[i] }}"
+{% endfor %}
+</CorrectAnswers>
+
+<FullAnswerExamples>
+{% for i in range(full_answers | length) %}
+- index={{ i }}: {{ full_answers[i] }}
+{% endfor %}
+</FullAnswerExamples>
+
 <GradingRules>
-1. EXACT MATCH: Always correct (ignore capitalization and trailing punctuation like periods).
-2. ALTERNATIVE FORMS: If ExpectedShortAnswer contains "/" (e.g., "'d enjoy / would enjoy"), ANY of the alternatives is correct. Match against each alternative separately.
-3. CONTRACTIONS: Acceptable (e.g., "do not" = "don't", "cannot" = "can't") unless the exercise strictly tests formal writing.
-4. GRAMMAR VS TYPOS: Be strict. "their" vs "there" or "go" vs "goes" are GRAMMAR errors, not typos. They are INCORRECT.
-5. SYNONYMS: Mark as correct ONLY IF it is perfectly grammatically equivalent in the context of the exact sentence in the image.
-6. PARTIAL ANSWERS: If the student provides a partial answer or incomplete response, mark as incorrect.
-7. FULL SENTENCE ANSWERS: If the student provides a complete sentence, extract the relevant part and check if it matches the expected answer. The student's answer is correct if the sentence contains any valid form of the expected answer.
-8. FREE-FORM ANSWERS: Some questions allow open-ended responses (e.g., "Write about your plans" or "Describe something"). For these, accept ANY reasonable answer that correctly uses the target grammar structure being tested. The ExpectedShortAnswer may be an example - the student's answer is correct if it demonstrates proper understanding and use of the grammar, even with different words.
+1. NORMALIZE INPUT: Convert to lowercase, remove leading/trailing whitespace, remove trailing periods/punctuation.
+2. HANDLE CONTRACTIONS: "i'm"="i am", "i've"="i have", "i'd"="i would", "i'll"="i will", "he's"="he is", "she's"="she is", "it's"="it is", "we're"="we are", "they're"="they are", "isn't"="is not", "aren't"="are not", "wasn't"="was not", "weren't"="were not", "haven't"="have not", "hasn't"="has not", "hadn't"="had not", "won't"="will not", "wouldn't"="would not", "couldn't"="could not", "shouldn't"="should not", "can't"="cannot", "don't"="do not", "doesn't"="does not", "didn't"="did not"
+3. HANDLE ALTERNATIVES: If short_answer contains "/" (e.g., "'d enjoy / would enjoy"), expand both forms.
+4. COMPARE NORMALIZED: After normalization, check if student answer matches ANY expected answer.
+5. PARTIAL MATCHES: If student answer is incomplete (missing words), mark as incorrect.
+6. EXTRA WORDS: If student adds extra words that change meaning, mark as incorrect.
 </GradingRules>
 
 <Instructions>
-1. Look at the provided exercise image to understand the context of Question {{ question_number }}.
-2. Analyze the expected short and full answers against the student's input.
-3. Apply the Grading Rules strictly.
-4. Determine if the student's answer is correct (true) or incorrect (false).
+1. Look at the exercise image to understand the question context (Question {{ question_number }}).
+2. Normalize the student answer using rules above.
+3. Compare against ALL short_answers provided.
+4. If ANY short_answer matches (after normalization), the answer is correct.
+5. Return the ID of the matched answer.
 </Instructions>
+{% else %}
+<GradingRules>
+1. OPEN-ENDED: This question allows free-form responses.
+2. EVALUATE BY GRAMMAR: Judge correctness based on proper use of the grammar structure for this topic.
+3. TOPIC CONTEXT: Topic is "{{ topic_name }}". Evaluate if answer demonstrates correct understanding and application of this grammar.
+4. LENGTH: Accept any reasonable length response that answers the prompt.
+5. NOT ABOUT MATCHING: Do NOT try to match against stored answers. Evaluate based on your knowledge of English grammar for this topic.
+</GradingRules>
+
+<Instructions>
+1. Look at the exercise image to understand the question context (Question {{ question_number }}).
+2. Based on the topic "{{ topic_name }}", evaluate if the student's answer demonstrates proper use of the target grammar.
+3. Return is_correct=true if the answer is grammatically sound for this topic, false otherwise.
+4. For open-ended, matched_answer_id should be null.
+</Instructions>
+{% endif %}
 
 <OutputFormat>
-Respond ONLY with a valid JSON object matching the schema below. Do not include markdown code blocks (e.g., ```json).
 {
-  "is_correct": true // Boolean: true if correct, false if incorrect
+  "is_correct": true,
+  "matched_answer_index": 0 // Index into short_answers/full_answers arrays. For open-ended or wrong: null
 }
 </OutputFormat>

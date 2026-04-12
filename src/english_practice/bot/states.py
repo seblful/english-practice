@@ -16,6 +16,7 @@ class UserSession:
     current_topic_id: int | None = None
     current_topic_name: str | None = None
     current_unit_number: int | None = None
+    current_is_open_ended: bool = False
     unit_shown: bool = False
     answered: bool = False
     available_questions: list[str] = field(default_factory=list)
@@ -29,6 +30,7 @@ class UserSession:
         self.current_question_db_id = None
         self.current_topic_name = None
         self.current_unit_number = None
+        self.current_is_open_ended = False
         self.unit_shown = False
         self.answered = False
         self.available_questions = []
@@ -74,6 +76,7 @@ class StateManager:
         topic_name: str,
         unit_number: int,
         available_questions: list[str],
+        is_open_ended: bool = False,
     ) -> None:
         """Set current exercise for user.
 
@@ -87,6 +90,7 @@ class StateManager:
             topic_name: Current topic name.
             unit_number: Current unit number.
             available_questions: List of available question numbers.
+            is_open_ended: Whether the question is open-ended.
         """
         session = self.get_session(user_id)
         session.current_exercise_id = exercise_id
@@ -96,6 +100,7 @@ class StateManager:
         session.current_topic_id = topic_id
         session.current_topic_name = topic_name
         session.current_unit_number = unit_number
+        session.current_is_open_ended = is_open_ended
         session.unit_shown = False
         session.answered = False
         session.available_questions = available_questions

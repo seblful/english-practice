@@ -10,8 +10,9 @@ class EvaluateAnswerInput(BaseModel):
 
     question_number: str
     user_input: str
-    correct_answer: str
-    full_answer: str
+    short_answers: list[str]
+    full_answers: list[str]
+    is_open_ended: bool
     topic_name: str
 
 
@@ -20,6 +21,10 @@ class EvaluateAnswerOutput(BaseModel):
 
     is_correct: bool = Field(
         description="Whether the user's answer is correct (true) or incorrect (false)"
+    )
+    matched_answer_index: int | None = Field(
+        default=None,
+        description="Index of the matched answer in short_answers/full_answers lists. Null for open-ended or no match.",
     )
 
 

@@ -237,7 +237,8 @@ class DatabaseRepository:
             )
             return [
                 QuestionAnswer(
-                    short_answer=row["short_answer"], full_answer=row["full_answer"]
+                    short_answer=row["short_answer"],
+                    full_answer=row["full_answer"],
                 )
                 for row in cursor.fetchall()
             ]
