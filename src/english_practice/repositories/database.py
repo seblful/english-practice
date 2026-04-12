@@ -174,49 +174,6 @@ class DatabaseRepository:
                 "questions": questions,
             }
 
-    def get_question_by_number(
-        self, exercise_id: int, question_number: str
-    ) -> dict | None:
-        """Get specific question from exercise.
-
-        Args:
-            exercise_id: Exercise database ID.
-            question_number: Question number (e.g., "5", "2a").
-
-        Returns:
-            Question dict or None if not found.
-        """
-        with self._get_connection() as conn:
-            row = conn.execute(
-                """
-                SELECT id, question_id, is_open_ended, section_letter, rule, display_order
-                FROM questions
-                WHERE exercise_id = ? AND question_id = ?
-                """,
-                (exercise_id, question_number),
-            ).fetchone()
-
-            if not row:
-                return None
-
-            answers_rows = conn.execute(
-                """
-                SELECT short_answer, full_answer
-                FROM question_answers
-                WHERE question_id = ?
-                """,
-                (row["id"],),
-            ).fetchall()
-
-            return {
-                **dict(row),
-                "is_open_ended": bool(row["is_open_ended"]),
-                "answers": [
-                    {"short_answer": r["short_answer"], "full_answer": r["full_answer"]}
-                    for r in answers_rows
-                ],
-            }
-
     def get_all_answers(self, question_id: int) -> list[QuestionAnswer]:
         """Get all answer variants for a question.
 
