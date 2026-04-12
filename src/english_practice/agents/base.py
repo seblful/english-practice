@@ -4,7 +4,7 @@ import asyncio
 import base64
 import logging
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 from jinja2 import Environment, FileSystemLoader
 from langchain_core.messages import HumanMessage
@@ -19,32 +19,42 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
+_prompt_env: Environment | None = None
 
-class BaseAgent:
-    """Base class for all agents with structured output support."""
 
-    def __init__(self) -> None:
-        """Initialize base agent with lazy LLM loading."""
-        self._llm: BaseChatModel | None = None
-        self.prompt_env = Environment(
+def _get_prompt_env() -> Environment:
+    """Get or create singleton Jinja environment."""
+    global _prompt_env
+    if _prompt_env is None:
+        _prompt_env = Environment(
             loader=FileSystemLoader(settings.paths.prompts_dir),
             autoescape=False,
             trim_blocks=True,
             lstrip_blocks=True,
         )
+    return _prompt_env
 
-    def render_agent_prompt(self, template_name: str, **kwargs: Any) -> str:
-        """Render an agent prompt template with provided variables.
+
+class BaseAgent:
+    """Base class for all agents with structured output support."""
+
+    PROMPT_TEMPLATE: ClassVar[str] = ""
+
+    def __init__(self) -> None:
+        """Initialize base agent with lazy LLM loading."""
+        self._llm: BaseChatModel | None = None
+
+    def render(self, context: BaseModel) -> str:
+        """Render agent prompt template with validated context.
 
         Args:
-            template_name: Name of the agent prompt template (e.g., 'agent_evaluate.j2')
-            **kwargs: Template variables
+            context: Pydantic model with template variables.
 
         Returns:
-            Rendered template string
+            Rendered template string.
         """
-        template = self.prompt_env.get_template(template_name)
-        return template.render(**kwargs)
+        template = _get_prompt_env().get_template(self.PROMPT_TEMPLATE)
+        return template.render(**context.model_dump())
 
     @property
     def llm(self) -> BaseChatModel:

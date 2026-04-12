@@ -1,9 +1,3 @@
-# Prompt template filenames
-PROMPT_ANSWERS = "agent_answers.j2"
-PROMPT_RULES = "agent_rules.j2"
-PROMPT_EVALUATE = "agent_evaluate.j2"
-PROMPT_ASSISTANT = "agent_assistant.j2"
-
 START_CONTENT_PAGE = 5
 END_CONTENT_PAGE = 8
 START_UNIT_PAGE = 14

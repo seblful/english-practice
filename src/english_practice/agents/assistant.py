@@ -6,8 +6,11 @@ from typing import TYPE_CHECKING
 from langsmith import traceable
 
 from src.english_practice.agents.base import BaseAgent
-from src.english_practice.models.agents import AssistantOutput
-from src.english_practice.models.constants import PROMPT_ASSISTANT
+from src.english_practice.models.agents import (
+    AssistantContext,
+    AssistantOutput,
+    ChatMessage,
+)
 
 if TYPE_CHECKING:
     from src.english_practice.services.chat_history import ChatHistoryManager
@@ -15,6 +18,8 @@ if TYPE_CHECKING:
 
 class AssistantAgent(BaseAgent):
     """Agent for conversational assistance with chat history."""
+
+    PROMPT_TEMPLATE = "agent_assistant.j2"
 
     @traceable(name="assistant")
     async def assist(
@@ -39,16 +44,16 @@ class AssistantAgent(BaseAgent):
         Returns:
             AssistantOutput with response.
         """
-        # Get chat history for this user and image
-        chat_history = chat_history_manager.get_history(user_id, image_path)
+        raw_history = chat_history_manager.get_history(user_id, image_path)
+        chat_history = [ChatMessage(**msg) for msg in raw_history]
 
-        prompt = self.render_agent_prompt(
-            PROMPT_ASSISTANT,
-            chat_history=chat_history,
+        context = AssistantContext(
             question_number=question_number,
             user_input=user_input,
             topic_name=topic_name,
+            chat_history=chat_history,
         )
+        prompt = self.render(context)
 
         result = await self.invoke_structured(
             prompt=prompt,
@@ -56,7 +61,6 @@ class AssistantAgent(BaseAgent):
             image_path=image_path,
         )
 
-        # Add user message and assistant response to history
         chat_history_manager.add_message(
             user_id=user_id,
             image_path=image_path,

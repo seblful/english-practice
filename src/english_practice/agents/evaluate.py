@@ -5,12 +5,13 @@ from pathlib import Path
 from langsmith import traceable
 
 from src.english_practice.agents.base import BaseAgent
-from src.english_practice.models.agents import EvaluateAnswerOutput
-from src.english_practice.models.constants import PROMPT_EVALUATE
+from src.english_practice.models.agents import EvaluateAnswerInput, EvaluateAnswerOutput
 
 
 class EvaluateAnswerAgent(BaseAgent):
     """Agent for evaluating if a user's answer is correct."""
+
+    PROMPT_TEMPLATE = "agent_evaluate.j2"
 
     @traceable(name="evaluate_answer")
     async def evaluate(
@@ -35,14 +36,14 @@ class EvaluateAnswerAgent(BaseAgent):
         Returns:
             EvaluateAnswerOutput with is_correct boolean and full_answer.
         """
-        prompt = self.render_agent_prompt(
-            PROMPT_EVALUATE,
+        context = EvaluateAnswerInput(
             question_number=question_number,
             user_input=user_input,
             correct_answer=correct_answer,
             full_answer=full_answer,
             topic_name=topic_name,
         )
+        prompt = self.render(context)
 
         return await self.invoke_structured(
             prompt=prompt,

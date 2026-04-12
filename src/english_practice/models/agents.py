@@ -1,6 +1,18 @@
-"""Agent output models for structured LLM responses."""
+"""Agent input/output models for structured LLM responses."""
+
+from pathlib import Path
 
 from pydantic import BaseModel, Field
+
+
+class EvaluateAnswerInput(BaseModel):
+    """Input context for evaluate answer agent."""
+
+    question_number: str
+    user_input: str
+    correct_answer: str
+    full_answer: str
+    topic_name: str
 
 
 class EvaluateAnswerOutput(BaseModel):
@@ -32,6 +44,13 @@ class ExerciseAnswersOutput(BaseModel):
     )
 
 
+class AnswersContext(BaseModel):
+    """Input context for answers agent."""
+
+    questions: list[dict]
+    topic_name: str
+
+
 class QuestionRuleItem(BaseModel):
     """Single question rule item in batch extraction."""
 
@@ -48,6 +67,30 @@ class ExerciseRulesOutput(BaseModel):
     questions: list[QuestionRuleItem] = Field(
         description="List of questions with their rules"
     )
+
+
+class RulesContext(BaseModel):
+    """Input context for rules agent."""
+
+    questions: list[dict]
+    rules_md: str
+    topic_name: str
+
+
+class ChatMessage(BaseModel):
+    """Chat message structure."""
+
+    role: str
+    content: str
+
+
+class AssistantContext(BaseModel):
+    """Input context for assistant agent."""
+
+    question_number: str
+    user_input: str
+    topic_name: str
+    chat_history: list[ChatMessage] = Field(default_factory=list)
 
 
 class AssistantOutput(BaseModel):
