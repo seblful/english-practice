@@ -128,7 +128,12 @@ async def extract_answers() -> None:
     Processes all questions per exercise in a single LLM call.
     Outputs to answers_full.json. Resumes from last stopped unit.
     """
-    extractor = AnswersExtractor()
+    extractor = AnswersExtractor(
+        output_path=settings.paths.metadata_dir / "answers_full.json",
+        answers_path=settings.paths.metadata_dir / "answers.json",
+        exercises_dir=settings.paths.exercises_dir,
+        content_dir=settings.paths.content_dir,
+    )
     result = await extractor.extract()
     logger.info(f"Answers extracted to {result['output_path']}")
 
@@ -143,7 +148,14 @@ async def extract_rules() -> None:
     Processes all questions per exercise in a single LLM call.
     Outputs to rules.json. Resumes from last stopped unit.
     """
-    extractor = RulesExtractor()
+    extractor = RulesExtractor(
+        output_path=settings.paths.metadata_dir / "rules.json",
+        answers_path=settings.paths.metadata_dir / "answers.json",
+        exercises_dir=settings.paths.exercises_dir,
+        content_dir=settings.paths.content_dir,
+        answers_full_path=settings.paths.metadata_dir / "answers_full.json",
+        grammar_md_dir=settings.paths.grammar_md_dir,
+    )
     result = await extractor.extract()
     logger.info(f"Rules extracted to {result['output_path']}")
 

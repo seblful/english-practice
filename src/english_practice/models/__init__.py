@@ -13,6 +13,17 @@ from english_practice.models.book import (
     Topic,
     Unit,
 )
+from english_practice.models.extraction import (
+    ExtractedAnswer,
+    ExtractedExerciseAnswers,
+    ExtractedExerciseRules,
+    ExtractedFullAnswers,
+    ExtractedFullRules,
+    ExtractedQuestionAnswers,
+    ExtractedQuestionRule,
+    ExtractedUnitAnswers,
+    ExtractedUnitRules,
+)
 
 __all__ = [
     "AssistantOutput",
@@ -20,6 +31,15 @@ __all__ = [
     "Exercise",
     "ExerciseAnswersOutput",
     "ExerciseRulesOutput",
+    "ExtractedAnswer",
+    "ExtractedExerciseAnswers",
+    "ExtractedExerciseRules",
+    "ExtractedFullAnswers",
+    "ExtractedFullRules",
+    "ExtractedQuestionAnswers",
+    "ExtractedQuestionRule",
+    "ExtractedUnitAnswers",
+    "ExtractedUnitRules",
     "Question",
     "QuestionAnswer",
     "QuestionAnswerItem",

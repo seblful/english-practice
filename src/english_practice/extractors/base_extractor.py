@@ -3,10 +3,10 @@
 import json
 from pathlib import Path
 
+from pydantic import BaseModel
 from tqdm import tqdm
 
 from config.logging import get_logger
-from config.settings import settings
 
 logger = get_logger(__name__)
 
@@ -17,31 +17,29 @@ class BaseExtractor:
     def __init__(
         self,
         output_path: Path,
-        answers_path: Path | None = None,
+        answers_path: Path,
+        exercises_dir: Path,
+        content_dir: Path,
     ) -> None:
-        """Initialize the base extractor.
-
-        Args:
-            output_path: Path to the output JSON file.
-            answers_path: Path to answers.json (optional).
-        """
+        """Initialize the base extractor."""
         self._output_path = output_path
         self._answers_path = answers_path
+        self._exercises_dir = exercises_dir
+        self._content_dir = content_dir
         self._unit_topic_map = self._load_unit_topic_map()
 
     def _load_unit_topic_map(self) -> dict[str, str]:
         """Load mapping from unit_id to topic name."""
-        topic_to_unit_path = settings.paths.metadata_dir / "topic_to_unit.json"
+        topic_to_unit_path = self._content_dir / "metadata" / "topic_to_unit.json"
         if not topic_to_unit_path.exists():
             return {}
 
         topic_data = json.loads(topic_to_unit_path.read_text(encoding="utf-8"))
-        unit_map = {}
-        for item in topic_data:
-            topic_name = item["topic"]
-            for unit_id in item["unit_ids"]:
-                unit_map[str(unit_id)] = topic_name
-        return unit_map
+        return {
+            str(unit_id): item["topic"]
+            for item in topic_data
+            for unit_id in item["unit_ids"]
+        }
 
     def _get_topic_name(self, unit_id: str) -> str:
         """Get topic name for a unit."""
@@ -54,92 +52,66 @@ class BaseExtractor:
             return None
 
         page_num = parts[0]
-        image_path = settings.paths.exercises_dir / page_num / f"{exercise_id}.png"
-
-        if image_path.exists():
-            return image_path
-
-        image_path = (
-            settings.paths.content_dir / "exercises" / page_num / f"{exercise_id}.png"
-        )
-        if image_path.exists():
-            return image_path
-
+        for path in [
+            self._exercises_dir / page_num / f"{exercise_id}.png",
+            self._content_dir / "exercises" / page_num / f"{exercise_id}.png",
+        ]:
+            if path.exists():
+                return path
         return None
 
     def _load_answers_data(self) -> dict:
         """Load answers data from JSON file."""
-        if not self._answers_path:
-            return {}
         if not self._answers_path.exists():
-            raise FileNotFoundError(f"answers.json not found at {self._answers_path}")
+            return {}
         return json.loads(self._answers_path.read_text(encoding="utf-8"))
 
-    def _load_existing_output(self) -> dict:
-        """Load existing output file if it exists."""
-        import json
-
+    def _load_output(self, output_model: type[BaseModel]) -> BaseModel:
+        """Load existing output or return empty model."""
         if self._output_path.exists():
-            return json.loads(self._output_path.read_text(encoding="utf-8"))
-        return {"units": []}
+            return output_model.model_validate_json(
+                self._output_path.read_text(encoding="utf-8")
+            )
+        return output_model()
 
-    def _save_output(self, results: dict) -> None:
+    def _save_output(self, output: BaseModel) -> None:
         """Save output incrementally."""
-        import json
-
         self._output_path.parent.mkdir(parents=True, exist_ok=True)
-        self._output_path.write_text(
-            json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        self._output_path.write_text(output.model_dump_json(indent=2), encoding="utf-8")
 
-    def _get_processed_unit_ids(self, results: dict) -> set[str]:
-        """Get set of already processed unit IDs."""
-        return {u["unit_id"] for u in results.get("units", [])}
+    def _is_unit_processed(self, output: BaseModel, unit_id: str) -> bool:
+        """Check if unit was already processed."""
+        return any(u.unit_id == unit_id for u in output.units)
 
-    async def _process_unit(self, unit: dict) -> dict:
-        """Process all exercises in a unit.
+    def _add_unit(self, output: BaseModel, unit: BaseModel) -> None:
+        """Add unit to output."""
+        output.units.append(unit)
 
-        Override in subclass to implement specific exercise processing.
-        """
-        unit_id = unit["unit_id"]
-        topic_name = self._get_topic_name(unit_id)
-
-        unit_data = {
-            "unit_id": unit_id,
-            "exercises": [],
-        }
-
-        for exercise in tqdm(unit.get("exercises", []), desc=f"Unit {unit_id}"):
-            exercise_data = await self._process_exercise(exercise, topic_name)
-            unit_data["exercises"].append(exercise_data)
-
-        return unit_data
-
-    async def _process_exercise(self, exercise: dict, topic_name: str) -> dict:
-        """Process a single exercise.
-
-        Override in subclass.
-        """
-        raise NotImplementedError
-
-    async def extract(self) -> dict[str, Path]:
+    async def extract(self, output_model: type[BaseModel]) -> dict[str, Path]:
         """Extract data from all units.
+
+        Args:
+            output_model: The output model class to use.
 
         Returns:
             Dict with 'output_path' key containing the output file path.
         """
-        results = self._load_existing_output()
         data = self._load_answers_data()
-        processed_unit_ids = self._get_processed_unit_ids(results)
+        output = self._load_output(output_model)
 
         for unit in tqdm(data.get("units", []), desc="Processing units"):
-            if unit["unit_id"] in processed_unit_ids:
-                logger.info(f"Skipping already processed unit {unit['unit_id']}")
+            unit_id = unit["unit_id"]
+            if self._is_unit_processed(output, unit_id):
+                logger.info(f"Skipping already processed unit {unit_id}")
                 continue
 
             unit_data = await self._process_unit(unit)
-            results["units"].append(unit_data)
-            self._save_output(results)
+            self._add_unit(output, unit_data)
+            self._save_output(output)
 
         logger.info(f"Extracted to {self._output_path}")
         return {"output_path": self._output_path}
+
+    async def _process_unit(self, unit: dict) -> BaseModel:
+        """Process a unit. Override in subclass."""
+        raise NotImplementedError
