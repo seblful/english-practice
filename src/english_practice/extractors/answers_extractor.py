@@ -31,7 +31,7 @@ class AnswersExtractor(BaseExtractor):
             exercises_dir=exercises_dir,
             content_dir=content_dir,
         )
-        self._extractor = AnswersAgent()
+        self._extractor_agent = AnswersAgent()
 
     async def _process_unit(self, unit: dict) -> ExtractedUnitAnswers:
         """Process all exercises in a unit."""
@@ -59,7 +59,7 @@ class AnswersExtractor(BaseExtractor):
             for q in exercise.get("questions", [])
         ]
 
-        result = await self._extractor.extract_exercise(
+        result = await self._extractor_agent.extract_exercise(
             image_path=image_path,
             questions=questions_input,
             topic_name=topic_name,
@@ -104,16 +104,19 @@ class AnswersExtractor(BaseExtractor):
                     )
                 )
             else:
+                answers = []
+                for sa, fa in zip(q_result.short_answers, q_result.full_answers):
+                    answers.append(
+                        ExtractedAnswer(
+                            short_answer=sa,
+                            full_answer=fa or f"[{sa}]",
+                        )
+                    )
                 questions.append(
                     ExtractedQuestionAnswers(
                         question_id=question_id,
                         is_open_ended=False,
-                        answers=[
-                            ExtractedAnswer(
-                                short_answer=short_answer,
-                                full_answer=q_result.full_answer or f"[{short_answer}]",
-                            )
-                        ],
+                        answers=answers,
                     )
                 )
 

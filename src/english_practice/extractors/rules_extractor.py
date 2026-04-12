@@ -14,6 +14,11 @@ from tqdm import tqdm
 
 from .base_extractor import BaseExtractor
 
+from config.logging import get_logger
+
+
+logger = get_logger(__name__)
+
 
 class RulesExtractor(BaseExtractor):
     """Extract grammar rules from exercise images using LLM."""
@@ -34,7 +39,7 @@ class RulesExtractor(BaseExtractor):
             exercises_dir=exercises_dir,
             content_dir=content_dir,
         )
-        self._extractor = RulesAgent()
+        self._extractor_agent = RulesAgent()
         self._answers_full_path = answers_full_path
         self._grammar_md_dir = grammar_md_dir
 
@@ -119,7 +124,7 @@ class RulesExtractor(BaseExtractor):
         if self._should_skip_extraction(questions_input, image_path, rules_md):
             return self._create_skipped_exercise_data(exercise_id, questions_input)
 
-        result = await self._extractor.extract_exercise(
+        result = await self._extractor_agent.extract_exercise(
             image_path=image_path,
             questions=questions_input,
             rules_md=rules_md or "",

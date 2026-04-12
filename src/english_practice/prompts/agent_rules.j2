@@ -12,7 +12,7 @@ You are an expert English grammar teacher. Your task is to extract textbook rule
 
 <ExerciseQuestions>
 {% for q in questions %}
-{{ loop.index }}. {{ q.question_id }}: {{ q.short_answer }} -> {{ q.full_answer }}
+id: {{ q.question_id }}, answer: {{ q.short_answer }} -> {{ q.full_answer }}
 {% endfor %}
 </ExerciseQuestions>
 

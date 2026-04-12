@@ -16,9 +16,11 @@ class QuestionAnswerItem(BaseModel):
 
     question_id: str = Field(description="Question ID (e.g., '2', '3a')")
     is_open_ended: bool = Field(description="Whether the question is open-ended")
-    short_answer: str = Field(description="The short answer text")
-    full_answer: str | None = Field(
-        default=None, description="Full sentence with answer filled in"
+    short_answers: list[str] = Field(
+        default_factory=list, description="List of short answer texts"
+    )
+    full_answers: list[str] = Field(
+        default_factory=list, description="List of full sentences with answer filled in"
     )
 
 

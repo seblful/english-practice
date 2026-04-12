@@ -122,19 +122,21 @@ def organize_exercises() -> None:
     name="extract-answers",
     help="Extract answers from exercise images using LLM.",
 )
-async def extract_answers() -> None:
+def extract_answers() -> None:
     """Extract answers from exercise images using LLM.
 
     Processes all questions per exercise in a single LLM call.
     Outputs to answers_full.json. Resumes from last stopped unit.
     """
+    import asyncio
+
     extractor = AnswersExtractor(
         output_path=settings.paths.metadata_dir / "answers_full.json",
         answers_path=settings.paths.metadata_dir / "answers.json",
         exercises_dir=settings.paths.exercises_dir,
         content_dir=settings.paths.content_dir,
     )
-    result = await extractor.extract()
+    result = asyncio.run(extractor.extract())
     logger.info(f"Answers extracted to {result['output_path']}")
 
 
@@ -142,12 +144,14 @@ async def extract_answers() -> None:
     name="extract-rules",
     help="Extract grammar rules from exercises using LLM.",
 )
-async def extract_rules() -> None:
+def extract_rules() -> None:
     """Extract grammar rules from exercises using LLM.
 
     Processes all questions per exercise in a single LLM call.
     Outputs to rules.json. Resumes from last stopped unit.
     """
+    import asyncio
+
     extractor = RulesExtractor(
         output_path=settings.paths.metadata_dir / "rules.json",
         answers_path=settings.paths.metadata_dir / "answers.json",
@@ -156,7 +160,7 @@ async def extract_rules() -> None:
         answers_full_path=settings.paths.metadata_dir / "answers_full.json",
         grammar_md_dir=settings.paths.grammar_md_dir,
     )
-    result = await extractor.extract()
+    result = asyncio.run(extractor.extract())
     logger.info(f"Rules extracted to {result['output_path']}")
 
 
