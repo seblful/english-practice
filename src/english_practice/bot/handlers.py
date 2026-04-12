@@ -285,7 +285,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Get all answers from database (outside try so available on error)
     all_answers = repository.get_all_answers(target_question_id)
     rule_data = repository.get_rule(target_question_id)
-    rule_text = rule_data.rule if rule_data else None
+    rule_text = rule_data["rule"] if rule_data else None
     short_answers = [a.short_answer for a in all_answers]
     full_answers = [a.full_answer for a in all_answers]
 
