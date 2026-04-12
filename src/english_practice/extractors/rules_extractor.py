@@ -149,28 +149,18 @@ class RulesExtractor:
         exercise_id = exercise["exercise_id"]
         image_path = self._get_image_path(exercise_id)
 
-        exercise_data = {
-            "exercise_id": exercise_id,
-            "questions": [],
-        }
-
         questions_for_extraction = self._prepare_questions(exercise, answers_full_map)
 
         if self._should_skip_extraction(questions_for_extraction, image_path, rules_md):
             return self._create_skipped_exercise_data(questions_for_extraction)
 
-        try:
-            result = await self._extractor.extract_exercise(
-                image_path=image_path,
-                questions=questions_for_extraction,
-                rules_md=rules_md or "",
-                topic_name="English Grammar",
-            )
-            return self._build_exercise_data(questions_for_extraction, result)
-
-        except Exception as e:
-            logger.error(f"Error extracting rules for {exercise_id}: {e}")
-            return self._create_error_exercise_data(questions_for_extraction, e)
+        result = await self._extractor.extract_exercise(
+            image_path=image_path,
+            questions=questions_for_extraction,
+            rules_md=rules_md or "",
+            topic_name="English Grammar",
+        )
+        return self._build_exercise_data(questions_for_extraction, result)
 
     def _prepare_questions(self, exercise: dict, answers_full_map: dict) -> list[dict]:
         """Prepare questions for extraction."""
@@ -277,26 +267,3 @@ class RulesExtractor:
             "section_letter": None,
             "rule": "[Missing]",
         }
-
-    def _create_error_exercise_data(
-        self,
-        questions: list[dict],
-        error: Exception,
-    ) -> dict:
-        """Create error exercise data when extraction fails."""
-        exercise_data = {
-            "exercise_id": "",
-            "questions": [],
-        }
-
-        for q in questions:
-            exercise_data["questions"].append(
-                {
-                    "question_id": q["question_id"],
-                    "is_open_ended": q["is_open_ended"],
-                    "section_letter": None,
-                    "rule": f"[Error: {error}]",
-                }
-            )
-
-        return exercise_data

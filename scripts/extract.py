@@ -119,22 +119,22 @@ def organize_exercises() -> None:
 
 
 @app.command(
-    name="full-answers",
-    help="Extract full answers from exercise images using LLM.",
+    name="extract-answers",
+    help="Extract answers from exercise images using LLM.",
 )
-async def extract_full_answers() -> None:
-    """Extract full answers from exercise images using LLM.
+async def extract_answers() -> None:
+    """Extract answers from exercise images using LLM.
 
     Processes all questions per exercise in a single LLM call.
     Outputs to answers_full.json. Resumes from last stopped unit.
     """
     extractor = AnswersExtractor()
     result = await extractor.extract()
-    logger.info(f"Full answers extracted to {result['output_path']}")
+    logger.info(f"Answers extracted to {result['output_path']}")
 
 
 @app.command(
-    name="rules",
+    name="extract-rules",
     help="Extract grammar rules from exercises using LLM.",
 )
 async def extract_rules() -> None:

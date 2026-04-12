@@ -105,11 +105,6 @@ class AnswersExtractor:
         exercise_id = exercise["exercise_id"]
         image_path = self._get_image_path(exercise_id)
 
-        exercise_data = {
-            "exercise_id": exercise_id,
-            "questions": [],
-        }
-
         if not image_path:
             logger.warning(f"Image not found for {exercise_id}, skipping")
             return self._create_fallback_exercise_data(exercise)
@@ -125,17 +120,12 @@ class AnswersExtractor:
                 }
             )
 
-        try:
-            result = await self._extractor.extract_exercise(
-                image_path=image_path,
-                questions=questions_for_extraction,
-                topic_name="English Grammar",
-            )
-            return self._build_exercise_data(questions_for_extraction, result)
-
-        except Exception as e:
-            logger.error(f"Error extracting full answers for {exercise_id}: {e}")
-            return self._create_error_exercise_data(exercise, e)
+        result = await self._extractor.extract_exercise(
+            image_path=image_path,
+            questions=questions_for_extraction,
+            topic_name="English Grammar",
+        )
+        return self._build_exercise_data(questions_for_extraction, result)
 
     def _build_exercise_data(
         self,
@@ -219,31 +209,6 @@ class AnswersExtractor:
                         {
                             "short_answer": short_answer,
                             "full_answer": f"[No image: {short_answer}]",
-                        }
-                    ],
-                }
-            )
-
-        return exercise_data
-
-    def _create_error_exercise_data(self, exercise: dict, error: Exception) -> dict:
-        """Create error exercise data when extraction fails."""
-        exercise_data = {
-            "exercise_id": exercise["exercise_id"],
-            "questions": [],
-        }
-
-        for question in exercise.get("questions", []):
-            question_id = question["question_id"]
-            short_answer = question["answer"]
-            exercise_data["questions"].append(
-                {
-                    "question_id": question_id,
-                    "is_open_ended": False,
-                    "answers": [
-                        {
-                            "short_answer": short_answer,
-                            "full_answer": f"[Error: {error}]",
                         }
                     ],
                 }
