@@ -182,7 +182,6 @@ class DatabaseValidator:
             "questions_without_answers": [],
             "units_without_exercises": [],
             "topics_without_units": [],
-            "exercises_without_images": [],
         }
 
         # Exercises without questions
@@ -201,13 +200,14 @@ class DatabaseValidator:
                 f"Unit {row['unit_number']}, Exercise {row['exercise_id']}"
             )
 
-        # Questions without answers (NULL or empty)
+        # Questions without answers in question_answers table
         self.cursor.execute(
             """
             SELECT q.question_id, e.exercise_id
             FROM questions q
             JOIN exercises e ON q.exercise_id = e.id
-            WHERE q.correct_answer IS NULL OR TRIM(q.correct_answer) = ''
+            LEFT JOIN question_answers qa ON q.id = qa.question_id
+            WHERE qa.id IS NULL
             """
         )
         for row in self.cursor.fetchall():
@@ -243,21 +243,6 @@ class DatabaseValidator:
         for row in self.cursor.fetchall():
             results["topics_without_units"].append(row["name"])
 
-        # Exercises without image paths
-        self.cursor.execute(
-            """
-            SELECT e.exercise_id, u.unit_number, u.title
-            FROM exercises e
-            JOIN units u ON e.unit_id = u.id
-            WHERE e.image_path IS NULL
-            ORDER BY u.unit_number, e.exercise_number
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["exercises_without_images"].append(
-                f"Unit {row['unit_number']}, Exercise {row['exercise_id']}"
-            )
-
         if any(
             results[k]
             for k in [
@@ -265,7 +250,6 @@ class DatabaseValidator:
                 "questions_without_answers",
                 "units_without_exercises",
                 "topics_without_units",
-                "exercises_without_images",
             ]
         ):
             results["status"] = "error"
@@ -353,6 +337,23 @@ class DatabaseValidator:
                 f"Topic '{row['name']}' (ID {row['id']}) -> Parent ID {row['parent_topic_id']}"
             )
 
+        # question_answers with invalid question_id
+        self.cursor.execute(
+            """
+            SELECT qa.id, qa.question_id
+            FROM question_answers qa
+            LEFT JOIN questions q ON qa.question_id = q.id
+            WHERE q.id IS NULL
+            """
+        )
+        for row in self.cursor.fetchall():
+            results["invalid_question_answers"] = results.get(
+                "invalid_question_answers", []
+            )
+            results["invalid_question_answers"].append(
+                f"Answer ID {row['id']} -> Question ID {row['question_id']}"
+            )
+
         if any(
             results[k]
             for k in [
@@ -361,6 +362,7 @@ class DatabaseValidator:
                 "invalid_unit_topic_unit_ids",
                 "invalid_unit_topic_topic_ids",
                 "invalid_topic_parents",
+                "invalid_question_answers",
             ]
         ):
             results["status"] = "error"
@@ -501,11 +503,6 @@ class DatabaseValidator:
                     f"  [[WARN]] Topics without units: {len(orphan['topics_without_units'])}"
                 )
                 total_warnings += len(orphan["topics_without_units"])
-            if orphan["exercises_without_images"]:
-                print(
-                    f"  [FAIL] Exercises without image paths: {len(orphan['exercises_without_images'])}"
-                )
-                total_errors += len(orphan["exercises_without_images"])
 
         # Referential Integrity
         print("\n[REF] REFERENTIAL INTEGRITY")
@@ -538,6 +535,11 @@ class DatabaseValidator:
                     f"  [FAIL] Invalid topic parents: {len(ref['invalid_topic_parents'])}"
                 )
                 total_errors += len(ref["invalid_topic_parents"])
+            if ref.get("invalid_question_answers"):
+                print(
+                    f"  [FAIL] Invalid question_answers: {len(ref['invalid_question_answers'])}"
+                )
+                total_errors += len(ref["invalid_question_answers"])
 
         # Cross References
         print("\n[CROSS] CROSS-REFERENCE VALIDATION")
