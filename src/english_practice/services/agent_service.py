@@ -32,6 +32,7 @@ class AgentService:
         full_answers: list[str],
         is_open_ended: bool,
         topic_name: str,
+        rule: str | None = None,
     ) -> EvaluateAnswerOutput:
         """Evaluate if the user's answer is correct.
 
@@ -43,9 +44,10 @@ class AgentService:
             full_answers: All full answer variants.
             is_open_ended: Whether the question allows free-form responses.
             topic_name: The topic name for context.
+            rule: Optional grammar rule for this question.
 
         Returns:
-            EvaluateAnswerOutput with is_correct and matched_answer_index.
+            EvaluateAnswerOutput with is_correct and answer_idx.
         """
         return await self._evaluate_agent.evaluate(
             image_path=image_path,
@@ -55,6 +57,7 @@ class AgentService:
             full_answers=full_answers,
             is_open_ended=is_open_ended,
             topic_name=topic_name,
+            rule=rule,
         )
 
     async def assist(
