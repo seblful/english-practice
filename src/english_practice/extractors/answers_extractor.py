@@ -90,7 +90,7 @@ class AnswersExtractor(BaseExtractor):
                         answers=[
                             ExtractedAnswer(
                                 short_answer=short_answer,
-                                full_answer=f"[Missing: {short_answer}]",
+                                full_answer=short_answer,
                             )
                         ],
                     )

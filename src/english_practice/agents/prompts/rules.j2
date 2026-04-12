@@ -13,16 +13,20 @@ You are an expert English grammar teacher. Your task is to link exercise answers
 <ExerciseQuestions>
 {% for q in questions %}
 id: {{ q.question_id }}
-short_answer: {{ q.short_answer }} 
-full_sentence: {{ q.full_answer }}
+{% for ans in q.short_answers %}
+short_answer: {{ ans }}
+{% endfor %}
+{% for ans in q.full_answers %}
+full_answer: {{ ans }}
+{% endfor %}
 {% endfor %}
 </ExerciseQuestions>
 
 <Instructions>
-Your goal is to find the exact section in the <TextbookRulesReference> that explains WHY the `short_answer` is correct for the `full_sentence`.
+Your goal is to find the exact section in the <TextbookRulesReference> that explains WHY the `short_answer` is correct for each `full_answer`.
 
 Step-by-Step Process:
-1. **Analyze the grammar mechanism** happening in the `full_sentence` (e.g., is it an unfinished action? A comparison? A state verb?).
+1. **Analyze the grammar mechanism** happening in each `full_answer` (e.g., is it an unfinished action? A comparison? A state verb?).
 2. **Scan the <TextbookRulesReference>** for the specific Section (usually A, B, C, D, etc.) that teaches this exact mechanism.
 3. **Extract the Section Letter**. If the markdown doesn't have letters, leave it null.
 4. **Draft the Rule**: Do NOT just copy the section header. Extract the specific, actionable bullet point or sentence from that section that explains the answer. 

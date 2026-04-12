@@ -112,7 +112,7 @@ class RulesExtractor(BaseExtractor):
         self,
         exercise: dict,
         answers_full_map: dict[str, dict],
-        rules_md: str | None,
+        rules_md: str,
         topic_name: str,
     ) -> ExtractedExerciseRules:
         """Process a single exercise."""
@@ -121,13 +121,10 @@ class RulesExtractor(BaseExtractor):
 
         questions_input = self._prepare_questions(exercise, answers_full_map)
 
-        if self._should_skip_extraction(questions_input, image_path, rules_md):
-            return self._create_skipped_exercise_data(exercise_id, questions_input)
-
         result = await self._extractor_agent.extract_exercise(
             image_path=image_path,
             questions=questions_input,
-            rules_md=rules_md or "",
+            rules_md=rules_md,
             topic_name=topic_name,
         )
         return self._build_exercise_data(exercise_id, questions_input, result)
@@ -147,28 +144,20 @@ class RulesExtractor(BaseExtractor):
             full_info = answers_full_map.get(key, {})
             is_open_ended = full_info.get("is_open_ended", False)
             answers = full_info.get("answers", [])
-            full_answer_str = answers[0]["full_answer"] if answers else ""
+            full_answers = [a["full_answer"] for a in answers] if answers else []
+            short_answers = (
+                [a["short_answer"] for a in answers] if answers else [short_answer]
+            )
 
             questions.append(
                 {
                     "question_id": question_id,
                     "is_open_ended": is_open_ended,
-                    "short_answer": short_answer,
-                    "full_answer": full_answer_str,
+                    "short_answers": short_answers,
+                    "full_answers": full_answers,
                 }
             )
         return questions
-
-    def _should_skip_extraction(
-        self,
-        questions: list[dict],
-        image_path: Path | None,
-        rules_md: str | None,
-    ) -> bool:
-        """Check if extraction should be skipped."""
-        return (
-            not image_path or not rules_md or any(q["is_open_ended"] for q in questions)
-        )
 
     def _create_skipped_exercise_data(
         self,
