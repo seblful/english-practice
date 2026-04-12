@@ -4,10 +4,10 @@ from pathlib import Path
 
 from src.english_practice.agents.base import BaseAgent
 from src.english_practice.models.agents import ExerciseAnswersOutput
-from src.english_practice.models.constants import PROMPT_FULL_ANSWER
+from src.english_practice.models.constants import PROMPT_ANSWERS
 
 
-class AnswerExtractor(BaseAgent):
+class AnswersAgent(BaseAgent):
     """Extract full answers from exercise images."""
 
     async def extract_exercise(
@@ -27,7 +27,7 @@ class AnswerExtractor(BaseAgent):
             ExerciseAnswersOutput with all question answers.
         """
         prompt = self.render_agent_prompt(
-            PROMPT_FULL_ANSWER,
+            PROMPT_ANSWERS,
             questions=questions,
             topic_name=topic_name,
         )

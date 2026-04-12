@@ -4,10 +4,10 @@ from pathlib import Path
 
 from src.english_practice.agents.base import BaseAgent
 from src.english_practice.models.agents import ExerciseRulesOutput
-from src.english_practice.models.constants import PROMPT_RULE
+from src.english_practice.models.constants import PROMPT_RULES
 
 
-class RuleExtractor(BaseAgent):
+class RulesAgent(BaseAgent):
     """Extract grammar rules from exercises."""
 
     async def extract_exercise(
@@ -29,7 +29,7 @@ class RuleExtractor(BaseAgent):
             ExerciseRulesOutput with all question rules.
         """
         prompt = self.render_agent_prompt(
-            PROMPT_RULE,
+            PROMPT_RULES,
             questions=questions,
             rules_md=rules_md,
             topic_name=topic_name,
