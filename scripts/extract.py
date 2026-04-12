@@ -122,18 +122,14 @@ def organize_exercises() -> None:
     name="full-answers",
     help="Extract full answers from exercise images using LLM.",
 )
-async def extract_full_answers(
-    force: bool = typer.Option(
-        False, "--force", "-f", help="Overwrite existing answers_full.json"
-    ),
-) -> None:
+async def extract_full_answers() -> None:
     """Extract full answers from exercise images using LLM.
 
     Processes all questions per exercise in a single LLM call.
-    Outputs to answers_full.json.
+    Outputs to answers_full.json. Resumes from last stopped unit.
     """
     extractor = AnswersExtractor()
-    result = await extractor.extract(force=force)
+    result = await extractor.extract()
     logger.info(f"Full answers extracted to {result['output_path']}")
 
 
@@ -141,18 +137,14 @@ async def extract_full_answers(
     name="rules",
     help="Extract grammar rules from exercises using LLM.",
 )
-async def extract_rules(
-    force: bool = typer.Option(
-        False, "--force", "-f", help="Overwrite existing rules.json"
-    ),
-) -> None:
+async def extract_rules() -> None:
     """Extract grammar rules from exercises using LLM.
 
     Processes all questions per exercise in a single LLM call.
-    Outputs to rules.json.
+    Outputs to rules.json. Resumes from last stopped unit.
     """
     extractor = RulesExtractor()
-    result = await extractor.extract(force=force)
+    result = await extractor.extract()
     logger.info(f"Rules extracted to {result['output_path']}")
 
 

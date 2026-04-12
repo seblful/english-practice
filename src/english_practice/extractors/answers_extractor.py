@@ -47,36 +47,44 @@ class AnswersExtractor:
             raise FileNotFoundError(f"answers.json not found at {self._answers_path}")
         return json.loads(self._answers_path.read_text(encoding="utf-8"))
 
-    async def extract(
-        self,
-        force: bool = False,
-    ) -> dict[str, Path]:
-        """Extract full answers from all exercises.
+    def _load_existing_output(self) -> dict:
+        """Load existing output file if it exists."""
+        if self._output_path.exists():
+            return json.loads(self._output_path.read_text(encoding="utf-8"))
+        return {"units": []}
 
-        Args:
-            force: Overwrite existing answers_full.json
-
-        Returns:
-            Dict with 'output_path' key containing the output file path
-        """
-        if self._output_path.exists() and not force:
-            logger.info(f"answers_full.json already exists at {self._output_path}")
-            logger.info("Use --force to overwrite")
-            return {"output_path": self._output_path}
-
-        data = self._load_answers_data()
-        results = {"units": []}
-
-        for unit in tqdm(data.get("units", []), desc="Processing units"):
-            unit_data = await self._process_unit(unit)
-            results["units"].append(unit_data)
-
+    def _save_output(self, results: dict) -> None:
+        """Save output incrementally."""
         self._output_path.parent.mkdir(parents=True, exist_ok=True)
         self._output_path.write_text(
             json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8"
         )
-        logger.info(f"Full answers extracted to {self._output_path}")
 
+    def _get_processed_unit_ids(self, results: dict) -> set[str]:
+        """Get set of already processed unit IDs."""
+        return {u["unit_id"] for u in results.get("units", [])}
+
+    async def extract(self) -> dict[str, Path]:
+        """Extract full answers from all exercises.
+
+        Returns:
+            Dict with 'output_path' key containing the output file path
+        """
+        results = self._load_existing_output()
+
+        data = self._load_answers_data()
+        processed_unit_ids = self._get_processed_unit_ids(results)
+
+        for unit in tqdm(data.get("units", []), desc="Processing units"):
+            if unit["unit_id"] in processed_unit_ids:
+                logger.info(f"Skipping already processed unit {unit['unit_id']}")
+                continue
+
+            unit_data = await self._process_unit(unit)
+            results["units"].append(unit_data)
+            self._save_output(results)
+
+        logger.info(f"Full answers extracted to {self._output_path}")
         return {"output_path": self._output_path}
 
     async def _process_unit(self, unit: dict) -> dict:
