@@ -19,12 +19,12 @@ Your goal is to be accurate, fair, and helpful.
 <ExpectedAnswers>
 <ShortAnswers>
 {% for i in range(short_answers | length) %}
-- index={{ i }}: "{{ short_answers[i] }}"
+- {{ i }}: "{{ short_answers[i] }}"
 {% endfor %}
 </ShortAnswers>
 <FullAnswers>
 {% for i in range(full_answers | length) %}
-- index={{ i }}: "{{ full_answers[i] }}"
+- {{ i }}: "{{ full_answers[i] }}"
 {% endfor %}
 </FullAnswers>
 </ExpectedAnswers>
@@ -34,7 +34,7 @@ Your goal is to be accurate, fair, and helpful.
 2. ALTERNATIVES: If an expected answer contains a slash "/" (e.g., "'d enjoy / would enjoy"), treat it as an OR condition. The student only needs to match one side.
 3. FULL VS SHORT: The student might type ONLY the missing words (Short Answer) OR the complete sentence (Full Answer). Check their answer against BOTH lists.
 4. NORMALIZATION: Ignore capitalization, trailing punctuation (periods, exclamation marks), and extra spaces when comparing.
-5. TYPOS vs GRAMMAR: If the student perfectly demonstrates the target grammar ("{{ topic_name }}") but makes a minor spelling mistake in a completely unrelated word, mark it as Correct (is_correct: true).
+5. TYPOS vs GRAMMAR: If the student perfectly demonstrates the target grammar from the <GrammarRule> but makes a minor spelling mistake in a completely unrelated word, mark it as Correct (is_correct: true).
 6. EXTRA WORDS: If the student adds extra words that alter the grammatical structure or meaning, mark as incorrect.
 </GradingRules>
 
@@ -48,14 +48,14 @@ Your goal is to be accurate, fair, and helpful.
 
 <GradingRules>
 1. OPEN-ENDED: This question allows free-form responses. Do NOT attempt to exact-match against a database.
-2. GRAMMAR FOCUS: Evaluate correctness strictly based on the proper use of the target grammar topic: "{{ topic_name }}".
+2. GRAMMAR FOCUS: Evaluate correctness strictly based on the proper use of the target grammar topic from the <GrammarRule>.
 3. CONTEXT: The answer must make logical sense in the context of the exercise image for Question {{ question_number }}.
 4. FORGIVENESS: Forgive minor spelling errors as long as the target grammar structure is correct.
 </GradingRules>
 
 <Instructions>
 1. Look at the exercise image to understand the context of Question {{ question_number }}.
-2. Evaluate if the student's answer demonstrates proper understanding and application of "{{ topic_name }}".
+2. Evaluate if the student's answer demonstrates proper understanding and application of the grammar from the <GrammarRule>.
 </Instructions>
 {% endif %}
 
@@ -64,6 +64,6 @@ Return ONLY a valid, raw JSON object. Do not include markdown formatting like ``
 
 {
   "is_correct": boolean,
-  "answer_idx": integer or null, // The index (0-based) of the matched answer from ExpectedAnswers. Return null for open-ended or if no match.
+  "answer_idx": integer or null, // The position (0-based) of the matched answer from ExpectedAnswers. Return null for open-ended or if no match.
 }
 </OutputInstructions>

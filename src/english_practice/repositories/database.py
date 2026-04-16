@@ -220,3 +220,28 @@ class DatabaseRepository:
             )
             row = cursor.fetchone()
             return dict(row) if row else None
+
+    def get_topic_for_question(self, question_id: int) -> str | None:
+        """Get topic name for a specific question via exercise and unit.
+
+        Args:
+            question_id: Question database ID.
+
+        Returns:
+            Topic name or None if not found.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                SELECT t.name
+                FROM questions q
+                JOIN exercises e ON q.exercise_id = e.id
+                JOIN units u ON e.unit_id = u.id
+                JOIN unit_topics ut ON u.id = ut.unit_id
+                JOIN topics t ON ut.topic_id = t.id
+                WHERE q.id = ?
+                """,
+                (question_id,),
+            )
+            row = cursor.fetchone()
+            return row["name"] if row else None
