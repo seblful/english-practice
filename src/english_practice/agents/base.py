@@ -10,7 +10,7 @@ from jinja2 import Environment, FileSystemLoader
 from langchain_core.messages import HumanMessage
 from langchain_core.language_models.chat_models import BaseChatModel
 from langsmith import traceable
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from config.settings import settings
 from src.english_practice.llm import get_llm
@@ -115,7 +115,7 @@ class BaseAgent:
         output_model: type[T],
         image_path: Path | None = None,
     ) -> T:
-        """Invoke LLM with structured output.
+        """Invoke LLM with structured output using response_format.
 
         Args:
             prompt: The prompt text.
@@ -127,12 +127,12 @@ class BaseAgent:
         """
         message = await self._create_message(prompt, image_path)
 
-        # Create structured LLM
-        structured_llm = self.llm.with_structured_output(output_model)
+        # Use response_format for structured output (works with both Qwen and Gemini)
+        structured_llm = self.llm.bind(response_format={"type": "json_object"})
 
-        try:
-            result = await structured_llm.ainvoke([message])
-            return result
-        except Exception as e:
-            logger.error(f"Error invoking structured output: {e}")
-            raise
+        response = await structured_llm.ainvoke([message])
+        content = response.content if hasattr(response, "content") else str(response)
+
+        # Parse and validate JSON with Pydantic
+        adapter = TypeAdapter(output_model)
+        return adapter.validate_json(content)
