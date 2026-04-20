@@ -66,20 +66,19 @@ class OcrSettings(BaseSettings):
     model: str = "mistral-ocr-latest"
 
 
-class QwenSettings(BaseSettings):
-    """Qwen API settings (DashScope)."""
+class DashscopeSettings(BaseSettings):
+    """DashScope API settings."""
 
     model_config = SettingsConfigDict(
         env_prefix="DASHSCOPE_",
         case_sensitive=False,
     )
 
+    base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     api_key: str | None = None
     model: str = "qwen3-vl-flash-2026-01-22"
-    base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     temperature: float = 0.7
     max_tokens: int = 2048
-    enable_thinking: bool = False
 
 
 class GeminiSettings(BaseSettings):
@@ -90,17 +89,34 @@ class GeminiSettings(BaseSettings):
         case_sensitive=False,
     )
 
-    model: str = "gemini-2.5-flash-lite"
     api_key: str | None = None
-    connection_timeout: int = 10
-    read_timeout: int = 120
-    max_retries: int = 3
-    proxy: str | None = None
+    model: str = "gemini-2.5-flash-lite"
     temperature: float = 0.7
     max_tokens: int = 2048
-    top_p: float = 0.95
-    top_k: int = 64
-    thinking_level: Literal["minimal", "low", "medium", "high"] | None = "low"
+
+
+class OpenRouterSettings(BaseSettings):
+    """OpenRouter API settings."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="OPENROUTER_",
+        case_sensitive=False,
+    )
+
+    base_url: str = "https://openrouter.ai/api/v1"
+    api_key: str | None = None
+    model: str = "openai/gpt-4o-mini"
+    temperature: float = 0.7
+    max_tokens: int = 2048
+
+
+class LLMSettings(BaseSettings):
+    """LLM provider settings."""
+
+    provider: Literal["dashscope", "gemini", "openrouter"] = "dashscope"
+    dashscope: DashscopeSettings = Field(default_factory=DashscopeSettings)
+    gemini: GeminiSettings = Field(default_factory=GeminiSettings)
+    openrouter: OpenRouterSettings = Field(default_factory=OpenRouterSettings)
 
 
 class LangSmithSettings(BaseSettings):
@@ -150,15 +166,11 @@ class Settings(BaseSettings):
     environment: Literal["development", "staging", "production"] = "development"
     debug: bool = False
 
-    # LLM Provider
-    llm_provider: Literal["qwen", "gemini"] = "qwen"
-
     # Nested configs
     paths: PathSettings = Field(default_factory=PathSettings)
     book: BookSettings = Field(default_factory=BookSettings)
     images: ImageSettings = Field(default_factory=ImageSettings)
-    qwen: QwenSettings = Field(default_factory=QwenSettings)
-    gemini: GeminiSettings = Field(default_factory=GeminiSettings)
+    llm: LLMSettings = Field(default_factory=LLMSettings)
     langsmith: LangSmithSettings = Field(default_factory=LangSmithSettings)
     ocr: OcrSettings = Field(default_factory=OcrSettings)
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)

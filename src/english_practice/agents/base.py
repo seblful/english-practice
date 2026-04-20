@@ -115,7 +115,7 @@ class BaseAgent:
         output_model: type[T],
         image_path: Path | None = None,
     ) -> T:
-        """Invoke LLM with structured output using response_format.
+        """Invoke LLM with structured output.
 
         Args:
             prompt: The prompt text.
@@ -127,12 +127,7 @@ class BaseAgent:
         """
         message = await self._create_message(prompt, image_path)
 
-        # Use response_format for structured output (works with both Qwen and Gemini)
-        structured_llm = self.llm.bind(response_format={"type": "json_object"})
+        structured_llm = self.llm.with_structured_output(output_model)
 
         response = await structured_llm.ainvoke([message])
-        content = response.content if hasattr(response, "content") else str(response)
-
-        # Parse and validate JSON with Pydantic
-        adapter = TypeAdapter(output_model)
-        return adapter.validate_json(content)
+        return response

@@ -26,23 +26,23 @@ class GeminiLLM(BaseLLM):
 
     def create(self) -> ChatGoogleGenerativeAI:
         """Create Gemini LLM client with optional proxy support."""
-        if not settings.gemini.api_key:
+        if not settings.llm.gemini.api_key:
             raise ValueError("GEMINI_API_KEY not set. Please add it to your .env file.")
 
         kwargs: dict[str, Any] = {
-            "model": settings.gemini.model,
-            "google_api_key": SecretStr(settings.gemini.api_key),
-            "temperature": settings.gemini.temperature,
-            "max_output_tokens": settings.gemini.max_tokens,
-            "top_p": settings.gemini.top_p,
+            "model": settings.llm.gemini.model,
+            "google_api_key": SecretStr(settings.llm.gemini.api_key),
+            "temperature": settings.llm.gemini.temperature,
+            "max_output_tokens": settings.llm.gemini.max_tokens,
+            "top_p": settings.llm.gemini.top_p,
         }
 
-        if settings.gemini.proxy:
-            kwargs["client_args"] = {"proxy": settings.gemini.proxy}
+        if settings.llm.gemini.proxy:
+            kwargs["client_args"] = {"proxy": settings.llm.gemini.proxy}
 
-        if settings.gemini.thinking_level and self._supports_thinking_level(
-            settings.gemini.model
+        if settings.llm.gemini.thinking_level and self._supports_thinking_level(
+            settings.llm.gemini.model
         ):
-            kwargs["thinking_level"] = settings.gemini.thinking_level
+            kwargs["thinking_level"] = settings.llm.gemini.thinking_level
 
         return ChatGoogleGenerativeAI(**kwargs)

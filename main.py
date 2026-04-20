@@ -39,8 +39,13 @@ def validate_settings() -> bool:
     if not settings.telegram.bot_token:
         errors.append("TELEGRAM_BOT_TOKEN is not set")
 
-    if not settings.qwen.api_key:
-        errors.append("QWEN_API_KEY is not set")
+    provider = settings.llm.provider
+    if provider == "dashscope" and not settings.llm.dashscope.api_key:
+        errors.append("DASHSCOPE_API_KEY is not set")
+    elif provider == "gemini" and not settings.llm.gemini.api_key:
+        errors.append("GEMINI_API_KEY is not set")
+    elif provider == "openrouter" and not settings.llm.openrouter.api_key:
+        errors.append("OPENROUTER_API_KEY is not set")
 
     if settings.langsmith.tracing and not settings.langsmith.api_key:
         errors.append("LANGSMITH_API_KEY is required when tracing is enabled")
@@ -51,8 +56,11 @@ def validate_settings() -> bool:
             print(f"  - {error}")
         print("\nPlease add these to your .env file:")
         print("  TELEGRAM_BOT_TOKEN=your_token")
-        print("  QWEN_API_KEY=your_key")
+        print("  DASHSCOPE_API_KEY=your_key (if using dashscope)")
+        print("  GEMINI_API_KEY=your_key (if using gemini)")
+        print("  OPENROUTER_API_KEY=your_key (if using openrouter)")
         print("  LANGSMITH_API_KEY=your_key (optional if tracing=false)")
+        print(f"\nCurrent provider: {provider}")
         return False
 
     return True
