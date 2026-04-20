@@ -306,32 +306,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         state_manager.mark_answered(user_id)
 
-        # Get matched full answer by index, or use first answer if no match
-        matched_full_answer = None
-        if evaluation.answer_idx is not None and evaluation.answer_idx < len(
-            full_answers
-        ):
-            matched_full_answer = full_answers[evaluation.answer_idx]
+        feedback = MessageFormatter.format_evaluation(evaluation.is_correct)
+        await update.message.reply_text(feedback, parse_mode="HTML")
 
-        eval_msg = MessageFormatter.format_evaluation(evaluation.is_correct)
-        await update.message.reply_text(eval_msg, parse_mode="HTML")
+        matched_indexes = evaluation.answer_idx
 
-        short = short_answers[0] if short_answers else None
-        full = (
-            matched_full_answer
-            if matched_full_answer
-            else (full_answers[0] if full_answers else None)
-        )
-        if short:
+        if matched_indexes:
+            matched_short = [short_answers[i] for i in matched_indexes if i < len(short_answers)]
+            matched_full = [full_answers[i] for i in matched_indexes if i < len(full_answers)]
             await update.message.reply_text(
-                MessageFormatter.format_short_answer(short),
+                MessageFormatter.format_short_answers(matched_short),
                 parse_mode="HTML",
             )
-        if full:
-            await update.message.reply_text(
-                MessageFormatter.format_full_answer(full),
-                parse_mode="HTML",
-            )
+            if matched_full:
+                await update.message.reply_text(
+                    MessageFormatter.format_full_answers(matched_full),
+                    parse_mode="HTML",
+                )
+        else:
+            if short_answers:
+                await update.message.reply_text(
+                    MessageFormatter.format_short_answer(short_answers[0]),
+                    parse_mode="HTML",
+                )
+            if full_answers:
+                await update.message.reply_text(
+                    MessageFormatter.format_full_answer(full_answers[0]),
+                    parse_mode="HTML",
+                )
 
         # Send rule message if available and enabled
         if rule_data and session.show_rule:

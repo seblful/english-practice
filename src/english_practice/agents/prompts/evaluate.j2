@@ -34,8 +34,9 @@ Your goal is to be accurate, fair, and helpful.
 2. ALTERNATIVES: If an expected answer contains a slash "/" (e.g., "'d enjoy / would enjoy"), treat it as an OR condition. The student only needs to match one side.
 3. FULL VS SHORT: The student might type ONLY the missing words (Short Answer) OR the complete sentence (Full Answer). Check their answer against BOTH lists.
 4. NORMALIZATION: Ignore capitalization, trailing punctuation (periods, exclamation marks), and extra spaces when comparing.
-5. TYPOS vs GRAMMAR: If the student perfectly demonstrates the target grammar from the <GrammarRule> but makes a minor spelling mistake in a completely unrelated word, mark it as Correct (is_correct: true).
+5. TYPOS vs GRAMMAR: If the student perfectly demonstrates the target grammar from the <GrammarRule> but makes a minor spelling mistake in a completely unrelated word, mark it as correct (is_correct: true).
 6. EXTRA WORDS: If the student adds extra words that alter the grammatical structure or meaning, mark as incorrect.
+7. MULTIPLE CORRECT ANSWERS: Some questions accept multiple different correct answers. Set `answer_idx` to an array of all valid indexes (e.g., [0, 1]). The FIRST answer (index 0) is always the primary/canonical answer for display.
 </GradingRules>
 
 <Instructions>
@@ -64,6 +65,6 @@ Return ONLY a valid, raw JSON object. Do not include markdown formatting like ``
 
 {
   "is_correct": boolean,
-  "answer_idx": integer or null, // The position (0-based) of the matched answer from ExpectedAnswers. Return null for open-ended or if no match.
+  "answer_idx": [integer, ...], // Array of positions (0-based) of matched answers. Always return an array, even for single match (e.g., [0]). Return empty list [] for open-ended or if no match.
 }
 </OutputInstructions>

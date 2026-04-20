@@ -23,9 +23,9 @@ class EvaluateAnswerOutput(BaseModel):
     is_correct: bool = Field(
         description="Whether the user's answer is correct (true) or incorrect (false)"
     )
-    answer_idx: int | None = Field(
-        default=None,
-        description="Index of the matched answer in short_answers/full_answers arrays. Null for open-ended or no match.",
+    answer_idx: list[int] = Field(
+        default_factory=list,
+        description="List of indexes of matched answers in short_answers/full_answers arrays. Empty list for open-ended or no match.",
     )
 
 

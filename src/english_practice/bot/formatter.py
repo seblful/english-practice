@@ -96,8 +96,22 @@ class MessageFormatter:
         return random.choice(WRONG_PHRASES)
 
     @staticmethod
+    def format_short_answers(short_answers: list[str]) -> str:
+        """Format multiple short answers joined with comma.
+
+        Args:
+            short_answers: List of short answer texts.
+
+        Returns:
+            Formatted short answer message.
+        """
+        short_text = ", ".join(short_answers)
+        converted = MessageFormatter._md_to_html(short_text)
+        return f"Correct Answer:\n<b>{converted}</b>"
+
+    @staticmethod
     def format_short_answer(short_answer: str) -> str:
-        """Format short answer message.
+        """Format single short answer message.
 
         Args:
             short_answer: The short answer text.
@@ -109,8 +123,22 @@ class MessageFormatter:
         return f"Correct Answer:\n<b>{converted}</b>"
 
     @staticmethod
+    def format_full_answers(full_answers: list[str]) -> str:
+        """Format multiple full answers joined with newlines.
+
+        Args:
+            full_answers: List of full answer texts.
+
+        Returns:
+            Formatted full answer message with code block.
+        """
+        full_text = "\n".join(full_answers)
+        converted = MessageFormatter._md_to_html(full_text)
+        return f"Full Answer:\n<pre>{converted}</pre>"
+
+    @staticmethod
     def format_full_answer(full_answer: str) -> str:
-        """Format full answer message with code block.
+        """Format single full answer message with code block.
 
         Args:
             full_answer: The full answer sentence.
