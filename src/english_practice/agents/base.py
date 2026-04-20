@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import logging
+import mimetypes
 from pathlib import Path
 from typing import Any, ClassVar, TypeVar
 
@@ -10,7 +11,7 @@ from jinja2 import Environment, FileSystemLoader
 from langchain_core.messages import HumanMessage
 from langchain_core.language_models.chat_models import BaseChatModel
 from langsmith import traceable
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel
 
 from config.settings import settings
 from src.english_practice.llm import get_llm
@@ -99,10 +100,12 @@ class BaseAgent:
 
         if image_path and image_path.exists():
             base64_image = await self._encode_image(image_path)
+            mime_type, _ = mimetypes.guess_type(image_path)
+            mime_type = mime_type or "image/png"
             content.append(
                 {
                     "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{base64_image}"},
+                    "image_url": {"url": f"data:{mime_type};base64,{base64_image}"},
                 }
             )
 

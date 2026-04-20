@@ -93,6 +93,8 @@ class GeminiSettings(BaseSettings):
     model: str = "gemini-2.5-flash-lite"
     temperature: float = 0.7
     max_tokens: int = 2048
+    top_p: float = 0.95
+    proxy: str | None = None
 
 
 class OpenRouterSettings(BaseSettings):
@@ -103,9 +105,9 @@ class OpenRouterSettings(BaseSettings):
         case_sensitive=False,
     )
 
-    base_url: str = "https://openrouter.ai/api/v1"
     api_key: str | None = None
     model: str = "openai/gpt-4o-mini"
+    base_url: str = "https://openrouter.ai/api/v1"
     temperature: float = 0.7
     max_tokens: int = 2048
 
