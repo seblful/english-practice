@@ -4,7 +4,6 @@ import base64
 import os
 from pathlib import Path
 
-from mistralai import Mistral
 from tqdm import tqdm
 
 
@@ -26,8 +25,10 @@ class ImageOcrExtractor:
         self._model = model
         self._client: Mistral | None = None
 
-    def _get_client(self) -> Mistral:
+    def _get_client(self) -> "Mistral":
         """Return the Mistral client, creating it on first use."""
+        from mistralai.client import Mistral
+
         if self._api_key is None or self._api_key == "":
             raise ValueError(
                 "MISTRAL_API_KEY must be set in environment or passed as api_key"
