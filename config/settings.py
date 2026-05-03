@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Final, Literal
@@ -12,10 +13,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 def _load_env() -> None:
-    """Load environment variables from .env file."""
+    """Load environment variables from .env and .env.{environment}."""
     env_file = BASE_DIR / ".env"
     if env_file.exists():
         load_dotenv(env_file, override=True)
+
+    environment = os.environ.get("ENVIRONMENT", "development")
+    env_specific = BASE_DIR / f".env.{environment}"
+    if env_specific.exists():
+        load_dotenv(env_specific, override=True)
 
 
 class PathSettings(BaseSettings):
@@ -157,7 +163,6 @@ class Settings(BaseSettings):
     """Main application settings."""
 
     model_config = SettingsConfigDict(
-        env_file=BASE_DIR / ".env",
         env_nested_delimiter="__",
         case_sensitive=False,
         extra="ignore",
@@ -166,7 +171,6 @@ class Settings(BaseSettings):
     # Application
     app_name: str = "English Practice"
     version: str = "0.1.0"
-    environment: Literal["development", "staging", "production"] = "development"
     debug: bool = False
 
     # Nested configs

@@ -6,6 +6,7 @@ drafts/
 
 # Secrets
 .env
+.env.*
 
 
 # Python-generated files

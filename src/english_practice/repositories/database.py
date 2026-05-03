@@ -17,12 +17,7 @@ class DatabaseRepository:
         Args:
             db_path: Path to SQLite database. Uses default if not provided.
         """
-        if db_path is None:
-            db_path = (
-                settings.paths.database_path
-                or settings.paths.data_dir / "development.db"
-            )
-        self.db_path = db_path
+        self.db_path = db_path or settings.paths.database_path or settings.paths.data_dir / "development.db"
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get database connection."""
