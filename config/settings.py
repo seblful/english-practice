@@ -143,6 +143,7 @@ class TelegramSettings(BaseSettings):
     )
 
     bot_token: str | None = None
+    admin_user_id: int | None = None
     connect_timeout: int = 30
     read_timeout: int = 60
     write_timeout: int = 60

@@ -10,9 +10,11 @@ from telegram.ext import Application
 from config.logging import setup_logging
 from config.settings import settings
 from src.english_practice.bot.handlers import (
+    admin_action_handler,
     exercise_action_handler,
     exercise_handler,
     message_handler,
+    pending_handler,
     rule_handler,
     start_handler,
     topic_handler,
@@ -110,8 +112,10 @@ def main() -> int:
         application.add_handler(start_handler)
         application.add_handler(exercise_handler)
         application.add_handler(rule_handler)
+        application.add_handler(pending_handler)
         application.add_handler(topic_handler)
         application.add_handler(exercise_action_handler)
+        application.add_handler(admin_action_handler)
         application.add_handler(message_handler)
 
         logger.info("Bot started successfully!")

@@ -12,6 +12,7 @@ def mock_user() -> Mock:
     user = Mock(spec=User)
     user.id = 12345
     user.first_name = "Test"
+    user.full_name = "Test"
     user.username = "testuser"
     return user
 
@@ -140,6 +141,12 @@ def mock_repository() -> Mock:
 
     repo.get_topic_for_question.return_value = "Present Tenses"
 
+    # Auth mocks
+    repo.get_user_auth_status = Mock(return_value=None)
+    repo.add_user = Mock(return_value=None)
+    repo.set_user_status = Mock(return_value=None)
+    repo.get_pending_users = Mock(return_value=[])
+
     return repo
 
 
@@ -181,3 +188,30 @@ def reset_state_manager() -> None:
     """Reset state_manager between tests."""
     from src.english_practice.bot.states import state_manager
     state_manager.sessions.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_auth(monkeypatch) -> None:
+    """Reset auth to disabled by default for all tests."""
+    monkeypatch.setattr(
+        "config.settings.settings.telegram.admin_user_id",
+        None,
+    )
+
+
+@pytest.fixture
+def patch_auth_enabled(monkeypatch) -> None:
+    """Enable authorization with admin_user_id matching the mock user (12345)."""
+    monkeypatch.setattr(
+        "config.settings.settings.telegram.admin_user_id",
+        12345,
+    )
+
+
+@pytest.fixture
+def patch_auth_admin(monkeypatch) -> None:
+    """Set admin_user_id to a different ID (not the mock user's) for testing admin-only commands."""
+    monkeypatch.setattr(
+        "config.settings.settings.telegram.admin_user_id",
+        99999,
+    )

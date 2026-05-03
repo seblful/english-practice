@@ -262,3 +262,82 @@ class DatabaseRepository:
             )
             row = cursor.fetchone()
             return row["name"] if row else None
+
+    def get_user_auth_status(self, telegram_id: int) -> str | None:
+        """Get authorization status for a user.
+
+        Args:
+            telegram_id: Telegram user ID.
+
+        Returns:
+            Status string ('pending', 'approved', 'rejected') or None if not found.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT status FROM authorized_users WHERE telegram_id = ?",
+                (telegram_id,),
+            )
+            row = cursor.fetchone()
+            return row["status"] if row else None
+
+    def add_user(
+        self,
+        telegram_id: int,
+        full_name: str,
+        telegram_username: str | None,
+    ) -> None:
+        """Add a new user as pending authorization.
+
+        Args:
+            telegram_id: Telegram user ID.
+            full_name: User's full name.
+            telegram_username: User's Telegram username (optional).
+        """
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO authorized_users (telegram_id, full_name, telegram_username)
+                VALUES (?, ?, ?)
+                """,
+                (telegram_id, full_name, telegram_username),
+            )
+
+    def set_user_status(
+        self,
+        telegram_id: int,
+        status: str,
+        handled_by: int,
+    ) -> None:
+        """Set authorization status for a user.
+
+        Args:
+            telegram_id: Telegram user ID.
+            status: New status ('approved' or 'rejected').
+            handled_by: Admin Telegram ID who performed the action.
+        """
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE authorized_users
+                SET status = ?, handled_at = CURRENT_TIMESTAMP, handled_by = ?
+                WHERE telegram_id = ?
+                """,
+                (status, handled_by, telegram_id),
+            )
+
+    def get_pending_users(self) -> list[dict]:
+        """Get all users with pending authorization status.
+
+        Returns:
+            List of pending user dicts with telegram_id, full_name, telegram_username, created_at.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                SELECT telegram_id, full_name, telegram_username, created_at
+                FROM authorized_users
+                WHERE status = 'pending'
+                ORDER BY created_at ASC
+                """
+            )
+            return [dict(row) for row in cursor.fetchall()]

@@ -3,6 +3,7 @@
 import io
 import logging
 import random
+
 from telegram import Update
 from telegram.ext import (
     CallbackQueryHandler,
@@ -15,6 +16,7 @@ from telegram.ext import (
 from config.settings import settings
 from src.english_practice.bot.formatter import MessageFormatter
 from src.english_practice.bot.keyboards import (
+    get_admin_pending_keyboard,
     get_exercise_keyboard,
     get_start_menu_keyboard,
     get_topic_keyboard,
@@ -26,8 +28,64 @@ from src.english_practice.services.agent_service import AgentService
 logger = logging.getLogger(__name__)
 
 
+def _get_target(update: Update) -> object | None:
+    """Get the message target for replying, regardless of update type."""
+    if update.message is not None:
+        return update.message
+    if update.callback_query is not None and update.callback_query.message is not None:
+        return update.callback_query.message
+    return None
+
+
+async def _check_authorization(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> bool:
+    """Check if user is authorized. Replies and returns False if not allowed."""
+    user = update.effective_user
+
+    if settings.telegram.admin_user_id is None:
+        return True
+
+    if user.id == settings.telegram.admin_user_id:
+        return True
+
+    repository = DatabaseRepository()
+    status = repository.get_user_auth_status(user.id)
+
+    if status == "approved":
+        return True
+
+    target = _get_target(update)
+    if target is None:
+        return False
+
+    if status == "rejected":
+        await target.reply_text(
+            "❌ Your access has been denied. Contact the admin if you believe this is an error."
+        )
+        return False
+
+    if status is None:
+        repository.add_user(user.id, user.full_name or "Unknown", user.username)
+        await target.reply_text(
+            "⏳ Your request to use this bot has been sent to the admin for approval. "
+            "Please wait for approval before using the bot."
+        )
+        return False
+
+    await target.reply_text(
+        "⏳ Your request is still pending approval. "
+        "Please wait for the admin to approve your access."
+    )
+    return False
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /start command."""
+    if not await _check_authorization(update, context):
+        return
+
     user = update.effective_user
     logger.info(f"User {user.id} ({user.username}) started the bot")
 
@@ -56,6 +114,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def exercise_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /exercise command."""
+    if not await _check_authorization(update, context):
+        return
+
     user = update.effective_user
     session = state_manager.get_session(user.id)
     has_previous_topic = session.current_topic_id is not None
@@ -68,6 +129,9 @@ async def exercise_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def rule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /rule command to toggle rule display."""
+    if not await _check_authorization(update, context):
+        return
+
     user = update.effective_user
     new_value = state_manager.toggle_show_rule(user.id)
     status = "enabled ✅" if new_value else "disabled ❌"
@@ -81,6 +145,9 @@ async def handle_topic_selection(
     """Handle topic selection callback."""
     query = update.callback_query
     await query.answer()
+
+    if not await _check_authorization(update, context):
+        return
 
     user_id = update.effective_user.id
     callback_data = query.data
@@ -198,6 +265,9 @@ async def handle_exercise_action(
     query = update.callback_query
     await query.answer()
 
+    if not await _check_authorization(update, context):
+        return
+
     user_id = update.effective_user.id
     session = state_manager.get_session(user_id)
 
@@ -243,6 +313,9 @@ async def show_unit_info(
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle user messages (answers to questions or follow-up questions)."""
+    if not await _check_authorization(update, context):
+        return
+
     user_id = update.effective_user.id
     session = state_manager.get_session(user_id)
 
@@ -381,9 +454,68 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
 
 
+async def pending_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /pending command — show pending users for admin approval."""
+    user = update.effective_user
+
+    if settings.telegram.admin_user_id is None or user.id != settings.telegram.admin_user_id:
+        await update.message.reply_text("[X] You are not authorized to use this command.")
+        return
+
+    repository = DatabaseRepository()
+    pending_users = repository.get_pending_users()
+
+    if not pending_users:
+        await update.message.reply_text("No pending users at the moment.")
+        return
+
+    await update.message.reply_text(
+        f"📋 Pending users ({len(pending_users)}):",
+        reply_markup=get_admin_pending_keyboard(pending_users),
+    )
+
+
+async def handle_admin_action(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Handle admin approve/reject actions."""
+    query = update.callback_query
+    await query.answer()
+
+    user = update.effective_user
+
+    if settings.telegram.admin_user_id is None or user.id != settings.telegram.admin_user_id:
+        await query.message.reply_text("[X] You are not authorized to perform this action.")
+        return
+
+    _, action, target_id = query.data.split(":")
+    target_id = int(target_id)
+    repository = DatabaseRepository()
+
+    if action == "approve":
+        repository.set_user_status(target_id, "approved", user.id)
+        await query.message.reply_text(
+            f"✅ User {target_id} has been approved."
+        )
+    elif action == "reject":
+        repository.set_user_status(target_id, "rejected", user.id)
+        await query.message.reply_text(
+            f"❌ User {target_id} has been rejected."
+        )
+
+    remaining = repository.get_pending_users()
+    if remaining:
+        await query.message.reply_text(
+            f"📋 Remaining pending ({len(remaining)}):",
+            reply_markup=get_admin_pending_keyboard(remaining),
+        )
+
+
 start_handler = CommandHandler("start", start_command)
 exercise_handler = CommandHandler("exercise", exercise_command)
 rule_handler = CommandHandler("rule", rule_command)
+pending_handler = CommandHandler("pending", pending_command)
 topic_handler = CallbackQueryHandler(
     handle_topic_selection,
     pattern="^topic:",
@@ -391,6 +523,10 @@ topic_handler = CallbackQueryHandler(
 exercise_action_handler = CallbackQueryHandler(
     handle_exercise_action,
     pattern="^action:",
+)
+admin_action_handler = CallbackQueryHandler(
+    handle_admin_action,
+    pattern="^admin:",
 )
 message_handler = MessageHandler(
     filters.TEXT & ~filters.COMMAND,

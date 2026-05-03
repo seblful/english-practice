@@ -439,3 +439,140 @@ class TestHandleExerciseAction:
         text = mock_callback_update.callback_query.message.reply_text.call_args[0][0]
         assert "Unit" in text
         assert "Present Continuous" in text  # from mock data
+
+
+class TestAuthorization:
+    """Tests for authorization checks."""
+
+    @pytest.mark.asyncio
+    async def test_auth_disabled_allows_all(
+        self, mock_update, mock_context
+    ) -> None:
+        """When no admin_id is set, all users are allowed."""
+        from src.english_practice.bot.handlers import start_command
+        await start_command(mock_update, mock_context)
+        mock_update.message.reply_text.assert_called_once()
+        assert "Welcome" in mock_update.message.reply_text.call_args[0][0]
+
+    @pytest.mark.asyncio
+    async def test_auth_enabled_admin_allowed(
+        self, mock_update, mock_context, patch_auth_enabled
+    ) -> None:
+        """Admin user is always allowed."""
+        from src.english_practice.bot.handlers import start_command
+        await start_command(mock_update, mock_context)
+        mock_update.message.reply_text.assert_called_once()
+        assert "Welcome" in mock_update.message.reply_text.call_args[0][0]
+
+    @pytest.mark.asyncio
+    async def test_auth_enabled_approved_allowed(
+        self, mock_update, mock_context, mock_repository, patch_auth_admin
+    ) -> None:
+        """Approved user is allowed."""
+        mock_repository.get_user_auth_status.return_value = "approved"
+        from src.english_practice.bot.handlers import start_command
+        await start_command(mock_update, mock_context)
+        mock_update.message.reply_text.assert_called_once()
+        assert "Welcome" in mock_update.message.reply_text.call_args[0][0]
+
+    @pytest.mark.asyncio
+    async def test_auth_enabled_pending_blocked(
+        self, mock_update, mock_context, mock_repository, patch_auth_admin
+    ) -> None:
+        """Pending user is blocked with waiting message."""
+        mock_repository.get_user_auth_status.return_value = "pending"
+        from src.english_practice.bot.handlers import start_command
+        await start_command(mock_update, mock_context)
+        mock_update.message.reply_text.assert_called_once()
+        assert "pending" in mock_update.message.reply_text.call_args[0][0].lower()
+
+    @pytest.mark.asyncio
+    async def test_auth_enabled_rejected_blocked(
+        self, mock_update, mock_context, mock_repository, patch_auth_admin
+    ) -> None:
+        """Rejected user is blocked with denial message."""
+        mock_repository.get_user_auth_status.return_value = "rejected"
+        from src.english_practice.bot.handlers import start_command
+        await start_command(mock_update, mock_context)
+        mock_update.message.reply_text.assert_called_once()
+        assert "denied" in mock_update.message.reply_text.call_args[0][0].lower()
+
+    @pytest.mark.asyncio
+    async def test_auth_enabled_new_user_added_as_pending(
+        self, mock_update, mock_context, mock_repository, patch_auth_admin
+    ) -> None:
+        """New user (not in DB) is added as pending and blocked."""
+        mock_repository.get_user_auth_status.return_value = None
+        from src.english_practice.bot.handlers import start_command
+        await start_command(mock_update, mock_context)
+        mock_repository.add_user.assert_called_once_with(12345, "Test", "testuser")
+        mock_update.message.reply_text.assert_called_once()
+        assert "admin" in mock_update.message.reply_text.call_args[0][0].lower()
+
+    @pytest.mark.asyncio
+    async def test_pending_command_blocked_for_non_admin(
+        self, mock_update, mock_context, patch_auth_admin
+    ) -> None:
+        """Non-admin users cannot access /pending."""
+        from src.english_practice.bot.handlers import pending_command
+        await pending_command(mock_update, mock_context)
+        mock_update.message.reply_text.assert_called_once()
+        assert "not authorized" in mock_update.message.reply_text.call_args[0][0].lower()
+
+    @pytest.mark.asyncio
+    async def test_pending_command_shows_empty(
+        self, mock_update, mock_context, mock_repository, patch_auth_enabled
+    ) -> None:
+        """Admin sees 'no pending users' when list is empty."""
+        mock_repository.get_pending_users.return_value = []
+        from src.english_practice.bot.handlers import pending_command
+        await pending_command(mock_update, mock_context)
+        mock_update.message.reply_text.assert_called_once()
+        assert "no pending" in mock_update.message.reply_text.call_args[0][0].lower()
+
+    @pytest.mark.asyncio
+    async def test_pending_command_shows_users(
+        self, mock_update, mock_context, mock_repository, patch_auth_enabled
+    ) -> None:
+        """Admin sees pending users list."""
+        mock_repository.get_pending_users.return_value = [
+            {"telegram_id": 111, "full_name": "Alice", "telegram_username": "alice", "created_at": "2024-01-01"},
+            {"telegram_id": 222, "full_name": "Bob", "telegram_username": None, "created_at": "2024-01-02"},
+        ]
+        from src.english_practice.bot.handlers import pending_command
+        await pending_command(mock_update, mock_context)
+        mock_update.message.reply_text.assert_called_once()
+        assert "Pending" in mock_update.message.reply_text.call_args[0][0]
+
+    @pytest.mark.asyncio
+    async def test_admin_approve_callback(
+        self, mock_callback_update, mock_context, mock_repository, patch_auth_enabled
+    ) -> None:
+        """Admin can approve a user via callback."""
+        mock_callback_update.callback_query.data = "admin:approve:111"
+        from src.english_practice.bot.handlers import handle_admin_action
+        await handle_admin_action(mock_callback_update, mock_context)
+        mock_repository.set_user_status.assert_called_once_with(111, "approved", 12345)
+        mock_callback_update.callback_query.message.reply_text.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_admin_reject_callback(
+        self, mock_callback_update, mock_context, mock_repository, patch_auth_enabled
+    ) -> None:
+        """Admin can reject a user via callback."""
+        mock_callback_update.callback_query.data = "admin:reject:111"
+        from src.english_practice.bot.handlers import handle_admin_action
+        await handle_admin_action(mock_callback_update, mock_context)
+        mock_repository.set_user_status.assert_called_once_with(111, "rejected", 12345)
+        mock_callback_update.callback_query.message.reply_text.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_admin_action_blocked_for_non_admin(
+        self, mock_callback_update, mock_context, patch_auth_admin
+    ) -> None:
+        """Non-admin user cannot approve/reject."""
+        mock_callback_update.callback_query.data = "admin:approve:111"
+        from src.english_practice.bot.handlers import handle_admin_action
+        await handle_admin_action(mock_callback_update, mock_context)
+        mock_callback_update.callback_query.message.reply_text.assert_called_once()
+        assert "not authorized" in mock_callback_update.callback_query.message.reply_text.call_args[0][0].lower()
