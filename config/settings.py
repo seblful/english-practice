@@ -6,7 +6,6 @@ from typing import Literal
 from dotenv import load_dotenv
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 from telegram import Update
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -112,7 +111,7 @@ class OpenRouterSettings(BaseSettings):
     )
 
     api_key: str | None = None
-    model: str = "openai/gpt-4o-mini"
+    model: str = "google/gemma-4-26b-a4b-it"
     base_url: str = "https://openrouter.ai/api/v1"
     temperature: float = 0.7
     max_tokens: int = 2048
@@ -137,7 +136,7 @@ class LangSmithSettings(BaseSettings):
 
     api_key: str | None = None
     project: str = "english-practice"
-    tracing: bool = True
+    tracing: bool = False
 
 
 class TelegramSettings(BaseSettings):

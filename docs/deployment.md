@@ -49,18 +49,10 @@ sudo usermod -aG docker $USER
 sudo apt-get install -y docker-compose-plugin
 ```
 
-### 2. Copy Seed Database
-
-Run this on your **local** machine:
+### 2. Clone and Configure
 
 ```bash
-scp ./data/seed.db root@45.129.186.187:/opt/english-practice/data/production.db
-```
-
-### 3. Clone and Configure
-
-```bash
-git clone <your-repo-url> /opt/english-practice
+git clone https://github.com/seblful/english-practice.git /opt/english-practice
 cd /opt/english-practice
 
 # Create directories for persistent data
@@ -68,21 +60,29 @@ mkdir -p data logs
 
 # Configure environment
 cp .env.example .env
-nano .env
+micro .env
 ```
 
 ### Required Environment Variables
 
-| Variable                 | Description                              | Required |
-| ------------------------ | ---------------------------------------- | -------- |
-| `TELEGRAM_BOT_TOKEN`     | Token from @BotFather                    | Yes      |
-| `TELEGRAM_ADMIN_USER_ID` | Your Telegram user ID                    | Yes      |
+| Variable                 | Description                                | Required |
+| ------------------------ | ------------------------------------------ | -------- |
+| `TELEGRAM_BOT_TOKEN`     | Token from @BotFather                      | Yes      |
+| `TELEGRAM_ADMIN_USER_ID` | Your Telegram user ID                      | Yes      |
 | `LLM__PROVIDER`          | LLM provider (dashscope/gemini/openrouter) | Yes      |
-| `OPENROUTER_API_KEY`     | OpenRouter API key                       | Yes*     |
-| `ENVIRONMENT`            | Set to `production`                      | Yes      |
-| `DATABASE_PATH`          | Path to SQLite database                  | Yes      |
+| `OPENROUTER_API_KEY`     | OpenRouter API key                         | Yes\*    |
+| `ENVIRONMENT`            | Set to `production`                        | Yes      |
+| `DATABASE_PATH`          | Path to SQLite database                    | Yes      |
 
-*\*Required for your chosen provider — use `DASHSCOPE_API_KEY` or `GEMINI_API_KEY` instead if using those providers.*
+_\*Required for your chosen provider — use `DASHSCOPE_API_KEY` or `GEMINI_API_KEY` instead if using those providers._
+
+### 3. Copy Seed Database
+
+Run this on your **local** machine:
+
+```bash
+scp ./data/seed.db root@45.129.186.187:/opt/english-practice/data/production.db
+```
 
 ### 4. Start the Bot
 
