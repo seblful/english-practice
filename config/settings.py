@@ -1,7 +1,7 @@
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Final, Literal
+from typing import Literal
 
 from dotenv import load_dotenv
 from pydantic import Field, field_validator
@@ -156,7 +156,7 @@ class TelegramSettings(BaseSettings):
     pool_timeout: int = 60
     concurrent_updates: bool = True
     close_loop: bool = False
-    allowed_updates: list[Final] = [Update.ALL_TYPES]
+    allowed_updates: list[str] = Update.ALL_TYPES
 
 
 class Settings(BaseSettings):
