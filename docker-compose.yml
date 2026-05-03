@@ -1,0 +1,11 @@
+services:
+  bot:
+    build: .
+    container_name: english-practice-bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - ENVIRONMENT=production
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs

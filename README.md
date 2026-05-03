@@ -120,6 +120,10 @@ See `AGENTS.md` for detailed guidelines.
 - **Grammar Lessons**: Markdown files with grammar explanations
 - **Answers**: JSON format with unit/exercise/question hierarchy
 
+## Deployment
+
+See [docs/deployment.md](docs/deployment.md) for VPS deployment instructions using Docker.
+
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
