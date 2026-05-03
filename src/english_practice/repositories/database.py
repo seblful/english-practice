@@ -323,6 +323,30 @@ class DatabaseRepository:
                 (status, handled_by, telegram_id),
             )
 
+    def reset_user_to_pending(
+        self,
+        telegram_id: int,
+        full_name: str,
+        telegram_username: str | None,
+    ) -> None:
+        """Reset a rejected user back to pending status.
+
+        Args:
+            telegram_id: Telegram user ID.
+            full_name: User's full name.
+            telegram_username: User's Telegram username (optional).
+        """
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE authorized_users
+                SET status = 'pending', full_name = ?, telegram_username = ?,
+                    handled_at = NULL, handled_by = NULL
+                WHERE telegram_id = ?
+                """,
+                (full_name, telegram_username, telegram_id),
+            )
+
     def get_pending_users(self) -> list[dict]:
         """Get all users with pending authorization status.
 

@@ -61,30 +61,31 @@ async def _check_authorization(
     if target is None:
         return False
 
-    if status == "rejected":
+    if status in (None, "rejected"):
+        if status is None:
+            repository.add_user(user.id, user.full_name or "Unknown", user.username)
+        else:
+            repository.reset_user_to_pending(user.id, user.full_name or "Unknown", user.username)
         await target.reply_text(
-            "❌ Your access has been denied. Contact the admin if you believe this is an error."
-        )
-        return False
-
-    if status is None:
-        repository.add_user(user.id, user.full_name or "Unknown", user.username)
-        await target.reply_text(
-            "⏳ Your request to use this bot has been sent to the admin for approval. "
-            "Please wait for approval before using the bot."
+            "⏳ Your request has been sent to the admin for approval."
         )
         if settings.telegram.admin_user_id:
-            name = f"{user.full_name or 'Unknown'}"
-            username = f" @{user.username}" if user.username else ""
+            mention = f"@{user.username}" if user.username else "No username"
             await context.bot.send_message(
                 chat_id=settings.telegram.admin_user_id,
-                text=f"👤 New user requested access:\n{name}{username} (ID: {user.id})",
+                text=(
+                    f"👤 <b>New user requested access</b>\n"
+                    f"Name: {user.full_name or 'Unknown'}\n"
+                    f"Username: {mention}\n"
+                    f"ID: <code>{user.id}</code>"
+                ),
+                parse_mode="HTML",
                 reply_markup=get_admin_user_keyboard(user.id),
             )
         return False
 
     await target.reply_text(
-        "⏳ Your request is still pending approval. "
+        "⏳ Your request is still pending. "
         "Please wait for the admin to approve your access."
     )
     return False
