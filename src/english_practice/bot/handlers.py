@@ -17,6 +17,7 @@ from config.settings import settings
 from src.english_practice.bot.formatter import MessageFormatter
 from src.english_practice.bot.keyboards import (
     get_admin_pending_keyboard,
+    get_admin_user_keyboard,
     get_exercise_keyboard,
     get_start_menu_keyboard,
     get_topic_keyboard,
@@ -72,6 +73,14 @@ async def _check_authorization(
             "⏳ Your request to use this bot has been sent to the admin for approval. "
             "Please wait for approval before using the bot."
         )
+        if settings.telegram.admin_user_id:
+            name = f"{user.full_name or 'Unknown'}"
+            username = f" @{user.username}" if user.username else ""
+            await context.bot.send_message(
+                chat_id=settings.telegram.admin_user_id,
+                text=f"👤 New user requested access:\n{name}{username} (ID: {user.id})",
+                reply_markup=get_admin_user_keyboard(user.id),
+            )
         return False
 
     await target.reply_text(

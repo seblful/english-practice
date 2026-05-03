@@ -3,6 +3,24 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 
+def get_admin_user_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    """Create admin keyboard for a single pending user.
+
+    Args:
+        user_id: Telegram user ID.
+
+    Returns:
+        Inline keyboard markup.
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Approve", callback_data=f"admin:approve:{user_id}"),
+            InlineKeyboardButton("❌ Reject", callback_data=f"admin:reject:{user_id}"),
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
 def get_admin_pending_keyboard(pending_users: list[dict]) -> InlineKeyboardMarkup:
     """Create admin keyboard for pending user approvals.
 
