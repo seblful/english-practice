@@ -74,7 +74,7 @@ class DatabaseRepository:
             if topic_id:
                 cursor = conn.execute(
                     """
-                    SELECT e.id, e.exercise_id, e.exercise_number, e.image_path,
+                    SELECT e.id, e.exercise_id, e.exercise_number,
                            u.id as unit_id, u.unit_number, u.title
                     FROM exercises e
                     JOIN units u ON e.unit_id = u.id
@@ -86,7 +86,7 @@ class DatabaseRepository:
             else:
                 cursor = conn.execute(
                     """
-                    SELECT e.id, e.exercise_id, e.exercise_number, e.image_path,
+                    SELECT e.id, e.exercise_id, e.exercise_number,
                            u.id as unit_id, u.unit_number, u.title
                     FROM exercises e
                     JOIN units u ON e.unit_id = u.id
@@ -100,6 +100,23 @@ class DatabaseRepository:
 
             return random.choice(exercises)
 
+    def get_exercise_image(self, exercise_id: int) -> bytes | None:
+        """Get exercise image bytes from database.
+
+        Args:
+            exercise_id: Exercise database ID.
+
+        Returns:
+            Image bytes or None if not found.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT image_data FROM exercise_images WHERE exercise_id = ?",
+                (exercise_id,),
+            )
+            row = cursor.fetchone()
+            return row["image_data"] if row else None
+
     def get_exercise_with_questions(self, exercise_id: int) -> dict | None:
         """Get exercise with all its questions.
 
@@ -112,7 +129,7 @@ class DatabaseRepository:
         with self._get_connection() as conn:
             exercise_row = conn.execute(
                 """
-                SELECT e.id, e.exercise_id, e.exercise_number, e.image_path,
+                SELECT e.id, e.exercise_id, e.exercise_number,
                        u.id as unit_id, u.unit_number, u.title
                 FROM exercises e
                 JOIN units u ON e.unit_id = u.id

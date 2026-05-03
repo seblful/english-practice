@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate database integrity and consistency with file system."""
+"""Validate database integrity and consistency."""
 
 import sys
 from pathlib import Path
@@ -31,69 +31,61 @@ class DatabaseValidator:
         """Close database connection."""
         self.conn.close()
 
-    def validate_file_system(self) -> dict:
-        """Validate image files against database records."""
+    def validate_image_blobs(self) -> dict:
+        """Validate exercise image BLOBs in database."""
         results = {
             "status": "ok",
             "db_exercises": 0,
-            "fs_images": 0,
+            "images_in_db": 0,
             "missing_images": [],
-            "orphaned_images": [],
+            "empty_images": [],
         }
 
-        # Count exercises in database
         self.cursor.execute("SELECT COUNT(*) FROM exercises")
         results["db_exercises"] = self.cursor.fetchone()[0]
 
-        # Count images in file system
-        exercises_dir = get_project_root() / "data" / "content" / "exercises"
-        fs_image_count = 0
-        fs_images = set()
+        self.cursor.execute("SELECT COUNT(*) FROM exercise_images")
+        results["images_in_db"] = self.cursor.fetchone()[0]
 
-        if exercises_dir.exists():
-            for page_dir in exercises_dir.iterdir():
-                if page_dir.is_dir():
-                    for img_file in page_dir.glob("*.png"):
-                        fs_image_count += 1
-                        # Store relative path like "exercises/1/1.1.png"
-                        rel_path = f"exercises/{page_dir.name}/{img_file.name}"
-                        fs_images.add(rel_path)
-
-        results["fs_images"] = fs_image_count
-
-        # Check for missing images (exercises without files)
+        # Exercises without image BLOBs
         self.cursor.execute(
             """
-            SELECT e.exercise_id, e.image_path, u.unit_number, u.title
+            SELECT e.exercise_id, u.unit_number, u.title
             FROM exercises e
             JOIN units u ON e.unit_id = u.id
+            LEFT JOIN exercise_images ei ON e.id = ei.exercise_id
+            WHERE ei.id IS NULL
+            ORDER BY u.unit_number, e.exercise_number
             """
         )
         for row in self.cursor.fetchall():
-            img_path = row["image_path"]
-            if not img_path:
-                results["missing_images"].append(
-                    f"Unit {row['unit_number']}, Exercise {row['exercise_id']} (NULL path)"
-                )
-            else:
-                full_path = get_project_root() / "data" / "content" / img_path
-                if not full_path.exists():
-                    results["missing_images"].append(
-                        f"Unit {row['unit_number']}, Exercise {row['exercise_id']} ({img_path})"
-                    )
+            results["missing_images"].append(
+                f"Unit {row['unit_number']}, Exercise {row['exercise_id']}"
+            )
 
-        # Check for orphaned images (files not in database)
+        # Image BLOBs with zero size
         self.cursor.execute(
-            "SELECT image_path FROM exercises WHERE image_path IS NOT NULL"
+            """
+            SELECT e.exercise_id, u.unit_number, ei.id
+            FROM exercise_images ei
+            JOIN exercises e ON ei.exercise_id = e.id
+            JOIN units u ON e.unit_id = u.id
+            WHERE LENGTH(ei.image_data) = 0
+            """
         )
-        db_images = {row["image_path"] for row in self.cursor.fetchall()}
+        for row in self.cursor.fetchall():
+            results["empty_images"].append(
+                f"Unit {row['unit_number']}, Exercise {row['exercise_id']}"
+            )
 
-        for fs_img in fs_images:
-            if fs_img not in db_images:
-                results["orphaned_images"].append(fs_img)
-
-        if results["missing_images"] or results["orphaned_images"]:
+        if results["missing_images"] or results["empty_images"]:
             results["status"] = "error"
+
+        # Show total image size
+        total_bytes = self.cursor.execute(
+            "SELECT COALESCE(SUM(LENGTH(image_data)), 0) FROM exercise_images"
+        ).fetchone()[0]
+        results["total_image_size_kb"] = total_bytes / 1024
 
         return results
 
@@ -266,6 +258,7 @@ class DatabaseValidator:
             "invalid_unit_topic_topic_ids": [],
             "invalid_topic_parents": [],
             "invalid_question_answers": [],
+            "invalid_exercise_images": [],
         }
 
         # Exercises with invalid unit_id
@@ -348,11 +341,22 @@ class DatabaseValidator:
             """
         )
         for row in self.cursor.fetchall():
-            results["invalid_question_answers"] = results.get(
-                "invalid_question_answers", []
-            )
             results["invalid_question_answers"].append(
                 f"Answer ID {row['id']} -> Question ID {row['question_id']}"
+            )
+
+        # exercise_images with invalid exercise_id
+        self.cursor.execute(
+            """
+            SELECT ei.id, ei.exercise_id
+            FROM exercise_images ei
+            LEFT JOIN exercises e ON ei.exercise_id = e.id
+            WHERE e.id IS NULL
+            """
+        )
+        for row in self.cursor.fetchall():
+            results["invalid_exercise_images"].append(
+                f"Image ID {row['id']} -> Exercise ID {row['exercise_id']}"
             )
 
         if any(
@@ -364,6 +368,7 @@ class DatabaseValidator:
                 "invalid_unit_topic_topic_ids",
                 "invalid_topic_parents",
                 "invalid_question_answers",
+                "invalid_exercise_images",
             ]
         ):
             results["status"] = "error"
@@ -375,7 +380,6 @@ class DatabaseValidator:
         results = {
             "status": "ok",
             "missing_grammar_files": [],
-            "malformed_image_paths": [],
         }
 
         # Check grammar markdown files exist
@@ -387,23 +391,7 @@ class DatabaseValidator:
                     f"Unit {row['unit_number']}: {row['grammar_md_path']}"
                 )
 
-        # Check image path format
-        self.cursor.execute(
-            """
-            SELECT exercise_id, image_path
-            FROM exercises
-            WHERE image_path IS NOT NULL
-            """
-        )
-        for row in self.cursor.fetchall():
-            path = row["image_path"]
-            # Expected format: exercises/{page}/{exercise_id}.png
-            if not path.startswith("exercises/") or not path.endswith(".png"):
-                results["malformed_image_paths"].append(
-                    f"Exercise {row['exercise_id']}: {path}"
-                )
-
-        if results["missing_grammar_files"] or results["malformed_image_paths"]:
+        if results["missing_grammar_files"]:
             results["status"] = "error"
 
         return results
@@ -417,29 +405,28 @@ class DatabaseValidator:
         total_errors = 0
         total_warnings = 0
 
-        # File System
-        print("\n[FILE] FILE SYSTEM VALIDATION")
-        fs = results["file_system"]
-        if fs["status"] == "ok":
-            print(f"  [OK] Database: {fs['db_exercises']} exercises")
-            print(f"  [OK] File System: {fs['fs_images']} images")
+        # Image BLOBs
+        print("\n[IMG] EXERCISE IMAGE BLOBS")
+        img = results["image_blobs"]
+        if img["status"] == "ok":
+            print(f"  [OK] Exercises in DB: {img['db_exercises']}")
+            print(f"  [OK] Images in DB: {img['images_in_db']}")
+            print(f"  [OK] Total image size: {img['total_image_size_kb']:.1f} KB")
         else:
-            print(f"  [FAIL] Database: {fs['db_exercises']} exercises")
-            print(f"  [FAIL] File System: {fs['fs_images']} images")
-            if fs["missing_images"]:
-                print(f"\n  Missing Images ({len(fs['missing_images'])}):")
-                for item in fs["missing_images"][:5]:
+            print(f"  [FAIL] Exercises in DB: {img['db_exercises']}")
+            print(f"  [FAIL] Images in DB: {img['images_in_db']}")
+            if img["missing_images"]:
+                print(f"\n  Missing Images ({len(img['missing_images'])}):")
+                for item in img["missing_images"][:5]:
                     print(f"    - {item}")
-                if len(fs["missing_images"]) > 5:
-                    print(f"    ... and {len(fs['missing_images']) - 5} more")
-                total_errors += len(fs["missing_images"])
-            if fs["orphaned_images"]:
-                print(f"\n  Orphaned Images ({len(fs['orphaned_images'])}):")
-                for item in fs["orphaned_images"][:5]:
+                if len(img["missing_images"]) > 5:
+                    print(f"    ... and {len(img['missing_images']) - 5} more")
+                total_errors += len(img["missing_images"])
+            if img["empty_images"]:
+                print(f"\n  Empty Images ({len(img['empty_images'])}):")
+                for item in img["empty_images"][:5]:
                     print(f"    - {item}")
-                if len(fs["orphaned_images"]) > 5:
-                    print(f"    ... and {len(fs['orphaned_images']) - 5} more")
-                total_errors += len(fs["orphaned_images"])
+                total_errors += len(img["empty_images"])
 
         # Duplicates
         print("\n[DUP] DUPLICATE DETECTION")
@@ -547,6 +534,11 @@ class DatabaseValidator:
                     f"  [FAIL] Invalid question_answers: {len(ref['invalid_question_answers'])}"
                 )
                 total_errors += len(ref["invalid_question_answers"])
+            if ref.get("invalid_exercise_images"):
+                print(
+                    f"  [FAIL] Invalid exercise_images: {len(ref['invalid_exercise_images'])}"
+                )
+                total_errors += len(ref["invalid_exercise_images"])
 
         # Cross References
         print("\n[CROSS] CROSS-REFERENCE VALIDATION")
@@ -561,11 +553,6 @@ class DatabaseValidator:
                 for item in cross["missing_grammar_files"][:3]:
                     print(f"    - {item}")
                 total_warnings += len(cross["missing_grammar_files"])
-            if cross["malformed_image_paths"]:
-                print(
-                    f"  [FAIL] Malformed image paths: {len(cross['malformed_image_paths'])}"
-                )
-                total_errors += len(cross["malformed_image_paths"])
 
         # Summary
         print("\n" + "=" * 60)
@@ -594,7 +581,7 @@ def main() -> int:
 
     try:
         results = {
-            "file_system": validator.validate_file_system(),
+            "image_blobs": validator.validate_image_blobs(),
             "duplicates": validator.validate_duplicates(),
             "orphaned": validator.validate_orphaned_data(),
             "referential": validator.validate_referential_integrity(),

@@ -10,7 +10,7 @@ The application uses SQLite for storing exercise data.
 
 ```bash
 # Initialize database and import data
-uv run scripts/database/init_database.py
+uv run scripts/database/populate.py
 ```
 
 This creates `data/content/english_practice.db` with:
@@ -23,7 +23,7 @@ This creates `data/content/english_practice.db` with:
 
 ```bash
 # Check database integrity
-uv run scripts/database/validate_database.py
+uv run scripts/database/validate.py
 ```
 
 Validates:
@@ -38,10 +38,39 @@ Validates:
 **Core Tables:**
 
 - `units` - Grammar units (id, unit_number, title, grammar_md_path)
-- `exercises` - Exercise images (id, exercise_id, unit_id, exercise_number, image_path)
+- `exercises` - Exercise metadata (id, exercise_id, unit_id, exercise_number)
+- `exercise_images` - Exercise image BLOBs (id, exercise_id, image_data)
 - `questions` - Individual questions (id, exercise_id, question_id, correct_answer, display_order)
 - `topics` - Grammar topics (id, name, parent_topic_id)
 - `unit_topics` - Topic-unit relationships (unit_id, topic_id)
+
+## Running the Bot
+
+```bash
+uv run main.py
+```
+
+### Configuration
+
+Create a `.env` file in the project root (see `.env.example`):
+
+```env
+TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
+DASHSCOPE_API_KEY=your_key   # or GEMINI_API_KEY / OPENROUTER_API_KEY
+LLM__PROVIDER=dashscope      # one of: dashscope, gemini, openrouter
+LANGSMITH_API_KEY=your_key   # optional, for tracing
+LANGSMITH_TRACING=false
+```
+
+The bot validates required settings on startup and will show which ones are missing.
+
+### Bot Commands
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome message and topic selection |
+| `/exercise` | Get a new random exercise |
+| `/rule` | Toggle grammar rule display on/off |
 
 ## Usage
 

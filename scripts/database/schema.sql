@@ -16,14 +16,21 @@ CREATE TABLE IF NOT EXISTS units (
     grammar_md_path TEXT NOT NULL  -- e.g., "grammar/1.md"
 );
 
--- Individual exercises (images)
+-- Individual exercises (images stored as BLOB)
 CREATE TABLE IF NOT EXISTS exercises (
     id INTEGER PRIMARY KEY,
     exercise_id TEXT NOT NULL UNIQUE,  -- e.g., "1.1", "2.3"
     unit_id INTEGER NOT NULL,
     exercise_number INTEGER NOT NULL,
-    image_path TEXT NOT NULL,  -- e.g., "exercises/1/1.1.png"
     FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE
+);
+
+-- Exercise image data stored as BLOB
+CREATE TABLE IF NOT EXISTS exercise_images (
+    id INTEGER PRIMARY KEY,
+    exercise_id INTEGER NOT NULL UNIQUE,
+    image_data BLOB NOT NULL,
+    FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE
 );
 
 -- Questions within exercises (from answers.json)
@@ -71,5 +78,6 @@ CREATE TABLE IF NOT EXISTS unit_topics (
 -- ============================================
 
 CREATE INDEX IF NOT EXISTS idx_exercises_unit ON exercises(unit_id);
+CREATE INDEX IF NOT EXISTS idx_exercise_images_exercise ON exercise_images(exercise_id);
 CREATE INDEX IF NOT EXISTS idx_questions_exercise ON questions(exercise_id);
 CREATE INDEX IF NOT EXISTS idx_question_answers_question ON question_answers(question_id);

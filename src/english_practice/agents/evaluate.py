@@ -1,7 +1,5 @@
 """Evaluate Answer Agent - determines if user answer is correct."""
 
-from pathlib import Path
-
 from langsmith import traceable
 
 from src.english_practice.agents.base import BaseAgent
@@ -16,7 +14,7 @@ class EvaluateAnswerAgent(BaseAgent):
     @traceable(name="evaluate_answer")
     async def evaluate(
         self,
-        image_path: Path,
+        image_data: bytes,
         question_number: str,
         user_input: str,
         short_answers: list[str],
@@ -28,7 +26,7 @@ class EvaluateAnswerAgent(BaseAgent):
         """Evaluate if the user's answer is correct.
 
         Args:
-            image_path: Path to the exercise image.
+            image_data: Raw exercise image bytes.
             question_number: The question number/ID.
             user_input: The user's answer.
             short_answers: All short answer variants.
@@ -54,5 +52,5 @@ class EvaluateAnswerAgent(BaseAgent):
         return await self.invoke_structured(
             prompt=prompt,
             output_model=EvaluateAnswerOutput,
-            image_path=image_path,
+            image_data=image_data,
         )

@@ -36,8 +36,10 @@ class RulesAgent(BaseAgent):
         )
         prompt = self.render(context)
 
+        image_data = image_path.read_bytes() if image_path.exists() else None
+
         return await self.invoke_structured(
             prompt=prompt,
             output_model=ExerciseRulesOutput,
-            image_path=image_path,
+            image_data=image_data,
         )

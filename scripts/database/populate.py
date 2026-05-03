@@ -21,7 +21,7 @@ def get_db_path() -> Path:
 
 def init_database(db_path: Path) -> None:
     """Create database and tables from schema."""
-    schema_path = Path(__file__).parent / "database_schema.sql"
+    schema_path = Path(__file__).parent / "schema.sql"
 
     with open(schema_path, "r", encoding="utf-8") as f:
         schema = f.read()
@@ -123,19 +123,14 @@ def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
         for exercise in unit.get("exercises", []):
             exercise_id = exercise["exercise_id"]
             page_num, ex_num = parse_exercise_id(exercise_id)
-            image_path = f"exercises/{page_num}/{exercise_id}.png"
-
-            image_full_path = project_root / "data" / "content" / image_path
-            if not image_full_path.exists():
-                image_path = None
 
             cursor.execute(
                 """
                 INSERT OR IGNORE INTO exercises
-                (exercise_id, unit_id, exercise_number, image_path)
-                VALUES (?, ?, ?, ?)
+                (exercise_id, unit_id, exercise_number)
+                VALUES (?, ?, ?)
                 """,
-                (exercise_id, unit_id_db, ex_num, image_path),
+                (exercise_id, unit_id_db, ex_num),
             )
 
             exercise_db_id = cursor.lastrowid
@@ -145,6 +140,20 @@ def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
                 ).fetchone()[0]
             else:
                 exercises_imported += 1
+
+            # Store image blob if file exists
+            image_path = f"exercises/{page_num}/{exercise_id}.png"
+            image_full_path = project_root / "data" / "content" / image_path
+            if image_full_path.exists():
+                image_data = image_full_path.read_bytes()
+                cursor.execute(
+                    """
+                    INSERT OR IGNORE INTO exercise_images
+                    (exercise_id, image_data)
+                    VALUES (?, ?)
+                    """,
+                    (exercise_db_id, image_data),
+                )
 
             for idx, question in enumerate(exercise.get("questions", [])):
                 question_id = question["question_id"]
@@ -271,10 +280,16 @@ def main() -> int:
         print("DATABASE IMPORT SUMMARY")
         print("=" * 50)
 
-        tables = ["units", "exercises", "questions", "question_answers", "topics"]
+        tables = ["units", "exercises", "exercise_images", "questions", "question_answers", "topics"]
         for table in tables:
             count = cursor.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             print(f"{table:20s}: {count:5d} rows")
+
+        # Show image storage size
+        total_bytes = cursor.execute(
+            "SELECT COALESCE(SUM(LENGTH(image_data)), 0) FROM exercise_images"
+        ).fetchone()[0]
+        print(f"{'images size':20s}: {total_bytes / 1024:.1f} KB")
 
         print("=" * 50)
 

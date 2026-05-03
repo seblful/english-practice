@@ -30,8 +30,10 @@ class AnswersAgent(BaseAgent):
         context = AnswersContext(questions=questions, topic_name=topic_name)
         prompt = self.render(context)
 
+        image_data = image_path.read_bytes() if image_path.exists() else None
+
         return await self.invoke_structured(
             prompt=prompt,
             output_model=ExerciseAnswersOutput,
-            image_path=image_path,
+            image_data=image_data,
         )

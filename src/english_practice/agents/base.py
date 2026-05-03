@@ -1,6 +1,5 @@
 """Base agent class with structured output support."""
 
-import asyncio
 import base64
 import logging
 import mimetypes
@@ -64,32 +63,29 @@ class BaseAgent:
             self._llm = get_llm()
         return self._llm
 
-    async def _encode_image(self, image_path: Path) -> str:
-        """Encode image to base64.
+    def _encode_image_sync(self, image_data: bytes) -> str:
+        """Synchronous helper to encode image to base64.
 
         Args:
-            image_path: Path to the image file.
+            image_data: Raw image bytes.
 
         Returns:
             Base64 encoded image string.
         """
-        return await asyncio.to_thread(self._encode_image_sync, image_path)
-
-    def _encode_image_sync(self, image_path: Path) -> str:
-        """Synchronous helper to encode image to base64."""
-        with open(image_path, "rb") as image_file:
-            return base64.b64encode(image_file.read()).decode("utf-8")
+        return base64.b64encode(image_data).decode("utf-8")
 
     async def _create_message(
         self,
         prompt: str,
-        image_path: Path | None = None,
+        image_data: bytes | None = None,
+        mime_type: str = "image/png",
     ) -> HumanMessage:
         """Create a message with text and optional image.
 
         Args:
             prompt: The text prompt.
-            image_path: Optional path to an image.
+            image_data: Optional raw image bytes.
+            mime_type: MIME type of the image (default: image/png).
 
         Returns:
             HumanMessage with text and optional image content.
@@ -98,14 +94,14 @@ class BaseAgent:
             {"type": "text", "text": prompt},
         ]
 
-        if image_path and image_path.exists():
-            base64_image = await self._encode_image(image_path)
-            mime_type, _ = mimetypes.guess_type(image_path)
-            mime_type = mime_type or "image/png"
+        if image_data is not None:
+            base64_image = self._encode_image_sync(image_data)
             content.append(
                 {
                     "type": "image_url",
-                    "image_url": {"url": f"data:{mime_type};base64,{base64_image}"},
+                    "image_url": {
+                        "url": f"data:{mime_type};base64,{base64_image}"
+                    },
                 }
             )
 
@@ -116,19 +112,21 @@ class BaseAgent:
         self,
         prompt: str,
         output_model: type[T],
-        image_path: Path | None = None,
+        image_data: bytes | None = None,
+        mime_type: str = "image/png",
     ) -> T:
         """Invoke LLM with structured output.
 
         Args:
             prompt: The prompt text.
             output_model: Pydantic model class for structured output.
-            image_path: Optional path to an image.
+            image_data: Optional raw image bytes.
+            mime_type: MIME type of the image (default: image/png).
 
         Returns:
             Parsed structured output matching the model.
         """
-        message = await self._create_message(prompt, image_path)
+        message = await self._create_message(prompt, image_data, mime_type)
 
         structured_llm = self.llm.with_structured_output(output_model)
 

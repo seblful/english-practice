@@ -1,24 +1,23 @@
 """Chat history manager for assistant agent."""
 
-from pathlib import Path
 from typing import Any
 
 
 class ChatHistoryManager:
-    """Manages chat history per user and image.
+    """Manages chat history per user and exercise.
 
-    Structure: {user_id: {image_path: [messages]}}
-    History is cleared when a new image is processed.
+    Structure: {user_id: {exercise_id: [messages]}}
+    History is cleared when a new exercise is processed.
     """
 
     def __init__(self) -> None:
         """Initialize empty chat history storage."""
-        self._history: dict[int, dict[str, list[dict[str, Any]]]] = {}
+        self._history: dict[int, dict[int, list[dict[str, Any]]]] = {}
 
     def add_message(
         self,
         user_id: int,
-        image_path: Path,
+        exercise_id: int | None,
         role: str,
         content: str,
     ) -> None:
@@ -26,19 +25,17 @@ class ChatHistoryManager:
 
         Args:
             user_id: The user's ID.
-            image_path: Path to the current exercise image.
+            exercise_id: The exercise database ID.
             role: Message role ('user' or 'assistant').
             content: Message content.
         """
-        image_key = str(image_path)
-
         if user_id not in self._history:
             self._history[user_id] = {}
 
-        if image_key not in self._history[user_id]:
-            self._history[user_id][image_key] = []
+        if exercise_id not in self._history[user_id]:
+            self._history[user_id][exercise_id] = []
 
-        self._history[user_id][image_key].append(
+        self._history[user_id][exercise_id].append(
             {
                 "role": role,
                 "content": content,
@@ -48,35 +45,31 @@ class ChatHistoryManager:
     def get_history(
         self,
         user_id: int,
-        image_path: Path,
+        exercise_id: int | None,
     ) -> list[dict[str, Any]]:
-        """Get chat history for a specific user and image.
+        """Get chat history for a specific user and exercise.
 
         Args:
             user_id: The user's ID.
-            image_path: Path to the current exercise image.
+            exercise_id: The exercise database ID.
 
         Returns:
             List of message dictionaries with 'role' and 'content' keys.
         """
-        image_key = str(image_path)
-
         if user_id not in self._history:
             return []
 
-        return self._history[user_id].get(image_key, [])
+        return self._history[user_id].get(exercise_id, [])
 
-    def clear_history(self, user_id: int, image_path: Path) -> None:
-        """Clear chat history for a specific user and image.
+    def clear_history(self, user_id: int, exercise_id: int | None) -> None:
+        """Clear chat history for a specific user and exercise.
 
         Args:
             user_id: The user's ID.
-            image_path: Path to the current exercise image.
+            exercise_id: The exercise database ID.
         """
-        image_key = str(image_path)
-
-        if user_id in self._history and image_key in self._history[user_id]:
-            del self._history[user_id][image_key]
+        if user_id in self._history and exercise_id in self._history[user_id]:
+            del self._history[user_id][exercise_id]
 
     def clear_user_history(self, user_id: int) -> None:
         """Clear all chat history for a user.
@@ -87,18 +80,16 @@ class ChatHistoryManager:
         if user_id in self._history:
             del self._history[user_id]
 
-    def on_new_image(self, user_id: int, new_image_path: Path) -> None:
-        """Handle new image - clear history for all other images of this user.
+    def on_new_image(self, user_id: int, exercise_id: int | None) -> None:
+        """Handle new exercise - clear history for all other exercises of this user.
 
         Args:
             user_id: The user's ID.
-            new_image_path: Path to the new exercise image.
+            exercise_id: The new exercise database ID.
         """
-        new_image_key = str(new_image_path)
-
         if user_id in self._history:
-            # Keep only the new image's history (if any)
-            new_history = {}
-            if new_image_key in self._history[user_id]:
-                new_history[new_image_key] = self._history[user_id][new_image_key]
+            # Keep only the new exercise's history (if any)
+            new_history: dict[int | None, list[dict[str, Any]]] = {}
+            if exercise_id in self._history[user_id]:
+                new_history[exercise_id] = self._history[user_id][exercise_id]
             self._history[user_id] = new_history

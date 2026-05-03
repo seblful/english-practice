@@ -1,7 +1,6 @@
 """Unified agent service for all LLM operations."""
 
 import logging
-from pathlib import Path
 
 from src.english_practice.agents.evaluate import EvaluateAnswerAgent
 from src.english_practice.agents.assistant import AssistantAgent
@@ -25,7 +24,7 @@ class AgentService:
 
     async def evaluate_answer(
         self,
-        image_path: Path,
+        image_data: bytes,
         question_number: str,
         user_input: str,
         short_answers: list[str],
@@ -37,7 +36,7 @@ class AgentService:
         """Evaluate if the user's answer is correct.
 
         Args:
-            image_path: Path to the exercise image.
+            image_data: Raw exercise image bytes.
             question_number: The question number/ID.
             user_input: The user's answer.
             short_answers: All short answer variants.
@@ -50,7 +49,7 @@ class AgentService:
             EvaluateAnswerOutput with is_correct and answer_idx.
         """
         return await self._evaluate_agent.evaluate(
-            image_path=image_path,
+            image_data=image_data,
             question_number=question_number,
             user_input=user_input,
             short_answers=short_answers,
@@ -63,41 +62,44 @@ class AgentService:
     async def assist(
         self,
         user_id: int,
-        image_path: Path,
+        image_data: bytes,
         question_number: str,
         user_input: str,
         topic_name: str,
+        exercise_id: int | None = None,
     ) -> AssistantOutput:
         """Provide conversational assistance.
 
         Args:
             user_id: The user's ID for history tracking.
-            image_path: Path to the exercise image.
+            image_data: Raw exercise image bytes.
             question_number: The question number/ID.
             user_input: The user's question or message.
             topic_name: The topic name for context.
+            exercise_id: Exercise database ID for history scoping.
 
         Returns:
             AssistantOutput with response.
         """
         return await self._assistant_agent.assist(
             user_id=user_id,
-            image_path=image_path,
+            image_data=image_data,
             question_number=question_number,
             user_input=user_input,
             topic_name=topic_name,
             chat_history_manager=self._chat_history_manager,
+            exercise_id=exercise_id,
         )
 
-    def on_new_image(self, user_id: int, new_image_path: Path) -> None:
-        """Handle new image - clear chat history for previous images.
+    def on_new_image(self, user_id: int, exercise_id: int) -> None:
+        """Handle new exercise - clear chat history for previous exercises.
 
         Args:
             user_id: The user's ID.
-            new_image_path: Path to the new exercise image.
+            exercise_id: The new exercise database ID.
         """
         self._assistant_agent.on_new_image(
-            user_id, new_image_path, self._chat_history_manager
+            user_id, exercise_id, self._chat_history_manager
         )
 
     def clear_all_history(self, user_id: int) -> None:

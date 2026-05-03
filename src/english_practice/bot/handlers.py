@@ -1,8 +1,8 @@
 """Bot handlers for commands and messages."""
 
+import io
 import logging
 import random
-from pathlib import Path
 from telegram import Update
 from telegram.ext import (
     CallbackQueryHandler,
@@ -148,16 +148,13 @@ async def send_new_exercise(
 
     question = random.choice(exercise_data["questions"])
 
-    image_path = Path(exercise["image_path"])
-    if not image_path.is_absolute():
-        image_path = settings.paths.content_dir / image_path
+    image_data = repository.get_exercise_image(exercise["id"])
 
-    AgentService().on_new_image(user_id, image_path)
+    AgentService().on_new_image(user_id, exercise["id"])
 
     state_manager.set_exercise(
         user_id=user_id,
         exercise_id=exercise["id"],
-        exercise_path=image_path,
         question_id=question["question_id"],
         question_db_id=question["id"],
         topic_id=topic_id,
@@ -180,10 +177,15 @@ async def send_new_exercise(
         parse_mode="HTML",
     )
 
-    # Send exercise image
-    with open(image_path, "rb") as photo:
+    # Send exercise image from database
+    if image_data:
         await message.reply_photo(
-            photo=photo,
+            photo=io.BytesIO(image_data),
+            reply_markup=get_exercise_keyboard(),
+        )
+    else:
+        await message.reply_text(
+            "[X] Exercise image not found in database.",
             reply_markup=get_exercise_keyboard(),
         )
 
@@ -252,16 +254,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     user_text = update.message.text.strip()
 
+    repository = DatabaseRepository()
+    image_data = repository.get_exercise_image(session.current_exercise_id)
+
     # If already answered, treat as follow-up question for assistant
     if session.answered:
         try:
             agent_service = AgentService()
             result = await agent_service.assist(
                 user_id=user_id,
-                image_path=session.current_exercise_path,
+                image_data=image_data,
                 question_number=session.current_question_id,
                 user_input=user_text,
                 topic_name=session.current_topic_name or "Random",
+                exercise_id=session.current_exercise_id,
             )
             response = MessageFormatter.format_assistant_answer(result.answer)
             await update.message.reply_text(response, parse_mode="HTML")
@@ -279,8 +285,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     target_question_number = session.current_question_id
     is_open_ended = session.current_is_open_ended
 
-    repository = DatabaseRepository()
-
     # Get all answers from database (outside try so available on error)
     all_answers = repository.get_all_answers(target_question_id)
     rule_data = repository.get_rule(target_question_id)
@@ -294,7 +298,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         # Evaluate answer using agent
         evaluation = await agent_service.evaluate_answer(
-            image_path=session.current_exercise_path,
+            image_data=image_data,
             question_number=target_question_number,
             user_input=answer_text,
             short_answers=short_answers,

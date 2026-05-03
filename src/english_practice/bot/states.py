@@ -1,7 +1,6 @@
 """Bot states for user session management."""
 
 from dataclasses import dataclass, field
-from pathlib import Path
 
 
 @dataclass
@@ -10,7 +9,6 @@ class UserSession:
 
     user_id: int
     current_exercise_id: int | None = None
-    current_exercise_path: Path | None = None
     current_question_id: str | None = None
     current_question_db_id: int | None = None
     current_topic_id: int | None = None
@@ -25,7 +23,6 @@ class UserSession:
     def clear_exercise(self) -> None:
         """Clear current exercise context."""
         self.current_exercise_id = None
-        self.current_exercise_path = None
         self.current_question_id = None
         self.current_question_db_id = None
         self.current_topic_name = None
@@ -69,7 +66,6 @@ class StateManager:
         self,
         user_id: int,
         exercise_id: int,
-        exercise_path: Path,
         question_id: str,
         question_db_id: int,
         topic_id: int | None,
@@ -83,7 +79,6 @@ class StateManager:
         Args:
             user_id: Telegram user ID.
             exercise_id: Exercise database ID.
-            exercise_path: Path to exercise image.
             question_id: Current question number.
             question_db_id: Question database ID.
             topic_id: Current topic ID (None for random).
@@ -94,7 +89,6 @@ class StateManager:
         """
         session = self.get_session(user_id)
         session.current_exercise_id = exercise_id
-        session.current_exercise_path = exercise_path
         session.current_question_id = question_id
         session.current_question_db_id = question_db_id
         session.current_topic_id = topic_id
