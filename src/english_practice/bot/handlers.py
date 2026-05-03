@@ -508,11 +508,25 @@ async def handle_admin_action(
         await query.message.reply_text(
             f"✅ User {target_id} has been approved."
         )
+        try:
+            await context.bot.send_message(
+                chat_id=target_id,
+                text="✅ Your access has been approved! Use /start to begin practicing.",
+            )
+        except Exception:
+            logger.warning(f"Could not notify approved user {target_id}")
     elif action == "reject":
         repository.set_user_status(target_id, "rejected", user.id)
         await query.message.reply_text(
             f"❌ User {target_id} has been rejected."
         )
+        try:
+            await context.bot.send_message(
+                chat_id=target_id,
+                text="❌ Your access has been denied.",
+            )
+        except Exception:
+            logger.warning(f"Could not notify rejected user {target_id}")
 
     remaining = repository.get_pending_users()
     if remaining:
