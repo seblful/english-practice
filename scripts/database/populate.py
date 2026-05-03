@@ -16,7 +16,7 @@ def get_project_root() -> Path:
 
 def get_db_path() -> Path:
     """Get database file path."""
-    return get_project_root() / "data" / "content" / "english_practice.db"
+    return get_project_root() / "data" / "development.db"
 
 
 def init_database(db_path: Path) -> None:
