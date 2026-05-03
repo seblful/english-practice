@@ -12,8 +12,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS units (
     id INTEGER PRIMARY KEY,
     unit_number INTEGER NOT NULL UNIQUE,
-    title TEXT NOT NULL,
-    grammar_md_path TEXT NOT NULL  -- e.g., "grammar/1.md"
+    title TEXT NOT NULL
 );
 
 -- Individual exercises (images stored as BLOB)

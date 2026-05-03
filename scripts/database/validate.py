@@ -375,27 +375,6 @@ class DatabaseValidator:
 
         return results
 
-    def validate_cross_references(self) -> dict:
-        """Validate cross-references with external files."""
-        results = {
-            "status": "ok",
-            "missing_grammar_files": [],
-        }
-
-        # Check grammar markdown files exist
-        self.cursor.execute("SELECT unit_number, grammar_md_path FROM units")
-        for row in self.cursor.fetchall():
-            md_path = get_project_root() / "data" / "content" / row["grammar_md_path"]
-            if not md_path.exists():
-                results["missing_grammar_files"].append(
-                    f"Unit {row['unit_number']}: {row['grammar_md_path']}"
-                )
-
-        if results["missing_grammar_files"]:
-            results["status"] = "error"
-
-        return results
-
     def print_report(self, results: dict) -> int:
         """Print validation report and return exit code."""
         print("\n" + "=" * 60)
@@ -540,20 +519,6 @@ class DatabaseValidator:
                 )
                 total_errors += len(ref["invalid_exercise_images"])
 
-        # Cross References
-        print("\n[CROSS] CROSS-REFERENCE VALIDATION")
-        cross = results["cross_references"]
-        if cross["status"] == "ok":
-            print("  [OK] All external references valid")
-        else:
-            if cross["missing_grammar_files"]:
-                print(
-                    f"  [[WARN]] Missing grammar files: {len(cross['missing_grammar_files'])}"
-                )
-                for item in cross["missing_grammar_files"][:3]:
-                    print(f"    - {item}")
-                total_warnings += len(cross["missing_grammar_files"])
-
         # Summary
         print("\n" + "=" * 60)
         if total_errors == 0 and total_warnings == 0:
@@ -585,7 +550,6 @@ def main() -> int:
             "duplicates": validator.validate_duplicates(),
             "orphaned": validator.validate_orphaned_data(),
             "referential": validator.validate_referential_integrity(),
-            "cross_references": validator.validate_cross_references(),
         }
 
         exit_code = validator.print_report(results)

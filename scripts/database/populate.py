@@ -55,10 +55,10 @@ def import_units(conn: sqlite3.Connection) -> None:
         if unit_num in existing_grammar:
             cursor.execute(
                 """
-                INSERT OR IGNORE INTO units (unit_number, title, grammar_md_path)
-                VALUES (?, ?, ?)
+                INSERT OR IGNORE INTO units (unit_number, title)
+                VALUES (?, ?)
                 """,
-                (unit_num, unit["title"], f"grammar/{unit_num}.md"),
+                (unit_num, unit["title"]),
             )
 
     conn.commit()
