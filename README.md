@@ -105,6 +105,19 @@ uv run scripts/extract.py organize-exercises
 uv sync
 ```
 
+### Docker (Local Testing)
+
+```bash
+# Build the image
+docker build -t english-practice-bot .
+
+# Run with local env files and mounted data/logs
+docker run --rm --env-file .env --env-file .env.development `
+  -v .\data:/app/data -v .\logs:/app/logs english-practice-bot
+```
+
+Note: `.env` files cannot have inline comments — values like `KEY=value  # comment` will include the comment as part of the value.
+
 ### Code Standards
 
 - Follow PEP 8
