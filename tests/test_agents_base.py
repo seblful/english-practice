@@ -9,8 +9,7 @@ from pydantic import BaseModel
 
 from english_practice.agents.base import BaseAgent, _prompt_env
 from english_practice.errors import AgentError, ConfigurationError
-from english_practice.models.agents import EvaluateAnswerInput
-from english_practice.models.book import QuestionAnswer
+from english_practice.models.agents import AssistantContext
 from english_practice.settings import get_settings
 
 
@@ -28,7 +27,7 @@ class DummyModel(BaseModel):
 class _TestAgent(BaseAgent):
     """Concrete agent for testing (not collected by pytest)."""
 
-    PROMPT_TEMPLATE = "evaluate.j2"
+    PROMPT_TEMPLATE = "assistant.j2"
 
 
 def _structured_llm(result: object) -> MagicMock:
@@ -54,21 +53,19 @@ class TestRender:
 
     def test_renders_the_template(self) -> None:
         result = _TestAgent().render(
-            EvaluateAnswerInput(
+            AssistantContext(
                 question_number="1",
-                user_input="is doing",
-                answers=[QuestionAnswer(short_answer="is doing", full_answer="He is.")],
-                is_open_ended=False,
+                user_input="why is doing?",
                 topic_name="Present Tenses",
             )
         )
 
-        assert "is doing" in result
+        assert "why is doing?" in result
         assert "Present Tenses" in result
 
     def test_a_context_the_template_does_not_fit_is_an_error(self) -> None:
         """Rendering the wrong model used to yield a hollow prompt, not a failure."""
-        with pytest.raises(ConfigurationError, match=r"evaluate\.j2"):
+        with pytest.raises(ConfigurationError, match=r"assistant\.j2"):
             _TestAgent().render(DummyModel(name="test"))
 
     def test_agent_without_a_template_is_a_configuration_error(self) -> None:

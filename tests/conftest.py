@@ -358,6 +358,13 @@ def mock_repository(
     repository.list_topics.return_value = topics
     repository.get_topic.return_value = topics[0]
     repository.random_exercise.return_value = exercise
+    # The handlers draw through `draw_question`, which is the shared query that
+    # picks the exercise, the question and the image together.
+    repository.draw_question.return_value = (
+        exercise,
+        exercise.questions[0],
+        b"fake_image_bytes",
+    )
     repository.get_exercise_image.return_value = b"fake_image_bytes"
     repository.list_answers.return_value = answers
     repository.get_auth_status.return_value = None

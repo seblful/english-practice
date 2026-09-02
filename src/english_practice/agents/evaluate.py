@@ -1,17 +1,23 @@
-"""Evaluate agent: decides whether the student's answer is correct."""
+"""Evaluate agent: decides whether the student's answer is correct.
+
+The prompt is not this agent's own. It comes from
+:func:`practice_core.prompts.render_evaluate_prompt`, shared with the Android
+app, so a change to the grading rules reaches both front ends at once — the one
+place where a divergence would show up as different marks for the same answer.
+"""
 
 from collections.abc import Sequence
 
+from practice_core.grading import EvaluateAnswerInput, EvaluateAnswerOutput
+from practice_core.models import QuestionAnswer
+from practice_core.prompts import render_evaluate_prompt
+
 from english_practice.agents.base import BaseAgent
 from english_practice.agents.tracing import traced
-from english_practice.models.agents import EvaluateAnswerInput, EvaluateAnswerOutput
-from english_practice.models.book import QuestionAnswer
 
 
 class EvaluateAnswerAgent(BaseAgent):
     """Grades a student's answer against the book's expected answers."""
-
-    PROMPT_TEMPLATE = "evaluate.j2"
 
     @traced(name="evaluate_answer")
     async def evaluate(
@@ -53,7 +59,7 @@ class EvaluateAnswerAgent(BaseAgent):
         )
 
         return await self.invoke_structured(
-            prompt=self.render(context),
+            prompt=render_evaluate_prompt(context),
             output_model=EvaluateAnswerOutput,
             image_data=image_data,
         )

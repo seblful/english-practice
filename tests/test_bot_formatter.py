@@ -1,5 +1,7 @@
 """Tests for message formatting, especially HTML escaping."""
 
+from practice_core import feedback
+
 from english_practice.bot import formatter
 from english_practice.models.book import QuestionAnswer
 
@@ -101,7 +103,13 @@ class TestEvaluation:
     """Feedback varies but always carries a verdict marker."""
 
     def test_correct_feedback(self) -> None:
-        assert formatter.evaluation(is_correct=True) in formatter.CORRECT_PHRASES
+        text = formatter.evaluation(is_correct=True)
+
+        assert text.startswith("✅ <b>")
+        assert any(phrase in text for phrase in feedback.CORRECT_PHRASES)
 
     def test_wrong_feedback(self) -> None:
-        assert formatter.evaluation(is_correct=False) in formatter.WRONG_PHRASES
+        text = formatter.evaluation(is_correct=False)
+
+        assert text.startswith("❌ <b>")
+        assert any(phrase in text for phrase in feedback.WRONG_PHRASES)

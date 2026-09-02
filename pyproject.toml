@@ -19,6 +19,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "practice-core",
     "mistralai>=1.2.0",
     "pillow>=12.1.0",
     "tqdm>=4.66.0",
@@ -66,6 +67,15 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/english_practice"]
 
+# `core/` holds the domain both front ends share; `mobile/` is a separate
+# project on purpose — it must resolve a much smaller dependency set than the
+# bot, so it keeps its own lock file and is not a workspace member.
+[tool.uv.workspace]
+members = ["core"]
+
+[tool.uv.sources]
+practice-core = { workspace = true }
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=src/english_practice --cov=scripts --cov-report=term-missing --cov-fail-under=95"
@@ -81,6 +91,10 @@ markers = [
 target-version = "py313"
 line-length = 88
 src = ["src"]
+# `mobile/` resolves a different dependency set (Flet, httpx) that this
+# project's environment does not carry, so it is linted and type-checked from
+# its own directory. `core/` is a workspace member and stays in scope here.
+extend-exclude = ["mobile"]
 
 [tool.ruff.lint]
 select = [
@@ -114,6 +128,9 @@ known-first-party = ["english_practice", "scripts"]
 [tool.ruff.lint.per-file-ignores]
 # Tests don't need docstrings, may use asserts, magic values, and unused fixture args.
 "tests/**" = ["D", "S101", "PLR2004", "ARG"]
+
+[tool.ty.src]
+exclude = ["mobile"]
 
 [tool.coverage.run]
 source = ["src/english_practice", "scripts"]

@@ -1,38 +1,35 @@
-"""Agent input/output models for structured LLM responses."""
+"""Agent input/output models for structured LLM responses.
+
+The grading pair — :class:`EvaluateAnswerInput` and
+:class:`EvaluateAnswerOutput` — is shared with the Android app through
+:mod:`practice_core.grading`, because it travels with the prompt that both send.
+The rest is the bot's: its assistant conversation, and the offline extraction
+pipeline's batch outputs.
+"""
 
 from typing import Literal
 
+from practice_core.grading import EvaluateAnswerInput, EvaluateAnswerOutput
 from pydantic import BaseModel, Field
-
-from english_practice.models.book import QuestionAnswer
 
 ChatRole = Literal["user", "assistant"]
 
-
-class EvaluateAnswerInput(BaseModel):
-    """Input context for evaluate answer agent."""
-
-    question_number: str
-    user_input: str
-    answers: list[QuestionAnswer]
-    is_open_ended: bool
-    topic_name: str
-    rule: str | None = None
-
-
-class EvaluateAnswerOutput(BaseModel):
-    """Output model for evaluate answer agent."""
-
-    is_correct: bool = Field(
-        description="Whether the user's answer is correct (true) or incorrect (false)"
-    )
-    answer_idx: list[int] = Field(
-        default_factory=list,
-        description=(
-            "List of indexes of matched answers in the answers array. "
-            "Empty list for open-ended or no match."
-        ),
-    )
+__all__ = [
+    "AnswersContext",
+    "AnswersQuestion",
+    "AssistantContext",
+    "AssistantOutput",
+    "ChatMessage",
+    "ChatRole",
+    "EvaluateAnswerInput",
+    "EvaluateAnswerOutput",
+    "ExerciseAnswersOutput",
+    "ExerciseRulesOutput",
+    "QuestionAnswerItem",
+    "QuestionRuleItem",
+    "RulesContext",
+    "RulesQuestion",
+]
 
 
 class QuestionAnswerItem(BaseModel):

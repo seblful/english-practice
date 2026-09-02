@@ -2,6 +2,8 @@
 
 from collections.abc import Sequence
 
+from practice_core.grading import answers_to_show
+
 from english_practice.bot import formatter, keyboards
 from english_practice.bot.context import BotContext
 from english_practice.bot.handlers.access import handler
@@ -18,23 +20,6 @@ EMPTY_ANSWER_HINT = "✍️ Send me your answer as text."
 GRADING_FAILED = "⚠️ I couldn't grade that right now — here's the book's answer."
 ASSIST_FAILED = "⚠️ Sorry, I couldn't answer that right now. Try asking again."
 NEXT_EXERCISE_PROMPT = "Choose next exercise:"
-
-
-def _answers_to_show(
-    answers: Sequence[QuestionAnswer], matched_indexes: Sequence[int]
-) -> Sequence[QuestionAnswer]:
-    """Pick which expected answers to reveal.
-
-    Args:
-        answers: Every accepted answer, in book order.
-        matched_indexes: Indexes the grader reported as matching.
-
-    Returns:
-        The matched answers, or the canonical first one when the grader matched
-        nothing or reported an index that does not exist.
-    """
-    matched = [answers[i] for i in matched_indexes if 0 <= i < len(answers)]
-    return matched or answers[:1]
 
 
 async def _reveal(
@@ -125,9 +110,7 @@ async def _grade(
     await who.message.reply_text(
         formatter.evaluation(evaluation.is_correct), parse_mode="HTML"
     )
-    await _reveal(
-        who, session, active, _answers_to_show(answers, evaluation.answer_idx)
-    )
+    await _reveal(who, session, active, answers_to_show(answers, evaluation.answer_idx))
 
 
 async def _explain(

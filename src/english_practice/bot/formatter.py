@@ -7,37 +7,12 @@ Telegram reject the whole message.
 """
 
 import html
-import random
 import re
 from collections.abc import Sequence
 
-from english_practice.models.book import QuestionAnswer
-
-CORRECT_PHRASES = (
-    "✅ <b>Correct!</b>",
-    "✅ <b>Well done!</b>",
-    "✅ <b>Perfect!</b>",
-    "✅ <b>Great job!</b>",
-    "✅ <b>You nailed it!</b>",
-    "✅ <b>Excellent!</b>",
-    "✅ <b>Spot on!</b>",
-    "✅ <b>Brilliant!</b>",
-    "✅ <b>Bullseye!</b>",
-    "✅ <b>Awesome!</b>",
-)
-
-WRONG_PHRASES = (
-    "❌ <b>Not quite</b>",
-    "❌ <b>Almost there</b>",
-    "❌ <b>Close, but not quite</b>",
-    "❌ <b>Needs a little work</b>",
-    "❌ <b>Keep practicing!</b>",
-    "❌ <b>Don't give up!</b>",
-    "❌ <b>Learning opportunity!</b>",
-    "❌ <b>Take another look</b>",
-    "❌ <b>Good try!</b>",
-    "❌ <b>You'll get it next time!</b>",
-)
+from practice_core.feedback import full_answer_text, short_answer_text
+from practice_core.feedback import verdict_phrase as _verdict_phrase
+from practice_core.models import QuestionAnswer
 
 _BULLET_PATTERNS = (
     (re.compile(r"^- \[ \]", re.MULTILINE), "•"),
@@ -107,13 +82,17 @@ def question_prompt(question_number: str) -> str:
 def evaluation(is_correct: bool) -> str:
     """Give varied feedback on an answer.
 
+    The phrases come from :mod:`practice_core.feedback`, shared with the
+    Android app; the tick, the cross and the bold are Telegram's own dressing.
+
     Args:
         is_correct: Whether the answer was correct.
 
     Returns:
         The message text.
     """
-    return random.choice(CORRECT_PHRASES if is_correct else WRONG_PHRASES)
+    mark = "✅" if is_correct else "❌"
+    return f"{mark} <b>{escape(_verdict_phrase(is_correct))}</b>"
 
 
 def short_answers(answers: Sequence[QuestionAnswer]) -> str:
@@ -125,8 +104,7 @@ def short_answers(answers: Sequence[QuestionAnswer]) -> str:
     Returns:
         The message text.
     """
-    joined = ", ".join(answer.short_answer for answer in answers)
-    return f"Correct Answer:\n<b>{rich(joined)}</b>"
+    return f"Correct Answer:\n<b>{rich(short_answer_text(answers))}</b>"
 
 
 def full_answers(answers: Sequence[QuestionAnswer]) -> str:
@@ -138,8 +116,7 @@ def full_answers(answers: Sequence[QuestionAnswer]) -> str:
     Returns:
         The message text.
     """
-    joined = "\n".join(answer.full_answer for answer in answers)
-    return f"Full Answer:\n<pre>{rich(joined)}</pre>"
+    return f"Full Answer:\n<pre>{rich(full_answer_text(answers))}</pre>"
 
 
 def rule_block(unit_number: int, section_letter: str | None, rule: str) -> str:

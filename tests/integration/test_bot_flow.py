@@ -18,13 +18,13 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
+from practice_core import content
 from pydantic import SecretStr
 from telegram import CallbackQuery, Chat, Message, MessageEntity, Update, User
 from telegram.ext import ExtBot
 
 from english_practice.bot.app import BotApplication, build_application
 from english_practice.bot.context import BotContext, BotDependencies
-from english_practice.bot.handlers import exercises
 from english_practice.bot.states import SessionStore
 from english_practice.models.agents import AssistantOutput, EvaluateAnswerOutput
 from english_practice.repositories.database import DatabaseRepository
@@ -94,10 +94,10 @@ def _deterministic_draw(monkeypatch: pytest.MonkeyPatch) -> None:
     The seeded exercise carries one closed and one open-ended question, and
     which one a real draw picks would change what the bot replies.
     """
-    # Replace the module reference inside the handler only: patching
+    # Replace the module reference inside the shared draw only: patching
     # random.choice itself would also hijack the formatter's phrase picker.
     monkeypatch.setattr(
-        exercises,
+        content,
         "random",
         SimpleNamespace(
             choice=lambda questions: next(

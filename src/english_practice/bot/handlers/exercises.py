@@ -1,7 +1,6 @@
 """Choosing a topic, drawing an exercise, and acting on the one in progress."""
 
 import io
-import random
 
 from english_practice.bot import formatter, keyboards
 from english_practice.bot.callbacks import (
@@ -39,18 +38,16 @@ async def send_exercise(
         context: The handler context.
         topic: The topic to draw from, or ``None`` to draw from all of them.
     """
-    exercise = await context.repository.random_exercise(topic.id if topic else None)
-
     # The draw only returns exercises that have questions, so an empty result
     # means the topic itself is empty.
-    if exercise is None or not exercise.questions:
+    drawn = await context.repository.draw_question(topic.id if topic else None)
+    if drawn is None:
         logger.info("no_exercise_available", topic_id=topic.id if topic else None)
         await who.message.reply_text(NO_EXERCISES_MESSAGE)
         return
 
-    question = random.choice(exercise.questions)
+    exercise, question, image = drawn
     topic_name = topic.name if topic else exercise.unit.topic_name or RANDOM_TOPIC_LABEL
-    image = await context.repository.get_exercise_image(exercise.id)
 
     context.start_exercise(
         who.user.id,
