@@ -19,6 +19,7 @@ def with_exercise(mock_context: Mock, exercise: Exercise) -> ActiveExercise:
         question=exercise.questions[0],
         topic_id=1,
         topic_name="Present Tenses",
+        image=b"fake_image_bytes",
     )
     mock_context.sessions.start_exercise(USER_ID, active)
     return active
@@ -55,6 +56,16 @@ class TestGrading:
         assert kwargs["is_open_ended"] is False
         assert kwargs["topic_name"] == "Present Tenses"
         assert kwargs["rule"] == with_exercise.question.rule
+
+    async def test_grades_against_the_image_held_in_the_session(
+        self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
+    ) -> None:
+        """The blob was read when the exercise was sent; do not read it again."""
+        await answers_handler.text_message(mock_update, mock_context)
+
+        kwargs = mock_context.agents.evaluate_answer.await_args.kwargs
+        assert kwargs["image_data"] == b"fake_image_bytes"
+        mock_context.repository.get_exercise_image.assert_not_called()
 
     async def test_marks_the_question_answered(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
@@ -225,6 +236,8 @@ class TestFollowUp:
         assert kwargs["user_input"] == "why is it continuous?"
         assert kwargs["exercise_id"] == with_exercise.exercise.id
         assert kwargs["question_number"] == "1"
+        assert kwargs["image_data"] == b"fake_image_bytes"
+        mock_context.repository.get_exercise_image.assert_not_called()
         mock_context.agents.evaluate_answer.assert_not_called()
 
     async def test_renders_the_reply_as_html(

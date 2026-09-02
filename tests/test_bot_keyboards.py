@@ -11,7 +11,8 @@ from english_practice.bot.callbacks import (
     TOPIC_PATTERN,
     AdminAction,
     ExerciseAction,
-    TopicChoice,
+    SpecificTopic,
+    parse_topic_choice,
 )
 from english_practice.models.auth import PendingUser
 from english_practice.models.book import Topic
@@ -45,7 +46,7 @@ class TestMainMenu:
         markup = keyboards.main_menu_keyboard(has_previous_topic=True)
 
         for payload in _payloads(markup):
-            assert TopicChoice.parse(payload) is not None
+            assert parse_topic_choice(payload) is not None
             assert re.match(TOPIC_PATTERN, payload)
 
 
@@ -61,8 +62,8 @@ class TestTopicsKeyboard:
     def test_payloads_carry_topic_ids(self, topics: list[Topic]) -> None:
         payloads = _payloads(keyboards.topics_keyboard(topics))
 
-        parsed = [TopicChoice.parse(payload) for payload in payloads]
-        assert [choice.topic_id for choice in parsed if choice] == [1, 2]
+        parsed = [parse_topic_choice(payload) for payload in payloads]
+        assert parsed == [SpecificTopic(1), SpecificTopic(2)]
 
     def test_empty_topic_list(self) -> None:
         assert keyboards.topics_keyboard([]).inline_keyboard == ()

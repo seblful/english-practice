@@ -354,6 +354,8 @@ def mock_context(dependencies: BotDependencies) -> Mock:
     context.repository = dependencies.repository
     context.agents = dependencies.agents
     context.sessions = dependencies.sessions
+    context.start_exercise = dependencies.start_exercise
+    context.forget_user = dependencies.forget_user
     return context
 
 

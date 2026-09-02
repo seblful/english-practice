@@ -4,7 +4,13 @@ import io
 import random
 
 from english_practice.bot import formatter, keyboards
-from english_practice.bot.callbacks import ExerciseAction, TopicChoice, TopicSelection
+from english_practice.bot.callbacks import (
+    ExerciseAction,
+    KeywordChoice,
+    SpecificTopic,
+    TopicSelection,
+    parse_topic_choice,
+)
 from english_practice.bot.context import BotContext
 from english_practice.bot.handlers.access import handler
 from english_practice.bot.states import ActiveExercise
@@ -44,15 +50,16 @@ async def send_exercise(
 
     question = random.choice(exercise.questions)
     topic_name = topic.name if topic else exercise.unit.topic_name or RANDOM_TOPIC_LABEL
+    image = await context.repository.get_exercise_image(exercise.id)
 
-    context.agents.start_exercise(who.user.id, exercise.id)
-    context.sessions.start_exercise(
+    context.start_exercise(
         who.user.id,
         ActiveExercise(
             exercise=exercise,
             question=question,
             topic_id=topic.id if topic else None,
             topic_name=topic_name,
+            image=image,
         ),
     )
     logger.info(
@@ -68,7 +75,6 @@ async def send_exercise(
         formatter.question_prompt(question.question_id), parse_mode="HTML"
     )
 
-    image = await context.repository.get_exercise_image(exercise.id)
     if image is None:
         logger.warning("exercise_image_missing", exercise_id=exercise.id)
         await who.message.reply_text(
@@ -89,21 +95,21 @@ async def topic_selection(who: Interaction, context: BotContext) -> None:
         who: The user behind the update.
         context: The handler context.
     """
-    choice = TopicChoice.parse(who.callback_data)
+    choice = parse_topic_choice(who.callback_data)
     if choice is None:
         logger.warning("unparsable_topic_callback", data=who.callback_data)
         return
 
-    match choice.selection:
-        case TopicSelection.NEW_TOPIC:
+    match choice:
+        case KeywordChoice(TopicSelection.NEW_TOPIC):
             topics = await context.repository.list_topics()
             await who.message.reply_text(
                 CHOOSE_TOPIC_MESSAGE,
                 reply_markup=keyboards.topics_keyboard(topics),
             )
-        case TopicSelection.RANDOM:
+        case KeywordChoice(TopicSelection.RANDOM):
             await send_exercise(who, context, topic=None)
-        case TopicSelection.SAME:
+        case KeywordChoice(TopicSelection.SAME):
             last_topic_id = context.sessions.get(who.user.id).last_topic_id
             topic = (
                 await context.repository.get_topic(last_topic_id)
@@ -111,11 +117,10 @@ async def topic_selection(who: Interaction, context: BotContext) -> None:
                 else None
             )
             await send_exercise(who, context, topic=topic)
-        case TopicSelection.SPECIFIC:
-            # topic_id is always set for a SPECIFIC choice.
-            topic = await context.repository.get_topic(choice.topic_id or 0)
+        case SpecificTopic(topic_id):
+            topic = await context.repository.get_topic(topic_id)
             if topic is None:
-                logger.warning("unknown_topic_selected", topic_id=choice.topic_id)
+                logger.warning("unknown_topic_selected", topic_id=topic_id)
                 await who.message.reply_text(NO_EXERCISES_MESSAGE)
                 return
             await send_exercise(who, context, topic=topic)

@@ -12,7 +12,8 @@ from english_practice.bot.callbacks import (
     AdminAction,
     AdminDecision,
     ExerciseAction,
-    TopicChoice,
+    KeywordChoice,
+    SpecificTopic,
     TopicSelection,
 )
 from english_practice.models.auth import PendingUser
@@ -33,13 +34,13 @@ def main_menu_keyboard(has_previous_topic: bool) -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(
                 "🎲 Random",
-                callback_data=TopicChoice(TopicSelection.RANDOM).payload(),
+                callback_data=KeywordChoice(TopicSelection.RANDOM).payload(),
             )
         ],
         [
             InlineKeyboardButton(
                 "📚 New Topic",
-                callback_data=TopicChoice(TopicSelection.NEW_TOPIC).payload(),
+                callback_data=KeywordChoice(TopicSelection.NEW_TOPIC).payload(),
             )
         ],
     ]
@@ -48,7 +49,7 @@ def main_menu_keyboard(has_previous_topic: bool) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     "🔄 Same Topic",
-                    callback_data=TopicChoice(TopicSelection.SAME).payload(),
+                    callback_data=KeywordChoice(TopicSelection.SAME).payload(),
                 )
             ]
         )
@@ -69,7 +70,7 @@ def topics_keyboard(topics: Sequence[Topic]) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     topic.name,
-                    callback_data=TopicChoice.for_topic(topic.id).payload(),
+                    callback_data=SpecificTopic(topic.id).payload(),
                 )
             ]
             for topic in topics

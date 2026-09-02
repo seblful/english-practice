@@ -25,69 +25,65 @@ ADMIN_PATTERN = f"^{ADMIN_PREFIX}:"
 
 
 class TopicSelection(StrEnum):
-    """Which entry of the topic menu was pressed."""
+    """A topic-menu entry that names no particular topic."""
 
     RANDOM = "random"
     NEW_TOPIC = "new_topic"
     SAME = "same"
-    SPECIFIC = "specific"
 
 
-# SPECIFIC travels as the bare topic id, so it is not a keyword payload.
-_KEYWORD_SELECTIONS = {
-    selection.value: selection
-    for selection in TopicSelection
-    if selection is not TopicSelection.SPECIFIC
-}
+_KEYWORD_SELECTIONS = {selection.value: selection for selection in TopicSelection}
 
 
 @dataclass(frozen=True, slots=True)
-class TopicChoice:
-    """A topic-menu press, with the chosen topic when there is one."""
+class KeywordChoice:
+    """A topic-menu press that stands on its own, with no topic to carry."""
 
     selection: TopicSelection
-    topic_id: int | None = None
 
     def payload(self) -> str:
         """Return the callback payload for this choice."""
-        if self.selection is TopicSelection.SPECIFIC:
-            return f"{TOPIC_PREFIX}:{self.topic_id}"
         return f"{TOPIC_PREFIX}:{self.selection.value}"
 
-    @classmethod
-    def for_topic(cls, topic_id: int) -> "TopicChoice":
-        """Return the choice that selects one specific topic.
 
-        Args:
-            topic_id: Topic database ID.
+@dataclass(frozen=True, slots=True)
+class SpecificTopic:
+    """A press on one named topic, which travels as the bare topic id."""
 
-        Returns:
-            The corresponding choice.
-        """
-        return cls(TopicSelection.SPECIFIC, topic_id)
+    topic_id: int
 
-    @classmethod
-    def parse(cls, data: str) -> "TopicChoice | None":
-        """Parse a topic callback payload.
+    def payload(self) -> str:
+        """Return the callback payload for this choice."""
+        return f"{TOPIC_PREFIX}:{self.topic_id}"
 
-        Args:
-            data: The raw payload from Telegram.
 
-        Returns:
-            The choice, or ``None`` when the payload is not a topic choice.
-        """
-        prefix, _, value = data.partition(":")
-        if prefix != TOPIC_PREFIX or not value:
-            return None
+# Split in two so that "a specific topic" cannot exist without saying which:
+# the handler binds the id in its `case` instead of defending an invariant the
+# type does not state.
+type TopicChoice = KeywordChoice | SpecificTopic
 
-        keyword = _KEYWORD_SELECTIONS.get(value)
-        if keyword is not None:
-            return cls(keyword)
 
-        try:
-            return cls.for_topic(int(value))
-        except ValueError:
-            return None
+def parse_topic_choice(data: str) -> TopicChoice | None:
+    """Parse a topic callback payload.
+
+    Args:
+        data: The raw payload from Telegram.
+
+    Returns:
+        The choice, or ``None`` when the payload is not a topic choice.
+    """
+    prefix, _, value = data.partition(":")
+    if prefix != TOPIC_PREFIX or not value:
+        return None
+
+    keyword = _KEYWORD_SELECTIONS.get(value)
+    if keyword is not None:
+        return KeywordChoice(keyword)
+
+    try:
+        return SpecificTopic(int(value))
+    except ValueError:
+        return None
 
 
 class ExerciseAction(StrEnum):

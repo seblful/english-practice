@@ -92,11 +92,10 @@ async def _grade(
         active: The exercise being answered.
     """
     answers = await context.repository.list_answers(active.question.id)
-    image = await context.repository.get_exercise_image(active.exercise.id)
 
     try:
         evaluation = await context.agents.evaluate_answer(
-            image_data=image,
+            image_data=active.image,
             question_number=active.question.question_id,
             user_input=who.text,
             answers=answers,
@@ -141,13 +140,11 @@ async def _explain(
         context: The handler context.
         active: The exercise being discussed.
     """
-    image = await context.repository.get_exercise_image(active.exercise.id)
-
     try:
         result = await context.agents.assist(
             user_id=who.user.id,
             exercise_id=active.exercise.id,
-            image_data=image,
+            image_data=active.image,
             question_number=active.question.question_id,
             user_input=who.text,
             topic_name=active.topic_name,

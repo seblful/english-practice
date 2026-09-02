@@ -20,12 +20,17 @@ class ActiveExercise:
 
     Grouping them makes the states that used to be spellable — a question
     without its exercise, an exercise without its unit — impossible.
+
+    The image travels with them: it is a few hundred kilobytes that cannot
+    change while the exercise is in front of the user, and every agent call
+    needs it, so it is read once here rather than per message.
     """
 
     exercise: Exercise
     question: Question
     topic_id: int | None
     topic_name: str
+    image: bytes | None = None
     answered: bool = False
 
 

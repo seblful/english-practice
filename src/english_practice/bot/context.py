@@ -11,7 +11,7 @@ from typing import Any
 
 from telegram.ext import CallbackContext, ContextTypes, ExtBot
 
-from english_practice.bot.states import SessionStore
+from english_practice.bot.states import ActiveExercise, SessionStore
 from english_practice.errors import ConfigurationError
 from english_practice.repositories.database import DatabaseRepository
 from english_practice.services.agent_service import AgentService
@@ -43,6 +43,30 @@ class BotDependencies:
             ``True`` when the user administers this bot.
         """
         return self.admin_user_id is not None and user_id == self.admin_user_id
+
+    def start_exercise(self, user_id: int, active: ActiveExercise) -> None:
+        """Move a user onto a new exercise.
+
+        The session and the assistant transcripts are separate stores that must
+        move together: leave the transcripts behind and the previous exercise's
+        conversation bleeds into this one. Owning both here is what stops a
+        handler from applying half of it.
+
+        Args:
+            user_id: The user's Telegram ID.
+            active: The exercise the user just started.
+        """
+        self.agents.start_exercise(user_id, active.exercise.id)
+        self.sessions.start_exercise(user_id, active)
+
+    def forget_user(self, user_id: int) -> None:
+        """Drop everything held in memory for one user.
+
+        Args:
+            user_id: The user's Telegram ID.
+        """
+        self.sessions.forget(user_id)
+        self.agents.forget_user(user_id)
 
 
 class BotContext(
@@ -83,6 +107,23 @@ class BotContext(
     def sessions(self) -> SessionStore:
         """Return the user session store."""
         return self.dependencies.sessions
+
+    def start_exercise(self, user_id: int, active: ActiveExercise) -> None:
+        """Move a user onto a new exercise, session and transcripts together.
+
+        Args:
+            user_id: The user's Telegram ID.
+            active: The exercise the user just started.
+        """
+        self.dependencies.start_exercise(user_id, active)
+
+    def forget_user(self, user_id: int) -> None:
+        """Drop everything held in memory for one user.
+
+        Args:
+            user_id: The user's Telegram ID.
+        """
+        self.dependencies.forget_user(user_id)
 
 
 CONTEXT_TYPES = ContextTypes(context=BotContext)

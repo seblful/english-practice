@@ -124,6 +124,19 @@ class TestSendExercise:
         assert active.topic_name == "Present Tenses"
         assert active.answered is False
 
+    async def test_reads_the_image_once_and_keeps_it(
+        self, mock_update: Mock, mock_context: Mock, topics: list[Topic]
+    ) -> None:
+        """Every later turn reuses this copy instead of re-reading the blob."""
+        await exercises.send_exercise(
+            _interaction(mock_update), mock_context, topic=topics[0]
+        )
+
+        active = mock_context.sessions.get(USER_ID).active
+        assert active is not None
+        assert active.image == b"fake_image_bytes"
+        mock_context.repository.get_exercise_image.assert_awaited_once_with(1)
+
     async def test_resets_the_assistant_transcript(
         self, mock_update: Mock, mock_context: Mock
     ) -> None:

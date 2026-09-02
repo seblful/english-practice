@@ -9,8 +9,10 @@ from english_practice.bot.callbacks import (
     AdminAction,
     AdminDecision,
     ExerciseAction,
-    TopicChoice,
+    KeywordChoice,
+    SpecificTopic,
     TopicSelection,
+    parse_topic_choice,
 )
 
 
@@ -22,23 +24,23 @@ class TestTopicChoice:
         [TopicSelection.RANDOM, TopicSelection.NEW_TOPIC, TopicSelection.SAME],
     )
     def test_round_trips_menu_entries(self, selection: TopicSelection) -> None:
-        choice = TopicChoice(selection)
-        assert TopicChoice.parse(choice.payload()) == choice
+        choice = KeywordChoice(selection)
+        assert parse_topic_choice(choice.payload()) == choice
 
     def test_round_trips_specific_topic(self) -> None:
-        choice = TopicChoice.for_topic(7)
+        choice = SpecificTopic(7)
         assert choice.payload() == "topic:7"
-        assert TopicChoice.parse(choice.payload()) == choice
+        assert parse_topic_choice(choice.payload()) == choice
 
     @pytest.mark.parametrize(
         "data",
         ["", "topic:", "topic", "admin:approve:1", "topic:not-a-number", "topics:1"],
     )
     def test_rejects_unusable_payloads(self, data: str) -> None:
-        assert TopicChoice.parse(data) is None
+        assert parse_topic_choice(data) is None
 
     def test_payload_matches_registered_pattern(self) -> None:
-        assert TopicChoice.for_topic(1).payload().startswith(TOPIC_PATTERN[1:])
+        assert SpecificTopic(1).payload().startswith(TOPIC_PATTERN[1:])
 
 
 class TestExerciseAction:
