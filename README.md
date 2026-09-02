@@ -103,9 +103,12 @@ that variable the bot is open to everyone.
 SQLite, with exercise images stored as BLOBs.
 
 ```bash
-uv run scripts/database/populate.py   # build the configured PATHS_DATABASE_PATH
-uv run scripts/database/validate.py   # check that same database
+uv run scripts/database/populate.py --force   # rebuild the configured PATHS_DATABASE_PATH
+uv run scripts/database/validate.py           # check that same database
 ```
+
+`populate.py` rebuilds from scratch, so it refuses to run when the database
+already exists; `--force` deletes it first.
 
 The seeded database holds 145 units, 433 exercises, 3,025 questions and 16
 topics. Schema: `scripts/database/schema.sql`.
@@ -132,7 +135,7 @@ uv run scripts/extract.py extract-rules          # LLM
 Requires Python 3.13+, [uv](https://docs.astral.sh/uv/), and SQLite (built in).
 
 ```bash
-uv run pytest                       # tests + coverage gate (90%)
+uv run pytest                       # tests + coverage gate (95%, src and scripts)
 uv run ruff check .                 # lint
 uv run ruff format .                # format
 uv run ty check                     # type check

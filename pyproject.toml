@@ -68,7 +68,7 @@ packages = ["src/english_practice"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=src/english_practice --cov-report=term-missing --cov-fail-under=95"
+addopts = "--cov=src/english_practice --cov=scripts --cov-report=term-missing --cov-fail-under=95"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = [
@@ -109,17 +109,14 @@ convention = "google"
 extend-immutable-calls = ["typer.Argument", "typer.Option"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["english_practice"]
+known-first-party = ["english_practice", "scripts"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests don't need docstrings, may use asserts, magic values, and unused fixture args.
 "tests/**" = ["D", "S101", "PLR2004", "ARG"]
 
-[tool.ty.src]
-exclude = ["scripts"]
-
 [tool.coverage.run]
-source = ["src/english_practice"]
+source = ["src/english_practice", "scripts"]
 branch = true
 
 [tool.coverage.report]

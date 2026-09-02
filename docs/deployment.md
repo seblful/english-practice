@@ -7,9 +7,10 @@ Deploy the English Practice bot on a VPS with Docker.
 - A VPS (Ubuntu/Debian recommended, ~$5/mo is enough)
 - Docker and Docker Compose installed
 - Telegram bot token from [@BotFather](https://t.me/BotFather)
-- A seed database built locally with `uv run scripts/database/populate.py`, which
-  writes to `PATHS_DATABASE_PATH` (`data/development.db` under the default
+- A seed database built locally with `uv run scripts/database/populate.py --force`,
+  which writes to `PATHS_DATABASE_PATH` (`data/development.db` under the default
   development environment). Copy that file to `data/seed.db` before the `scp` below.
+  Without `--force` the script refuses to overwrite an existing database.
 
 ## Quick Start
 
@@ -70,7 +71,7 @@ micro .env
 | Variable | Description | Required |
 | -------------------------- | ------------------------------------------ | -------- |
 | `TELEGRAM_BOT_TOKEN` | Token from @BotFather | Yes |
-| `TELEGRAM_ADMIN_USER_ID` | Your Telegram user ID | Yes |
+| `TELEGRAM_ADMIN_USER_ID` | Your Telegram user ID; approves new users | Yes |
 | `LLM_PROVIDER` | LLM provider (dashscope/gemini/openrouter) | Yes |
 | `OPENROUTER_API_KEY` | OpenRouter API key | Yes\* |
 | `APP__ENVIRONMENT` | Set to `production` | Yes |

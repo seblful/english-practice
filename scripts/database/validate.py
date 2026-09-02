@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
-"""Validate database integrity and consistency."""
+"""Validate database integrity and consistency.
+
+A check answers one question about the database and returns a
+:class:`CheckResult`. Whether it passed is derived from the rows it collected,
+so adding a check means writing it and listing it in :data:`CHECKS` — there is
+no separate place to register its printing, and none to declare its verdict.
+"""
 
 import sqlite3
 import sys
 import traceback
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
+from types import TracebackType
 
 from english_practice.settings import get_settings
-
-
-def get_db_path() -> Path:
-    """Return the database file the application reads.
-
-    Taken from the settings rather than hardcoded, so that the file this
-    script checks is the one the bot opens.
-    """
-    return get_settings().paths.database_path
-
 
 # How many offending rows to list before collapsing into a "... and N more" line.
 MAX_LISTED_DEFAULT = 3
@@ -24,25 +23,61 @@ MAX_LISTED_IMAGES = 5
 MAX_LISTED_QUESTIONS = 10
 
 
-def _mark_status(results: dict) -> dict:
-    """Flag a check as failed when it collected any offending rows.
+def _unit_and_exercise(row: sqlite3.Row) -> str:
+    """Describe an offending row by the exercise it belongs to."""
+    return f"Unit {row['unit_number']}, Exercise {row['exercise_id']}"
 
-    Deriving this from the mapping keeps a newly added check from silently
-    passing because its key was forgotten in a hand-kept list.
 
-    Args:
-        results: One check's results: issue lists keyed by name, plus ``status``.
+@dataclass(frozen=True, slots=True)
+class Issue:
+    """One kind of problem, and the offending rows a check found for it.
 
-    Returns:
-        The same mapping, with ``status`` updated.
+    ``warning`` separates "the database is wrong" from "the database is thin":
+    warnings are reported but do not fail the run.
     """
-    if any(rows for key, rows in results.items() if key != "status"):
-        results["status"] = "error"
-    return results
+
+    label: str
+    rows: list[str]
+    warning: bool = False
+    sample: int = 0
+    show_remainder: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CheckResult:
+    """What one check found.
+
+    ``facts`` are counts worth printing either way; ``issues`` are what can
+    fail. The verdict is derived from the issues, so a check cannot pass by
+    forgetting to say it failed.
+    """
+
+    title: str
+    all_clear: str
+    issues: list[Issue] = field(default_factory=list)
+    facts: list[str] = field(default_factory=list)
+
+    @property
+    def errors(self) -> int:
+        """How many offending rows fail the run."""
+        return sum(len(issue.rows) for issue in self.issues if not issue.warning)
+
+    @property
+    def warnings(self) -> int:
+        """How many offending rows are reported but tolerated."""
+        return sum(len(issue.rows) for issue in self.issues if issue.warning)
+
+    @property
+    def passed(self) -> bool:
+        """Whether the check found nothing at all."""
+        return not self.errors and not self.warnings
 
 
 class DatabaseValidator:
-    """Validator for database integrity and consistency."""
+    """Runs the integrity checks against one database file.
+
+    Use it as a context manager; it owns a connection for its lifetime.
+    """
 
     def __init__(self, db_path: Path):
         """Open a connection to the database at ``db_path``."""
@@ -51,477 +86,390 @@ class DatabaseValidator:
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
 
-    def close(self) -> None:
-        """Close database connection."""
+    def __enter__(self) -> "DatabaseValidator":
+        """Return the validator itself."""
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        """Close the connection, however the block ended."""
         self.conn.close()
 
-    def validate_image_blobs(self) -> dict:
-        """Validate exercise image BLOBs in database."""
-        results = {
-            "status": "ok",
-            "db_exercises": 0,
-            "images_in_db": 0,
-            "missing_images": [],
-            "empty_images": [],
-        }
+    def _count(self, sql: str) -> int:
+        """Return the single number a counting query yields."""
+        return self.cursor.execute(sql).fetchone()[0]
 
-        self.cursor.execute("SELECT COUNT(*) FROM exercises")
-        results["db_exercises"] = self.cursor.fetchone()[0]
-
-        self.cursor.execute("SELECT COUNT(*) FROM exercise_images")
-        results["images_in_db"] = self.cursor.fetchone()[0]
-
-        # Exercises without image BLOBs
-        self.cursor.execute(
-            """
-            SELECT e.exercise_id, u.unit_number, u.title
-            FROM exercises e
-            JOIN units u ON e.unit_id = u.id
-            LEFT JOIN exercise_images ei ON e.id = ei.exercise_id
-            WHERE ei.id IS NULL
-            ORDER BY u.unit_number, e.exercise_number
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["missing_images"].append(
-                f"Unit {row['unit_number']}, Exercise {row['exercise_id']}"
-            )
-
-        # Image BLOBs with zero size
-        self.cursor.execute(
-            """
-            SELECT e.exercise_id, u.unit_number, ei.id
-            FROM exercise_images ei
-            JOIN exercises e ON ei.exercise_id = e.id
-            JOIN units u ON e.unit_id = u.id
-            WHERE LENGTH(ei.image_data) = 0
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["empty_images"].append(
-                f"Unit {row['unit_number']}, Exercise {row['exercise_id']}"
-            )
-
-        if results["missing_images"] or results["empty_images"]:
-            results["status"] = "error"
-
-        # Show total image size
-        total_bytes = self.cursor.execute(
-            "SELECT COALESCE(SUM(LENGTH(image_data)), 0) FROM exercise_images"
-        ).fetchone()[0]
-        results["total_image_size_kb"] = total_bytes / 1024
-
-        return results
-
-    def validate_duplicates(self) -> dict:
-        """Check for duplicate entries."""
-        results = {
-            "status": "ok",
-            "duplicate_exercise_ids": [],
-            "duplicate_question_ids": [],
-            "duplicate_unit_numbers": [],
-            "duplicate_topic_names": [],
-        }
-
-        # Duplicate exercise_ids
-        self.cursor.execute(
-            """
-            SELECT exercise_id, COUNT(*) as cnt
-            FROM exercises
-            GROUP BY exercise_id
-            HAVING cnt > 1
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["duplicate_exercise_ids"].append(row["exercise_id"])
-
-        # Duplicate question_ids within same exercise
-        self.cursor.execute(
-            """
-            SELECT exercise_id, question_id, COUNT(*) as cnt
-            FROM questions
-            GROUP BY exercise_id, question_id
-            HAVING cnt > 1
-            """
-        )
-        for row in self.cursor.fetchall():
-            self.cursor.execute(
-                "SELECT exercise_id FROM exercises WHERE id = ?", (row["exercise_id"],)
-            )
-            ex_id = self.cursor.fetchone()["exercise_id"]
-            results["duplicate_question_ids"].append(
-                f"Exercise {ex_id}, Question {row['question_id']}"
-            )
-
-        # Duplicate unit_numbers
-        self.cursor.execute(
-            """
-            SELECT unit_number, COUNT(*) as cnt
-            FROM units
-            GROUP BY unit_number
-            HAVING cnt > 1
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["duplicate_unit_numbers"].append(row["unit_number"])
-
-        # Duplicate topic names
-        self.cursor.execute(
-            """
-            SELECT name, COUNT(*) as cnt
-            FROM topics
-            GROUP BY name
-            HAVING cnt > 1
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["duplicate_topic_names"].append(row["name"])
-
-        return _mark_status(results)
-
-    def validate_orphaned_data(self) -> dict:
-        """Check for orphaned or missing data."""
-        results = {
-            "status": "ok",
-            "exercises_without_questions": [],
-            "questions_without_answers": [],
-            "units_without_exercises": [],
-            "topics_without_units": [],
-        }
-
-        # Exercises without questions
-        self.cursor.execute(
-            """
-            SELECT e.exercise_id, u.unit_number, u.title
-            FROM exercises e
-            JOIN units u ON e.unit_id = u.id
-            LEFT JOIN questions q ON e.id = q.exercise_id
-            WHERE q.id IS NULL
-            ORDER BY u.unit_number, e.exercise_number
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["exercises_without_questions"].append(
-                f"Unit {row['unit_number']}, Exercise {row['exercise_id']}"
-            )
-
-        # Questions without answers in question_answers table
-        self.cursor.execute(
-            """
-            SELECT q.question_id, e.exercise_id
-            FROM questions q
-            JOIN exercises e ON q.exercise_id = e.id
-            LEFT JOIN question_answers qa ON q.id = qa.question_id
-            WHERE qa.id IS NULL AND q.is_open_ended = 0
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["questions_without_answers"].append(
-                f"Exercise {row['exercise_id']}, Question {row['question_id']}"
-            )
-
-        # Units without exercises
-        self.cursor.execute(
-            """
-            SELECT u.unit_number, u.title
-            FROM units u
-            LEFT JOIN exercises e ON u.id = e.unit_id
-            WHERE e.id IS NULL
-            ORDER BY u.unit_number
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["units_without_exercises"].append(
-                f"Unit {row['unit_number']}: {row['title']}"
-            )
-
-        # Topics not linked to any units
-        self.cursor.execute(
-            """
-            SELECT t.name
-            FROM topics t
-            LEFT JOIN unit_topics ut ON t.id = ut.topic_id
-            WHERE ut.unit_id IS NULL
-            ORDER BY t.name
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["topics_without_units"].append(row["name"])
-
-        return _mark_status(results)
-
-    def validate_referential_integrity(self) -> dict:
-        """Check foreign key relationships."""
-        results = {
-            "status": "ok",
-            "invalid_exercise_unit_ids": [],
-            "invalid_question_exercise_ids": [],
-            "invalid_unit_topic_unit_ids": [],
-            "invalid_unit_topic_topic_ids": [],
-            "invalid_topic_parents": [],
-            "invalid_question_answers": [],
-            "invalid_exercise_images": [],
-        }
-
-        # Exercises with invalid unit_id
-        self.cursor.execute(
-            """
-            SELECT e.exercise_id, e.unit_id
-            FROM exercises e
-            LEFT JOIN units u ON e.unit_id = u.id
-            WHERE u.id IS NULL
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["invalid_exercise_unit_ids"].append(
-                f"Exercise {row['exercise_id']} -> Unit ID {row['unit_id']}"
-            )
-
-        # Questions with invalid exercise_id
-        self.cursor.execute(
-            """
-            SELECT q.id, q.exercise_id
-            FROM questions q
-            LEFT JOIN exercises e ON q.exercise_id = e.id
-            WHERE e.id IS NULL
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["invalid_question_exercise_ids"].append(
-                f"Question {row['id']} -> Exercise ID {row['exercise_id']}"
-            )
-
-        # unit_topics with invalid unit_id
-        self.cursor.execute(
-            """
-            SELECT ut.unit_id, ut.topic_id
-            FROM unit_topics ut
-            LEFT JOIN units u ON ut.unit_id = u.id
-            WHERE u.id IS NULL
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["invalid_unit_topic_unit_ids"].append(
-                f"Unit ID {row['unit_id']} -> Topic ID {row['topic_id']}"
-            )
-
-        # unit_topics with invalid topic_id
-        self.cursor.execute(
-            """
-            SELECT ut.unit_id, ut.topic_id
-            FROM unit_topics ut
-            LEFT JOIN topics t ON ut.topic_id = t.id
-            WHERE t.id IS NULL
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["invalid_unit_topic_topic_ids"].append(
-                f"Unit ID {row['unit_id']} -> Topic ID {row['topic_id']}"
-            )
-
-        # Topics with invalid parent_topic_id
-        self.cursor.execute(
-            """
-            SELECT t.id, t.name, t.parent_topic_id
-            FROM topics t
-            LEFT JOIN topics parent ON t.parent_topic_id = parent.id
-            WHERE t.parent_topic_id IS NOT NULL AND parent.id IS NULL
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["invalid_topic_parents"].append(
-                f"Topic '{row['name']}' (ID {row['id']}) "
-                f"-> Parent ID {row['parent_topic_id']}"
-            )
-
-        # question_answers with invalid question_id
-        self.cursor.execute(
-            """
-            SELECT qa.id, qa.question_id
-            FROM question_answers qa
-            LEFT JOIN questions q ON qa.question_id = q.id
-            WHERE q.id IS NULL
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["invalid_question_answers"].append(
-                f"Answer ID {row['id']} -> Question ID {row['question_id']}"
-            )
-
-        # exercise_images with invalid exercise_id
-        self.cursor.execute(
-            """
-            SELECT ei.id, ei.exercise_id
-            FROM exercise_images ei
-            LEFT JOIN exercises e ON ei.exercise_id = e.id
-            WHERE e.id IS NULL
-            """
-        )
-        for row in self.cursor.fetchall():
-            results["invalid_exercise_images"].append(
-                f"Image ID {row['id']} -> Exercise ID {row['exercise_id']}"
-            )
-
-        return _mark_status(results)
-
-    _REFERENTIAL_CHECKS = (
-        ("invalid_exercise_unit_ids", "Invalid exercise unit_ids"),
-        ("invalid_question_exercise_ids", "Invalid question exercise_ids"),
-        ("invalid_unit_topic_unit_ids", "Invalid unit_topic unit_ids"),
-        ("invalid_unit_topic_topic_ids", "Invalid unit_topic topic_ids"),
-        ("invalid_topic_parents", "Invalid topic parents"),
-        ("invalid_question_answers", "Invalid question_answers"),
-        ("invalid_exercise_images", "Invalid exercise_images"),
-    )
-
-    @staticmethod
-    def _print_issue(
-        label: str,
-        items: list,
-        *,
-        warn: bool = False,
-        sample: int = 0,
-        show_remainder: bool = False,
-    ) -> int:
-        """Print one issue line plus up to ``sample`` rows; return the row count.
+    def _labels(self, sql: str, describe: Callable[[sqlite3.Row], str]) -> list[str]:
+        """Run a query and describe each offending row it returns.
 
         Args:
-            label: Human-readable name of the issue.
-            items: The offending rows; nothing is printed when empty.
-            warn: Report as a warning rather than a failure.
-            sample: How many offending rows to list underneath.
-            show_remainder: Add a "... and N more" line when rows were elided.
+            sql: A query selecting the rows that should not exist.
+            describe: Renders one row as a line for the report.
 
         Returns:
-            The number of offending rows.
+            One description per offending row; empty when the check is clean.
         """
-        if not items:
-            return 0
+        return [describe(row) for row in self.cursor.execute(sql).fetchall()]
 
-        count = len(items)
-        marker = "[WARN]" if warn else "[FAIL]"
-        print(f"  {marker} {label}: {count}")
-        for item in items[:sample]:
-            print(f"    - {item}")
-        if show_remainder and count > sample:
-            print(f"    ... and {count - sample} more")
-        return count
-
-    def _report_image_blobs(self, img: dict) -> int:
-        """Print the image BLOB section and return the error count."""
-        print("\n[IMG] EXERCISE IMAGE BLOBS")
-        if img["status"] == "ok":
-            print(f"  [OK] Exercises in DB: {img['db_exercises']}")
-            print(f"  [OK] Images in DB: {img['images_in_db']}")
-            print(f"  [OK] Total image size: {img['total_image_size_kb']:.1f} KB")
-            return 0
-
-        print(f"  [FAIL] Exercises in DB: {img['db_exercises']}")
-        print(f"  [FAIL] Images in DB: {img['images_in_db']}")
-
-        errors = self._print_issue(
-            "Missing Images",
-            img["missing_images"],
-            sample=MAX_LISTED_IMAGES,
-            show_remainder=True,
+    def validate_image_blobs(self) -> CheckResult:
+        """Check that every exercise has a non-empty image blob."""
+        total_bytes = self._count(
+            "SELECT COALESCE(SUM(LENGTH(image_data)), 0) FROM exercise_images"
         )
-        errors += self._print_issue(
-            "Empty Images", img["empty_images"], sample=MAX_LISTED_IMAGES
-        )
-        return errors
-
-    def _report_duplicates(self, dup: dict) -> int:
-        """Print the duplicate-detection section and return the error count."""
-        print("\n[DUP] DUPLICATE DETECTION")
-        if dup["status"] == "ok":
-            print("  [OK] No duplicates found")
-            return 0
-
-        errors = self._print_issue(
-            "Duplicate exercise_ids", dup["duplicate_exercise_ids"]
-        )
-        errors += self._print_issue(
-            "Duplicate question_ids",
-            dup["duplicate_question_ids"],
-            sample=MAX_LISTED_DEFAULT,
-        )
-        errors += self._print_issue(
-            "Duplicate unit_numbers", dup["duplicate_unit_numbers"]
-        )
-        errors += self._print_issue(
-            "Duplicate topic names", dup["duplicate_topic_names"]
-        )
-        return errors
-
-    def _report_orphaned(self, orphan: dict) -> tuple[int, int]:
-        """Print the orphaned-data section and return (errors, warnings)."""
-        print("\n[DATA] ORPHANED/MISSING DATA")
-        if orphan["status"] == "ok":
-            print("  [OK] No orphaned data found")
-            return 0, 0
-
-        errors = self._print_issue(
-            "Exercises without questions",
-            orphan["exercises_without_questions"],
-            sample=MAX_LISTED_DEFAULT,
-            show_remainder=True,
-        )
-        errors += self._print_issue(
-            "Questions without answers",
-            orphan["questions_without_answers"],
-            sample=MAX_LISTED_QUESTIONS,
-            show_remainder=True,
-        )
-        warnings = self._print_issue(
-            "Units without exercises",
-            orphan["units_without_exercises"],
-            warn=True,
-            sample=MAX_LISTED_DEFAULT,
-        )
-        warnings += self._print_issue(
-            "Topics without units", orphan["topics_without_units"], warn=True
-        )
-        return errors, warnings
-
-    def _report_referential(self, ref: dict) -> int:
-        """Print the referential-integrity section and return the error count."""
-        print("\n[REF] REFERENTIAL INTEGRITY")
-        if ref["status"] == "ok":
-            print("  [OK] All foreign keys valid")
-            return 0
-
-        return sum(
-            self._print_issue(label, ref.get(key) or [])
-            for key, label in self._REFERENTIAL_CHECKS
+        return CheckResult(
+            title="[IMG] EXERCISE IMAGE BLOBS",
+            all_clear="Every exercise has an image",
+            facts=[
+                f"Exercises in DB: {self._count('SELECT COUNT(*) FROM exercises')}",
+                f"Images in DB: {self._count('SELECT COUNT(*) FROM exercise_images')}",
+                f"Total image size: {total_bytes / 1024:.1f} KB",
+            ],
+            issues=[
+                Issue(
+                    "Missing Images",
+                    self._labels(
+                        """
+                        SELECT e.exercise_id, u.unit_number
+                        FROM exercises e
+                        JOIN units u ON e.unit_id = u.id
+                        LEFT JOIN exercise_images ei ON e.id = ei.exercise_id
+                        WHERE ei.id IS NULL
+                        ORDER BY u.unit_number, e.exercise_number
+                        """,
+                        _unit_and_exercise,
+                    ),
+                    sample=MAX_LISTED_IMAGES,
+                    show_remainder=True,
+                ),
+                Issue(
+                    "Empty Images",
+                    self._labels(
+                        """
+                        SELECT e.exercise_id, u.unit_number
+                        FROM exercise_images ei
+                        JOIN exercises e ON ei.exercise_id = e.id
+                        JOIN units u ON e.unit_id = u.id
+                        WHERE LENGTH(ei.image_data) = 0
+                        """,
+                        _unit_and_exercise,
+                    ),
+                    sample=MAX_LISTED_IMAGES,
+                ),
+            ],
         )
 
-    def print_report(self, results: dict) -> int:
-        """Print validation report and return exit code."""
-        print("\n" + "=" * 60)
-        print("DATABASE VALIDATION REPORT")
-        print("=" * 60)
+    def validate_duplicates(self) -> CheckResult:
+        """Check for entries that should be unique but are not."""
+        return CheckResult(
+            title="[DUP] DUPLICATE DETECTION",
+            all_clear="No duplicates found",
+            issues=[
+                Issue(
+                    "Duplicate exercise_ids",
+                    self._labels(
+                        """
+                        SELECT exercise_id, COUNT(*) AS cnt
+                        FROM exercises
+                        GROUP BY exercise_id
+                        HAVING cnt > 1
+                        """,
+                        lambda r: str(r["exercise_id"]),
+                    ),
+                ),
+                Issue(
+                    "Duplicate question_ids",
+                    self._labels(
+                        """
+                        SELECT e.exercise_id AS exercise, q.question_id, COUNT(*) AS cnt
+                        FROM questions q
+                        JOIN exercises e ON q.exercise_id = e.id
+                        GROUP BY q.exercise_id, q.question_id
+                        HAVING cnt > 1
+                        """,
+                        lambda r: (
+                            f"Exercise {r['exercise']}, Question {r['question_id']}"
+                        ),
+                    ),
+                    sample=MAX_LISTED_DEFAULT,
+                ),
+                Issue(
+                    "Duplicate unit_numbers",
+                    self._labels(
+                        """
+                        SELECT unit_number, COUNT(*) AS cnt
+                        FROM units
+                        GROUP BY unit_number
+                        HAVING cnt > 1
+                        """,
+                        lambda r: str(r["unit_number"]),
+                    ),
+                ),
+                Issue(
+                    "Duplicate topic names",
+                    self._labels(
+                        """
+                        SELECT name, COUNT(*) AS cnt
+                        FROM topics
+                        GROUP BY name
+                        HAVING cnt > 1
+                        """,
+                        lambda r: str(r["name"]),
+                    ),
+                ),
+            ],
+        )
 
-        total_errors = self._report_image_blobs(results["image_blobs"])
-        total_errors += self._report_duplicates(results["duplicates"])
-        orphan_errors, total_warnings = self._report_orphaned(results["orphaned"])
-        total_errors += orphan_errors
-        total_errors += self._report_referential(results["referential"])
+    def validate_orphaned_data(self) -> CheckResult:
+        """Check for rows nothing points at, and rows that point at nothing."""
+        return CheckResult(
+            title="[DATA] ORPHANED/MISSING DATA",
+            all_clear="No orphaned data found",
+            issues=[
+                Issue(
+                    "Exercises without questions",
+                    self._labels(
+                        """
+                        SELECT e.exercise_id, u.unit_number
+                        FROM exercises e
+                        JOIN units u ON e.unit_id = u.id
+                        LEFT JOIN questions q ON e.id = q.exercise_id
+                        WHERE q.id IS NULL
+                        ORDER BY u.unit_number, e.exercise_number
+                        """,
+                        _unit_and_exercise,
+                    ),
+                    sample=MAX_LISTED_DEFAULT,
+                    show_remainder=True,
+                ),
+                Issue(
+                    "Questions without answers",
+                    self._labels(
+                        """
+                        SELECT q.question_id, e.exercise_id
+                        FROM questions q
+                        JOIN exercises e ON q.exercise_id = e.id
+                        LEFT JOIN question_answers qa ON q.id = qa.question_id
+                        WHERE qa.id IS NULL AND q.is_open_ended = 0
+                        """,
+                        lambda r: (
+                            f"Exercise {r['exercise_id']}, Question {r['question_id']}"
+                        ),
+                    ),
+                    sample=MAX_LISTED_QUESTIONS,
+                    show_remainder=True,
+                ),
+                Issue(
+                    "Units without exercises",
+                    self._labels(
+                        """
+                        SELECT u.unit_number, u.title
+                        FROM units u
+                        LEFT JOIN exercises e ON u.id = e.unit_id
+                        WHERE e.id IS NULL
+                        ORDER BY u.unit_number
+                        """,
+                        lambda r: f"Unit {r['unit_number']}: {r['title']}",
+                    ),
+                    warning=True,
+                    sample=MAX_LISTED_DEFAULT,
+                ),
+                Issue(
+                    "Topics without units",
+                    self._labels(
+                        """
+                        SELECT t.name
+                        FROM topics t
+                        LEFT JOIN unit_topics ut ON t.id = ut.topic_id
+                        WHERE ut.unit_id IS NULL
+                        ORDER BY t.name
+                        """,
+                        lambda r: str(r["name"]),
+                    ),
+                    warning=True,
+                ),
+            ],
+        )
 
-        print("\n" + "=" * 60)
-        if total_errors == 0 and total_warnings == 0:
-            print("[OK] ALL VALIDATIONS PASSED")
-            exit_code = 0
-        else:
-            print(f"[ERR] ERRORS: {total_errors}, [WARN]  WARNINGS: {total_warnings}")
-            exit_code = 1 if total_errors > 0 else 0
-        print("=" * 60 + "\n")
+    def validate_referential_integrity(self) -> CheckResult:
+        """Check that every foreign key points at a row that exists."""
+        return CheckResult(
+            title="[REF] REFERENTIAL INTEGRITY",
+            all_clear="All foreign keys valid",
+            issues=[
+                Issue(
+                    "Invalid exercise unit_ids",
+                    self._labels(
+                        """
+                        SELECT e.exercise_id, e.unit_id
+                        FROM exercises e
+                        LEFT JOIN units u ON e.unit_id = u.id
+                        WHERE u.id IS NULL
+                        """,
+                        lambda r: (
+                            f"Exercise {r['exercise_id']} -> Unit ID {r['unit_id']}"
+                        ),
+                    ),
+                ),
+                Issue(
+                    "Invalid question exercise_ids",
+                    self._labels(
+                        """
+                        SELECT q.id, q.exercise_id
+                        FROM questions q
+                        LEFT JOIN exercises e ON q.exercise_id = e.id
+                        WHERE e.id IS NULL
+                        """,
+                        lambda r: (
+                            f"Question {r['id']} -> Exercise ID {r['exercise_id']}"
+                        ),
+                    ),
+                ),
+                Issue(
+                    "Invalid unit_topic unit_ids",
+                    self._labels(
+                        """
+                        SELECT ut.unit_id, ut.topic_id
+                        FROM unit_topics ut
+                        LEFT JOIN units u ON ut.unit_id = u.id
+                        WHERE u.id IS NULL
+                        """,
+                        lambda r: f"Unit ID {r['unit_id']} -> Topic ID {r['topic_id']}",
+                    ),
+                ),
+                Issue(
+                    "Invalid unit_topic topic_ids",
+                    self._labels(
+                        """
+                        SELECT ut.unit_id, ut.topic_id
+                        FROM unit_topics ut
+                        LEFT JOIN topics t ON ut.topic_id = t.id
+                        WHERE t.id IS NULL
+                        """,
+                        lambda r: f"Unit ID {r['unit_id']} -> Topic ID {r['topic_id']}",
+                    ),
+                ),
+                Issue(
+                    "Invalid topic parents",
+                    self._labels(
+                        """
+                        SELECT t.id, t.name, t.parent_topic_id
+                        FROM topics t
+                        LEFT JOIN topics parent ON t.parent_topic_id = parent.id
+                        WHERE t.parent_topic_id IS NOT NULL AND parent.id IS NULL
+                        """,
+                        lambda r: (
+                            f"Topic '{r['name']}' (ID {r['id']}) "
+                            f"-> Parent ID {r['parent_topic_id']}"
+                        ),
+                    ),
+                ),
+                Issue(
+                    "Invalid question_answers",
+                    self._labels(
+                        """
+                        SELECT qa.id, qa.question_id
+                        FROM question_answers qa
+                        LEFT JOIN questions q ON qa.question_id = q.id
+                        WHERE q.id IS NULL
+                        """,
+                        lambda r: (
+                            f"Answer ID {r['id']} -> Question ID {r['question_id']}"
+                        ),
+                    ),
+                ),
+                Issue(
+                    "Invalid exercise_images",
+                    self._labels(
+                        """
+                        SELECT ei.id, ei.exercise_id
+                        FROM exercise_images ei
+                        LEFT JOIN exercises e ON ei.exercise_id = e.id
+                        WHERE e.id IS NULL
+                        """,
+                        lambda r: (
+                            f"Image ID {r['id']} -> Exercise ID {r['exercise_id']}"
+                        ),
+                    ),
+                ),
+            ],
+        )
 
-        return exit_code
+    def run(self) -> list[CheckResult]:
+        """Run every registered check, in order."""
+        return [check(self) for check in CHECKS]
+
+
+# Every check the report runs. Adding one here is the whole registration.
+CHECKS: tuple[Callable[[DatabaseValidator], CheckResult], ...] = (
+    DatabaseValidator.validate_image_blobs,
+    DatabaseValidator.validate_duplicates,
+    DatabaseValidator.validate_orphaned_data,
+    DatabaseValidator.validate_referential_integrity,
+)
+
+
+def _print_issue(issue: Issue) -> None:
+    """Print one issue line plus up to ``sample`` of its rows."""
+    count = len(issue.rows)
+    if not count:
+        return
+
+    marker = "[WARN]" if issue.warning else "[FAIL]"
+    print(f"  {marker} {issue.label}: {count}")
+    for row in issue.rows[: issue.sample]:
+        print(f"    - {row}")
+    if issue.show_remainder and count > issue.sample:
+        print(f"    ... and {count - issue.sample} more")
+
+
+def print_report(results: Sequence[CheckResult]) -> int:
+    """Print the report and return the process exit code.
+
+    Args:
+        results: What every check found, in the order they ran.
+
+    Returns:
+        1 when any check collected an error, 0 otherwise. Warnings are printed
+        but do not fail the run.
+    """
+    print("\n" + "=" * 60)
+    print("DATABASE VALIDATION REPORT")
+    print("=" * 60)
+
+    for result in results:
+        print(f"\n{result.title}")
+        marker = "[OK]" if result.passed else "[FAIL]"
+        for fact in result.facts:
+            print(f"  {marker} {fact}")
+        if result.passed:
+            if not result.facts:
+                print(f"  [OK] {result.all_clear}")
+            continue
+        for issue in result.issues:
+            _print_issue(issue)
+
+    total_errors = sum(result.errors for result in results)
+    total_warnings = sum(result.warnings for result in results)
+
+    print("\n" + "=" * 60)
+    if not total_errors and not total_warnings:
+        print("[OK] ALL VALIDATIONS PASSED")
+    else:
+        print(f"[ERR] ERRORS: {total_errors}, [WARN]  WARNINGS: {total_warnings}")
+    print("=" * 60 + "\n")
+
+    return 1 if total_errors else 0
 
 
 def main() -> int:
-    """Main validation function."""
-    db_path = get_db_path()
+    """Validate the database the application reads."""
+    # Read from the settings rather than a hardcoded path, so that the file
+    # this script checks is the one the bot opens.
+    db_path = get_settings().paths.database_path
 
     if not db_path.exists():
         print(f"Error: Database not found at {db_path}")
@@ -529,24 +477,13 @@ def main() -> int:
 
     print(f"Validating database: {db_path}")
 
-    validator = DatabaseValidator(db_path)
-
     try:
-        results = {
-            "image_blobs": validator.validate_image_blobs(),
-            "duplicates": validator.validate_duplicates(),
-            "orphaned": validator.validate_orphaned_data(),
-            "referential": validator.validate_referential_integrity(),
-        }
-
-        return validator.print_report(results)
-
+        with DatabaseValidator(db_path) as validator:
+            return print_report(validator.run())
     except Exception:
         print("Error during validation:")
         traceback.print_exc()
         return 1
-    finally:
-        validator.close()
 
 
 if __name__ == "__main__":

@@ -73,7 +73,7 @@ def import_units(conn: sqlite3.Connection) -> None:
 
 
 def parse_exercise_id(exercise_id: str) -> tuple[int, int]:
-    """Parse exercise_id like '1.1' into (page, exercise_number)."""
+    """Parse exercise_id like '1.1' into (unit_number, exercise_number)."""
     parts = exercise_id.split(".")
     return int(parts[0]), int(parts[1])
 
@@ -119,11 +119,11 @@ def _store_exercise_image(
     cursor: sqlite3.Cursor,
     project_root: Path,
     exercise_db_id: int,
-    page_num: str,
+    unit_number: int,
     exercise_id: str,
 ) -> None:
     """Store the exercise image blob when the image file exists."""
-    image_path = f"exercises/{page_num}/{exercise_id}.png"
+    image_path = f"exercises/{unit_number}/{exercise_id}.png"
     image_full_path = project_root / "data" / "content" / image_path
     if not image_full_path.exists():
         return
@@ -226,7 +226,7 @@ def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
 
         for exercise in unit.get("exercises", []):
             exercise_id = exercise["exercise_id"]
-            page_num, ex_num = parse_exercise_id(exercise_id)
+            unit_number, ex_num = parse_exercise_id(exercise_id)
 
             cursor.execute(
                 """
@@ -244,7 +244,7 @@ def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
             ).fetchone()[0]
 
             _store_exercise_image(
-                cursor, project_root, exercise_db_id, page_num, exercise_id
+                cursor, project_root, exercise_db_id, unit_number, exercise_id
             )
             q_added, a_added = _import_questions(
                 cursor, exercise_db_id, exercise, exercise_id, rules_map
@@ -294,15 +294,27 @@ def import_topics(conn: sqlite3.Connection) -> None:
     print(f"Topics in database: {total_topics}")
 
 
-def main() -> int:
-    """Main function to set up database and import data."""
+def main(*, force: bool = False) -> int:
+    """Build the content database from the extracted JSON and images.
+
+    Args:
+        force: Delete an existing database first. Without it an existing file
+            is left alone: this script rebuilds from scratch, so running it by
+            accident against a populated database would destroy it.
+
+    Returns:
+        The process exit code.
+    """
     db_path = get_db_path()
 
     # Ensure data directory exists
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Remove existing database if it exists
     if db_path.exists():
+        if not force:
+            print(f"Database already exists at {db_path}.")
+            print("Pass --force to delete it and rebuild from scratch.")
+            return 1
         print(f"Removing existing database: {db_path}")
         db_path.unlink()
 
@@ -357,5 +369,8 @@ def main() -> int:
     return 0
 
 
+FORCE_FLAG = "--force"
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(force=FORCE_FLAG in sys.argv[1:]))
