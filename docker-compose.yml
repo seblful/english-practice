@@ -3,7 +3,14 @@ services:
     build: .
     container_name: english-practice-bot
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: true
+      # Secrets live per environment and .dockerignore keeps them out of the
+      # image, so compose injects them at runtime. Optional: a VPS deploy puts
+      # everything in .env and never creates this file.
+      - path: .env.production
+        required: false
     environment:
       # Selects .env.production and feeds Settings.app.environment.
       - APP__ENVIRONMENT=production
