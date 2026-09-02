@@ -6,29 +6,28 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from english_practice.agents import RulesAgent
+from english_practice.extractors.answers_extractor import AnswersExtractor
 from english_practice.extractors.rules_extractor import RulesExtractor
-from english_practice.models.agents import ExerciseRulesOutput, QuestionRuleItem
+from english_practice.models.agents import (
+    ExerciseRulesOutput,
+    QuestionRuleItem,
+    RulesQuestion,
+)
 from english_practice.models.extraction import (
     ExtractedExerciseRules,
     ExtractedFullRules,
     ExtractedUnitRules,
 )
+from tests.conftest import extraction_paths
 
 
 @pytest.fixture
 def extractor(tmp_path) -> RulesExtractor:
-    output_path = tmp_path / "output.json"
-    answers_path = tmp_path / "answers.json"
-    answers_full_path = tmp_path / "answers_full.json"
-    exercises_dir = tmp_path / "exercises"
-    content_dir = tmp_path / "content"
-    grammar_md_dir = tmp_path / "grammar"
-    exercises_dir.mkdir(parents=True)
-    content_dir.mkdir(parents=True)
-    grammar_md_dir.mkdir(parents=True)
+    paths = extraction_paths(tmp_path)
 
     # Write source answers data
-    answers_path.write_text(
+    (paths.metadata_dir / "answers.json").write_text(
         json.dumps(
             {
                 "units": [
@@ -46,8 +45,8 @@ def extractor(tmp_path) -> RulesExtractor:
         )
     )
 
-    # Write answers_full
-    answers_full_path.write_text(
+    # Write answers_full: the previous stage's output
+    (paths.metadata_dir / "answers_full.json").write_text(
         json.dumps(
             {
                 "units": [
@@ -67,29 +66,30 @@ def extractor(tmp_path) -> RulesExtractor:
         )
     )
 
-    return RulesExtractor(
-        output_path,
-        answers_path,
-        exercises_dir,
-        content_dir,
-        answers_full_path,
-        grammar_md_dir,
-    )
+    return RulesExtractor(paths)
 
 
 class TestRulesExtractor:
     """Tests for RulesExtractor."""
 
-    def test_get_grammar_md_finds_in_grammar_dir(self, extractor) -> None:
-        path = extractor._grammar_md_dir / "1.md"
+    def test_takes_the_agent_it_is_given(self, tmp_path) -> None:
+        """The seam that lets both stages share one chat-model client."""
+        agent = RulesAgent()
+
+        extractor = RulesExtractor(extraction_paths(tmp_path), agent=agent)
+
+        assert extractor._extractor_agent is agent
+
+    def test_reads_what_the_answers_stage_wrote(self, extractor) -> None:
+        """The stage dependency is derived, not kept in step by the caller."""
+        assert extractor._answers_full_path == (
+            extractor._paths.metadata_dir / AnswersExtractor.OUTPUT_FILENAME
+        )
+
+    def test_get_grammar_md_reads_the_unit_file(self, extractor) -> None:
+        path = extractor._paths.grammar_md_dir / "1.md"
         path.write_text("# Grammar rule")
         assert extractor._get_grammar_md(1) == "# Grammar rule"
-
-    def test_get_grammar_md_finds_in_content_dir(self, extractor) -> None:
-        path = extractor._content_dir / "grammar" / "1.md"
-        path.parent.mkdir(parents=True)
-        path.write_text("# Content rule")
-        assert extractor._get_grammar_md(1) == "# Content rule"
 
     def test_get_grammar_md_not_found(self, extractor) -> None:
         assert extractor._get_grammar_md(999) is None
@@ -131,9 +131,9 @@ class TestRulesExtractor:
         }
 
         questions = extractor._prepare_questions(exercise)
-        assert len(questions) == 1
-        assert questions[0]["question_id"] == "1"
-        assert questions[0]["short_answers"] == ["yes"]
+        assert questions == [
+            RulesQuestion(question_id="1", short_answers=["yes"], full_answers=["Yes!"])
+        ]
 
     def test_prepare_questions_empty_answers(self, extractor) -> None:
         exercise = {
@@ -143,13 +143,14 @@ class TestRulesExtractor:
         extractor._answers_full_map = {}
 
         questions = extractor._prepare_questions(exercise)
-        assert len(questions) == 1
-        assert questions[0]["short_answers"] == []
+        assert questions == [RulesQuestion(question_id="1")]
 
     def test_build_exercise_data(self, extractor) -> None:
         result = MagicMock()
         result.questions = [MagicMock(question_id="1", section_letter="A", rule="rule")]
-        built = extractor._build_exercise_data("1.1", [{"question_id": "1"}], result)
+        built = extractor._build_exercise_data(
+            "1.1", [RulesQuestion(question_id="1")], result
+        )
         assert built.exercise_id == "1.1"
         assert built.questions[0].rule == "rule"
 
@@ -159,7 +160,9 @@ class TestRulesExtractor:
         result.questions = [MagicMock(question_id="1", section_letter="A", rule="rule")]
 
         built = extractor._build_exercise_data(
-            "1.1", [{"question_id": "1"}, {"question_id": "2"}], result
+            "1.1",
+            [RulesQuestion(question_id="1"), RulesQuestion(question_id="2")],
+            result,
         )
 
         assert [q.question_id for q in built.questions] == ["1"]
@@ -225,7 +228,7 @@ class TestRulesExtractor:
             patch.object(extractor, "_save_output"),
         ):
             result = await extractor.extract()
-            assert "output_path" in result
+            assert result == extractor._output_path
 
     @pytest.mark.asyncio
     async def test_extract_processes_and_saves_each_unit(self, extractor) -> None:

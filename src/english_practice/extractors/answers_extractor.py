@@ -4,7 +4,7 @@ from pathlib import Path
 
 from english_practice.agents import AnswersAgent
 from english_practice.logging import get_logger
-from english_practice.models.agents import ExerciseAnswersOutput
+from english_practice.models.agents import AnswersQuestion, ExerciseAnswersOutput
 from english_practice.models.extraction import (
     ExtractedAnswer,
     ExtractedExerciseAnswers,
@@ -12,6 +12,7 @@ from english_practice.models.extraction import (
     ExtractedQuestionAnswers,
     ExtractedUnitAnswers,
 )
+from english_practice.settings import PathSettings
 
 from .base_extractor import BaseExtractor
 
@@ -21,21 +22,18 @@ logger = get_logger(__name__)
 class AnswersExtractor(BaseExtractor):
     """Extract full answers from exercise images using LLM."""
 
-    def __init__(
-        self,
-        output_path: Path,
-        answers_path: Path,
-        exercises_dir: Path,
-        content_dir: Path,
-    ) -> None:
-        """Initialize the full answer extractor."""
-        super().__init__(
-            output_path=output_path,
-            answers_path=answers_path,
-            exercises_dir=exercises_dir,
-            content_dir=content_dir,
-        )
-        self._extractor_agent = AnswersAgent()
+    OUTPUT_FILENAME = "answers_full.json"
+
+    def __init__(self, paths: PathSettings, agent: AnswersAgent | None = None) -> None:
+        """Initialize the full answer extractor.
+
+        Args:
+            paths: The application's filesystem layout.
+            agent: The extraction agent. Built here when omitted; pass one to
+                share a single chat-model client, which owns a connection pool.
+        """
+        super().__init__(paths)
+        self._extractor_agent = agent or AnswersAgent()
 
     async def _process_unit(self, unit: dict) -> ExtractedUnitAnswers:
         """Process all exercises in a unit."""
@@ -59,7 +57,7 @@ class AnswersExtractor(BaseExtractor):
         image_path = self._get_image_path(exercise_id)
 
         questions_input = [
-            {"question_id": q["question_id"], "short_answer": q["answer"]}
+            AnswersQuestion(question_id=q["question_id"], short_answer=q["answer"])
             for q in exercise.get("questions", [])
         ]
 
@@ -74,7 +72,7 @@ class AnswersExtractor(BaseExtractor):
     def _build_exercise_data(
         self,
         exercise_id: str,
-        questions_input: list[dict],
+        questions_input: list[AnswersQuestion],
         result: ExerciseAnswersOutput,
     ) -> ExtractedExerciseAnswers:
         """Build exercise data from extraction result."""
@@ -82,7 +80,7 @@ class AnswersExtractor(BaseExtractor):
 
         questions = []
         for q_input in questions_input:
-            question_id = q_input["question_id"]
+            question_id = q_input.question_id
             q_result = result_map.get(question_id)
             if q_result is None:
                 # The model is asked for one item per question but does not
@@ -125,6 +123,6 @@ class AnswersExtractor(BaseExtractor):
 
         return ExtractedExerciseAnswers(exercise_id=exercise_id, questions=questions)
 
-    async def extract(self) -> dict[str, Path]:
-        """Extract full answers from all exercises."""
-        return await super()._extract_units(ExtractedFullAnswers)
+    async def extract(self) -> Path:
+        """Extract full answers from all exercises, returning the file written."""
+        return await self._extract_units(ExtractedFullAnswers)

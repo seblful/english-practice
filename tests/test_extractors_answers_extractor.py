@@ -6,25 +6,26 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from english_practice.agents import AnswersAgent
 from english_practice.extractors.answers_extractor import AnswersExtractor
-from english_practice.models.agents import ExerciseAnswersOutput, QuestionAnswerItem
+from english_practice.models.agents import (
+    AnswersQuestion,
+    ExerciseAnswersOutput,
+    QuestionAnswerItem,
+)
 from english_practice.models.extraction import (
     ExtractedExerciseAnswers,
     ExtractedFullAnswers,
 )
+from tests.conftest import extraction_paths
 
 
 @pytest.fixture
 def extractor(tmp_path) -> AnswersExtractor:
-    output_path = tmp_path / "output.json"
-    answers_path = tmp_path / "answers_source.json"
-    exercises_dir = tmp_path / "exercises"
-    content_dir = tmp_path / "content"
-    exercises_dir.mkdir(parents=True)
-    content_dir.mkdir(parents=True)
+    paths = extraction_paths(tmp_path)
 
     # Write source answers data
-    answers_path.write_text(
+    (paths.metadata_dir / "answers.json").write_text(
         json.dumps(
             {
                 "units": [
@@ -42,11 +43,23 @@ def extractor(tmp_path) -> AnswersExtractor:
         )
     )
 
-    return AnswersExtractor(output_path, answers_path, exercises_dir, content_dir)
+    return AnswersExtractor(paths)
 
 
 class TestAnswersExtractor:
     """Tests for AnswersExtractor."""
+
+    def test_takes_the_agent_it_is_given(self, tmp_path) -> None:
+        """The seam that lets both stages share one chat-model client."""
+        agent = AnswersAgent()
+
+        extractor = AnswersExtractor(extraction_paths(tmp_path), agent=agent)
+
+        assert extractor._extractor_agent is agent
+
+    def test_writes_beside_the_source_units(self, extractor) -> None:
+        assert extractor._output_path.name == "answers_full.json"
+        assert extractor._output_path.parent == extractor._answers_path.parent
 
     @pytest.mark.asyncio
     async def test_process_unit_returns_extracted_unit(self, extractor) -> None:
@@ -105,7 +118,7 @@ class TestAnswersExtractor:
         result.questions = [QuestionAnswerItem(question_id="1", is_open_ended=True)]
 
         built = extractor._build_exercise_data(
-            "1.1", [{"question_id": "1", "short_answer": "yes"}], result
+            "1.1", [AnswersQuestion(question_id="1", short_answer="yes")], result
         )
         assert built.exercise_id == "1.1"
         assert built.questions[0].is_open_ended is True
@@ -123,7 +136,7 @@ class TestAnswersExtractor:
 
         built = extractor._build_exercise_data(
             "1.1",
-            [{"question_id": "1", "short_answer": "yes"}],
+            [AnswersQuestion(question_id="1", short_answer="yes")],
             result,
         )
         assert built.exercise_id == "1.1"
@@ -141,7 +154,7 @@ class TestAnswersExtractor:
 
         built = extractor._build_exercise_data(
             "1.1",
-            [{"question_id": "1", "short_answer": "yes"}],
+            [AnswersQuestion(question_id="1", short_answer="yes")],
             result,
         )
         assert built.questions[0].answers[0].full_answer == "[yes]"
@@ -160,7 +173,10 @@ class TestAnswersExtractor:
 
         built = extractor._build_exercise_data(
             "1.1",
-            [{"question_id": "1"}, {"question_id": "2"}],
+            [
+                AnswersQuestion(question_id="1", short_answer="yes"),
+                AnswersQuestion(question_id="2", short_answer="no"),
+            ],
             result,
         )
 
@@ -178,7 +194,9 @@ class TestAnswersExtractor:
             )
         ]
 
-        built = extractor._build_exercise_data("1.1", [{"question_id": "1"}], result)
+        built = extractor._build_exercise_data(
+            "1.1", [AnswersQuestion(question_id="1", short_answer="yes")], result
+        )
 
         answers = built.questions[0].answers
         assert [a.short_answer for a in answers] == ["yes", "sure"]
@@ -194,4 +212,4 @@ class TestAnswersExtractor:
             patch.object(extractor, "_save_output"),
         ):
             result = await extractor.extract()
-            assert "output_path" in result
+            assert result == extractor._output_path

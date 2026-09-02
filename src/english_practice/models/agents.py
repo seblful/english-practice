@@ -55,10 +55,17 @@ class ExerciseAnswersOutput(BaseModel):
     )
 
 
+class AnswersQuestion(BaseModel):
+    """One question as the answers prompt reads it."""
+
+    question_id: str
+    short_answer: str
+
+
 class AnswersContext(BaseModel):
     """Input context for answers agent."""
 
-    questions: list[dict]
+    questions: list[AnswersQuestion]
     topic_name: str
 
 
@@ -80,10 +87,18 @@ class ExerciseRulesOutput(BaseModel):
     )
 
 
+class RulesQuestion(BaseModel):
+    """One question as the rules prompt reads it."""
+
+    question_id: str
+    short_answers: list[str] = Field(default_factory=list)
+    full_answers: list[str] = Field(default_factory=list)
+
+
 class RulesContext(BaseModel):
     """Input context for rules agent."""
 
-    questions: list[dict]
+    questions: list[RulesQuestion]
     rules_md: str
     topic_name: str
 

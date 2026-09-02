@@ -24,7 +24,7 @@ from english_practice.models.auth import PendingUser
 from english_practice.models.book import Exercise, Question, QuestionAnswer, Topic, Unit
 from english_practice.repositories.database import DatabaseRepository
 from english_practice.services.agent_service import AgentService
-from english_practice.settings import Settings
+from english_practice.settings import PathSettings, Settings
 
 USER_ID = 12345
 ADMIN_ID = 99999
@@ -32,6 +32,29 @@ ADMIN_ID = 99999
 SCHEMA_PATH = (
     Path(__file__).resolve().parent.parent / "scripts" / "database" / "schema.sql"
 )
+
+
+def extraction_paths(root: Path) -> PathSettings:
+    """Return a content layout rooted at ``root``, with the directories made.
+
+    Every directory is passed explicitly: ``PathSettings`` computes its
+    defaults at class definition, so setting ``content_dir`` alone would leave
+    the others pointing at the real ``data/`` tree.
+    """
+    content_dir = root / "content"
+    paths = PathSettings(
+        content_dir=content_dir,
+        metadata_dir=content_dir / "metadata",
+        exercises_dir=content_dir / "exercises",
+        grammar_md_dir=content_dir / "grammar",
+    )
+    for directory in (
+        paths.metadata_dir,
+        paths.exercises_dir,
+        paths.grammar_md_dir,
+    ):
+        directory.mkdir(parents=True, exist_ok=True)
+    return paths
 
 
 @pytest.fixture(autouse=True)

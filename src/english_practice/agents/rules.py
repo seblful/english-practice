@@ -1,9 +1,14 @@
 """Extract grammar rules from exercises using LLM."""
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from english_practice.agents.base import BaseAgent
-from english_practice.models.agents import ExerciseRulesOutput, RulesContext
+from english_practice.models.agents import (
+    ExerciseRulesOutput,
+    RulesContext,
+    RulesQuestion,
+)
 
 
 class RulesAgent(BaseAgent):
@@ -14,7 +19,7 @@ class RulesAgent(BaseAgent):
     async def extract_exercise(
         self,
         image_path: Path | None,
-        questions: list[dict],
+        questions: Sequence[RulesQuestion],
         rules_md: str,
         topic_name: str,
     ) -> ExerciseRulesOutput:
@@ -22,7 +27,7 @@ class RulesAgent(BaseAgent):
 
         Args:
             image_path: Path to the exercise image, if one exists.
-            questions: List of dicts with question_id, short_answer, full_answer.
+            questions: The exercise's questions, with the answers already extracted.
             rules_md: The grammar rules markdown.
             topic_name: The topic name for context.
 
@@ -30,7 +35,7 @@ class RulesAgent(BaseAgent):
             ExerciseRulesOutput with all question rules.
         """
         context = RulesContext(
-            questions=questions,
+            questions=list(questions),
             rules_md=rules_md,
             topic_name=topic_name,
         )

@@ -1,9 +1,14 @@
 """Extract full answers from exercise images using LLM."""
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from english_practice.agents.base import BaseAgent
-from english_practice.models.agents import AnswersContext, ExerciseAnswersOutput
+from english_practice.models.agents import (
+    AnswersContext,
+    AnswersQuestion,
+    ExerciseAnswersOutput,
+)
 
 
 class AnswersAgent(BaseAgent):
@@ -14,20 +19,20 @@ class AnswersAgent(BaseAgent):
     async def extract_exercise(
         self,
         image_path: Path | None,
-        questions: list[dict],
+        questions: Sequence[AnswersQuestion],
         topic_name: str,
     ) -> ExerciseAnswersOutput:
         """Extract full answers for all questions in an exercise.
 
         Args:
             image_path: Path to the exercise image, if one exists.
-            questions: List of dicts with question_id and short_answers.
+            questions: The exercise's questions, with the book's short answer.
             topic_name: The topic name for context.
 
         Returns:
             ExerciseAnswersOutput with all question answers.
         """
-        context = AnswersContext(questions=questions, topic_name=topic_name)
+        context = AnswersContext(questions=list(questions), topic_name=topic_name)
         prompt = self.render(context)
 
         image_data = (

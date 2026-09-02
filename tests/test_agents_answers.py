@@ -8,6 +8,7 @@ import pytest
 from english_practice.agents.answers import AnswersAgent
 from english_practice.models.agents import (
     AnswersContext,
+    AnswersQuestion,
     ExerciseAnswersOutput,
     QuestionAnswerItem,
 )
@@ -22,7 +23,7 @@ class TestAnswersAgent:
     def test_render_with_questions(self) -> None:
         agent = AnswersAgent()
         context = AnswersContext(
-            questions=[{"question_id": "7", "short_answer": "has been"}],
+            questions=[AnswersQuestion(question_id="7", short_answer="has been")],
             topic_name="Present Perfect",
         )
 
@@ -46,7 +47,7 @@ class TestAnswersAgent:
         ) as mock_invoke:
             result = await agent.extract_exercise(
                 image_path=img_path,
-                questions=[{"question_id": "1", "short_answer": "yes"}],
+                questions=[AnswersQuestion(question_id="1", short_answer="yes")],
                 topic_name="Test",
             )
 

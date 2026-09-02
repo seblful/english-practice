@@ -1,7 +1,11 @@
 """Tests for agent I/O Pydantic models."""
 
+import pytest
+from pydantic import ValidationError
+
 from english_practice.models.agents import (
     AnswersContext,
+    AnswersQuestion,
     AssistantContext,
     AssistantOutput,
     ChatMessage,
@@ -12,6 +16,7 @@ from english_practice.models.agents import (
     QuestionAnswerItem,
     QuestionRuleItem,
     RulesContext,
+    RulesQuestion,
 )
 
 
@@ -93,9 +98,15 @@ class TestAnswersContext:
     """Tests for AnswersContext."""
 
     def test_fields(self) -> None:
-        ctx = AnswersContext(questions=[{"id": "1"}], topic_name="Grammar")
+        question = AnswersQuestion(question_id="1", short_answer="has been")
+        ctx = AnswersContext(questions=[question], topic_name="Grammar")
         assert ctx.topic_name == "Grammar"
-        assert ctx.questions == [{"id": "1"}]
+        assert ctx.questions == [question]
+
+    def test_rejects_a_question_without_its_short_answer(self) -> None:
+        """The template reads short_answer, so a bare id must not validate."""
+        with pytest.raises(ValidationError):
+            AnswersContext(questions=[{"question_id": "1"}], topic_name="Grammar")
 
 
 class TestQuestionRuleItem:
@@ -128,9 +139,12 @@ class TestRulesContext:
 
     def test_fields(self) -> None:
         ctx = RulesContext(
-            questions=[{"id": "1"}], rules_md="# Rules", topic_name="Tenses"
+            questions=[RulesQuestion(question_id="1", short_answers=["a"])],
+            rules_md="# Rules",
+            topic_name="Tenses",
         )
         assert ctx.rules_md == "# Rules"
+        assert ctx.questions[0].full_answers == []
 
 
 class TestChatMessage:

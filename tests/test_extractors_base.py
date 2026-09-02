@@ -6,7 +6,9 @@ import json
 import pytest
 from pydantic import BaseModel
 
+from english_practice.errors import ConfigurationError
 from english_practice.extractors.base_extractor import BaseExtractor
+from tests.conftest import extraction_paths
 
 
 class _UnitModel(BaseModel):
@@ -20,62 +22,40 @@ class _OutputModel(BaseModel):
 class _ConcreteExtractor(BaseExtractor):
     """Concrete subclass for testing."""
 
+    OUTPUT_FILENAME = "output.json"
+
     async def _process_unit(self, unit: dict) -> _UnitModel:
         return _UnitModel(unit_id=unit["unit_id"])
 
 
 @pytest.fixture
 def extractor(tmp_path) -> _ConcreteExtractor:
-    """Create a concrete extractor with temp paths."""
-    output_path = tmp_path / "output.json"
-    answers_path = tmp_path / "answers.json"
-    exercises_dir = tmp_path / "exercises"
-    content_dir = tmp_path / "content"
-    exercises_dir.mkdir(parents=True)
-    content_dir.mkdir(parents=True)
-    return _ConcreteExtractor(output_path, answers_path, exercises_dir, content_dir)
+    """Create a concrete extractor over a temporary content layout."""
+    return _ConcreteExtractor(extraction_paths(tmp_path))
 
 
 class TestBaseExtractor:
     """Tests for BaseExtractor."""
 
     def test_init_loads_topic_map(self, tmp_path) -> None:
-        metadata_dir = tmp_path / "content" / "metadata"
-        metadata_dir.mkdir(parents=True)
-        topic_file = metadata_dir / "topic_to_unit.json"
-        topic_file.write_text(
+        paths = extraction_paths(tmp_path)
+        (paths.metadata_dir / "topic_to_unit.json").write_text(
             json.dumps([{"topic": "Present Tenses", "unit_ids": [1, 2]}])
         )
 
-        ext = _ConcreteExtractor(
-            tmp_path / "out.json",
-            tmp_path / "answers.json",
-            tmp_path / "exercises",
-            tmp_path / "content",
-        )
+        ext = _ConcreteExtractor(paths)
+
         assert ext._get_topic_name("1") == "Present Tenses"
         assert ext._get_topic_name("2") == "Present Tenses"
 
     def test_get_topic_name_default(self, extractor) -> None:
         assert extractor._get_topic_name("999") == "Unknown Topic"
 
-    def test_get_topic_name_empty_map(self, tmp_path) -> None:
-        ext = _ConcreteExtractor(
-            tmp_path / "out.json",
-            tmp_path / "answers.json",
-            tmp_path / "exercises",
-            tmp_path / "content",
-        )
-        assert ext._get_topic_name("1") == "Unknown Topic"
+    def test_get_topic_name_empty_map(self, extractor) -> None:
+        assert extractor._get_topic_name("1") == "Unknown Topic"
 
-    def test_get_image_path_finds_in_exercises_dir(self, extractor) -> None:
-        img_path = extractor._exercises_dir / "1" / "1.1.png"
-        img_path.parent.mkdir(parents=True)
-        img_path.write_text("img")
-        assert extractor._get_image_path("1.1") == img_path
-
-    def test_get_image_path_finds_in_content_dir(self, extractor) -> None:
-        img_path = extractor._content_dir / "exercises" / "1" / "1.1.png"
+    def test_get_image_path_finds_the_exercise_image(self, extractor) -> None:
+        img_path = extractor._paths.exercises_dir / "1" / "1.1.png"
         img_path.parent.mkdir(parents=True)
         img_path.write_text("img")
         assert extractor._get_image_path("1.1") == img_path
@@ -120,7 +100,7 @@ class TestBaseExtractor:
         data = {"units": [{"unit_id": "1"}, {"unit_id": "2"}]}
         extractor._answers_path.write_text(json.dumps(data))
         result = await extractor._extract_units(_OutputModel)
-        assert result == {"output_path": extractor._output_path}
+        assert result == extractor._output_path
         assert extractor._output_path.exists()
 
     @pytest.mark.asyncio
@@ -130,15 +110,13 @@ class TestBaseExtractor:
         output = _OutputModel(units=[_UnitModel(unit_id="1")])
         extractor._output_path.write_text(output.model_dump_json(indent=2))
         result = await extractor._extract_units(_OutputModel)
-        assert result == {"output_path": extractor._output_path}
+        assert result == extractor._output_path
 
-    def test_process_unit_raises_not_implemented(self, tmp_path) -> None:
-
-        ext = BaseExtractor(
-            tmp_path / "out.json",
-            tmp_path / "answers.json",
-            tmp_path / "exercises",
-            tmp_path / "content",
-        )
+    def test_process_unit_raises_not_implemented(self, extractor) -> None:
         with pytest.raises(NotImplementedError):
-            asyncio.run(ext._process_unit({"unit_id": "1"}))
+            asyncio.run(BaseExtractor._process_unit(extractor, {"unit_id": "1"}))
+
+    def test_a_subclass_must_name_its_output_file(self, tmp_path) -> None:
+        """Otherwise the stage would silently write over answers.json."""
+        with pytest.raises(ConfigurationError, match="OUTPUT_FILENAME"):
+            BaseExtractor(extraction_paths(tmp_path))

@@ -2,42 +2,62 @@
 
 import json
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 from pydantic import BaseModel
 from tqdm import tqdm
 
+from english_practice.errors import ConfigurationError
 from english_practice.logging import get_logger
 from english_practice.models.extraction import ExtractedUnitsRoot
+from english_practice.settings import PathSettings
 
 RootT = TypeVar("RootT", bound=ExtractedUnitsRoot[Any])
 
 # Exercise ids are "<unit>.<number>", so they split into exactly two parts.
 _EXERCISE_ID_PARTS = 2
 
+# The hand-made file every extraction stage reads its unit list from.
+SOURCE_ANSWERS_FILENAME = "answers.json"
+_TOPIC_MAP_FILENAME = "topic_to_unit.json"
+
 logger = get_logger(__name__)
 
 
 class BaseExtractor:
-    """Base class for extractors with shared functionality."""
+    """Base class for extractors with shared functionality.
 
-    def __init__(
-        self,
-        output_path: Path,
-        answers_path: Path,
-        exercises_dir: Path,
-        content_dir: Path,
-    ) -> None:
-        """Initialize the base extractor."""
-        self._output_path = output_path
-        self._answers_path = answers_path
-        self._exercises_dir = exercises_dir
-        self._content_dir = content_dir
+    A subclass names the file it writes with :attr:`OUTPUT_FILENAME` and
+    overrides :meth:`_process_unit`. Everything else — where the source units,
+    the exercise images and the topic map live — comes from the one
+    :class:`~english_practice.settings.PathSettings` the caller passes in, so a
+    stage cannot be wired to a directory the rest of the application does not
+    use.
+    """
+
+    OUTPUT_FILENAME: ClassVar[str] = ""
+
+    def __init__(self, paths: PathSettings) -> None:
+        """Initialize the base extractor.
+
+        Args:
+            paths: The application's filesystem layout.
+
+        Raises:
+            ConfigurationError: If the subclass names no output file.
+        """
+        if not self.OUTPUT_FILENAME:
+            raise ConfigurationError(
+                f"{type(self).__name__} does not declare an OUTPUT_FILENAME"
+            )
+        self._paths = paths
+        self._output_path = paths.metadata_dir / self.OUTPUT_FILENAME
+        self._answers_path = paths.metadata_dir / SOURCE_ANSWERS_FILENAME
         self._unit_topic_map = self._load_unit_topic_map()
 
     def _load_unit_topic_map(self) -> dict[str, str]:
         """Load mapping from unit_id to topic name."""
-        topic_to_unit_path = self._content_dir / "metadata" / "topic_to_unit.json"
+        topic_to_unit_path = self._paths.metadata_dir / _TOPIC_MAP_FILENAME
         if not topic_to_unit_path.exists():
             return {}
 
@@ -58,14 +78,8 @@ class BaseExtractor:
         if len(parts) != _EXERCISE_ID_PARTS:
             return None
 
-        page_num = parts[0]
-        for path in [
-            self._exercises_dir / page_num / f"{exercise_id}.png",
-            self._content_dir / "exercises" / page_num / f"{exercise_id}.png",
-        ]:
-            if path.exists():
-                return path
-        return None
+        path = self._paths.exercises_dir / parts[0] / f"{exercise_id}.png"
+        return path if path.exists() else None
 
     def _load_answers_data(self) -> dict:
         """Load answers data from JSON file."""
@@ -90,14 +104,14 @@ class BaseExtractor:
         """Check if unit was already processed."""
         return any(u.unit_id == unit_id for u in output.units)
 
-    async def _extract_units(self, output_model: type[RootT]) -> dict[str, Path]:
+    async def _extract_units(self, output_model: type[RootT]) -> Path:
         """Extract data from all units, resuming past ones already processed.
 
         Args:
             output_model: The output model class to use.
 
         Returns:
-            Dict with 'output_path' key containing the output file path.
+            The file the extraction was written to.
         """
         data = self._load_answers_data()
         output = self._load_output(output_model)
@@ -113,7 +127,7 @@ class BaseExtractor:
             self._save_output(output)
 
         logger.info("extraction_written", output_path=str(self._output_path))
-        return {"output_path": self._output_path}
+        return self._output_path
 
     async def _process_unit(self, unit: dict) -> BaseModel:
         """Process a unit. Override in subclass."""

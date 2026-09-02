@@ -154,14 +154,9 @@ def extract_answers() -> None:
     Processes all questions per exercise in a single LLM call.
     Outputs to answers_full.json. Resumes from last stopped unit.
     """
-    extractor = AnswersExtractor(
-        output_path=settings.paths.metadata_dir / "answers_full.json",
-        answers_path=settings.paths.metadata_dir / "answers.json",
-        exercises_dir=settings.paths.exercises_dir,
-        content_dir=settings.paths.content_dir,
-    )
-    result = asyncio.run(extractor.extract())
-    logger.info("answers_extracted", output_path=str(result["output_path"]))
+    extractor = AnswersExtractor(settings.paths)
+    output_path = asyncio.run(extractor.extract())
+    logger.info("answers_extracted", output_path=str(output_path))
 
 
 @app.command(
@@ -174,16 +169,9 @@ def extract_rules() -> None:
     Processes all questions per exercise in a single LLM call.
     Outputs to rules.json. Resumes from last stopped unit.
     """
-    extractor = RulesExtractor(
-        output_path=settings.paths.metadata_dir / "rules.json",
-        answers_path=settings.paths.metadata_dir / "answers.json",
-        exercises_dir=settings.paths.exercises_dir,
-        content_dir=settings.paths.content_dir,
-        answers_full_path=settings.paths.metadata_dir / "answers_full.json",
-        grammar_md_dir=settings.paths.grammar_md_dir,
-    )
-    result = asyncio.run(extractor.extract())
-    logger.info("rules_extracted", output_path=str(result["output_path"]))
+    extractor = RulesExtractor(settings.paths)
+    output_path = asyncio.run(extractor.extract())
+    logger.info("rules_extracted", output_path=str(output_path))
 
 
 if __name__ == "__main__":

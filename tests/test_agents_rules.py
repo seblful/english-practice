@@ -10,6 +10,7 @@ from english_practice.models.agents import (
     ExerciseRulesOutput,
     QuestionRuleItem,
     RulesContext,
+    RulesQuestion,
 )
 
 
@@ -23,7 +24,7 @@ class TestRulesAgent:
 
         agent = RulesAgent()
         context = RulesContext(
-            questions=[{"question_id": "1"}],
+            questions=[RulesQuestion(question_id="1")],
             rules_md="# Grammar",
             topic_name="Test",
         )
@@ -48,7 +49,7 @@ class TestRulesAgent:
         ) as mock_invoke:
             result = await agent.extract_exercise(
                 image_path=img_path,
-                questions=[{"question_id": "1"}],
+                questions=[RulesQuestion(question_id="1")],
                 rules_md="# Grammar rule",
                 topic_name="Test",
             )
