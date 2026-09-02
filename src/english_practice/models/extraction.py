@@ -3,6 +3,12 @@
 from pydantic import BaseModel
 
 
+class ExtractedUnitsRoot[UnitT: BaseModel](BaseModel):
+    """Root model for extraction outputs that accumulate per-unit results."""
+
+    units: list[UnitT] = []
+
+
 class ExtractedAnswer(BaseModel):
     """A question answer with short and full answer."""
 
@@ -32,10 +38,8 @@ class ExtractedUnitAnswers(BaseModel):
     exercises: list[ExtractedExerciseAnswers] = []
 
 
-class ExtractedFullAnswers(BaseModel):
+class ExtractedFullAnswers(ExtractedUnitsRoot[ExtractedUnitAnswers]):
     """Root model for full answers extraction output."""
-
-    units: list[ExtractedUnitAnswers] = []
 
 
 class ExtractedQuestionRule(BaseModel):
@@ -60,7 +64,5 @@ class ExtractedUnitRules(BaseModel):
     exercises: list[ExtractedExerciseRules] = []
 
 
-class ExtractedFullRules(BaseModel):
+class ExtractedFullRules(ExtractedUnitsRoot[ExtractedUnitRules]):
     """Root model for rules extraction output."""
-
-    units: list[ExtractedUnitRules] = []

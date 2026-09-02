@@ -24,7 +24,7 @@ class AgentService:
 
     async def evaluate_answer(
         self,
-        image_data: bytes,
+        image_data: bytes | None,
         question_number: str,
         user_input: str,
         short_answers: list[str],
@@ -36,7 +36,7 @@ class AgentService:
         """Evaluate if the user's answer is correct.
 
         Args:
-            image_data: Raw exercise image bytes.
+            image_data: Raw exercise image bytes, if the exercise has one.
             question_number: The question number/ID.
             user_input: The user's answer.
             short_answers: All short answer variants.
@@ -62,7 +62,7 @@ class AgentService:
     async def assist(
         self,
         user_id: int,
-        image_data: bytes,
+        image_data: bytes | None,
         question_number: str,
         user_input: str,
         topic_name: str,
@@ -72,7 +72,7 @@ class AgentService:
 
         Args:
             user_id: The user's ID for history tracking.
-            image_data: Raw exercise image bytes.
+            image_data: Raw exercise image bytes, if the exercise has one.
             question_number: The question number/ID.
             user_input: The user's question or message.
             topic_name: The topic name for context.

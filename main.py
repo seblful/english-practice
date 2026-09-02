@@ -96,9 +96,14 @@ def main() -> int:
     setup_langsmith()
 
     try:
+        bot_token = settings.telegram.bot_token
+        if bot_token is None:
+            # Unreachable: validate_settings() above rejects a missing token.
+            raise ValueError("TELEGRAM_BOT_TOKEN is not set")
+
         application = (
             Application.builder()
-            .token(settings.telegram.bot_token)
+            .token(bot_token)
             .connect_timeout(settings.telegram.connect_timeout)
             .read_timeout(settings.telegram.read_timeout)
             .write_timeout(settings.telegram.write_timeout)

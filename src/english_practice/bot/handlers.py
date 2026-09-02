@@ -4,7 +4,7 @@ import io
 import logging
 import random
 
-from telegram import Update
+from telegram import CallbackQuery, Message, Update, User
 from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
@@ -21,7 +21,7 @@ from english_practice.bot.keyboards import (
     get_start_menu_keyboard,
     get_topic_keyboard,
 )
-from english_practice.bot.states import state_manager
+from english_practice.bot.states import UserSession, state_manager
 from english_practice.repositories.database import DatabaseRepository
 from english_practice.services.agent_service import AgentService
 from english_practice.settings import settings
@@ -29,13 +29,70 @@ from english_practice.settings import settings
 logger = logging.getLogger(__name__)
 
 
-def _get_target(update: Update) -> object | None:
+def _get_target(update: Update) -> Message | None:
     """Get the message target for replying, regardless of update type."""
     if update.message is not None:
         return update.message
-    if update.callback_query is not None and update.callback_query.message is not None:
-        return update.callback_query.message
+    query_message = update.callback_query.message if update.callback_query else None
+    # CallbackQuery.message may be an InaccessibleMessage, which cannot be replied to.
+    if isinstance(query_message, Message):
+        return query_message
     return None
+
+
+def _require_user(update: Update) -> User:
+    """Return the user behind an update.
+
+    Args:
+        update: The incoming update.
+
+    Returns:
+        The effective user.
+
+    Raises:
+        ValueError: If the update carries no user, which the registered
+            handlers are never invoked for.
+    """
+    user = update.effective_user
+    if user is None:
+        raise ValueError("Update carries no effective user")
+    return user
+
+
+def _require_message(update: Update) -> Message:
+    """Return the message to reply to.
+
+    Args:
+        update: The incoming update.
+
+    Returns:
+        The message that replies should be attached to.
+
+    Raises:
+        ValueError: If the update carries no replyable message.
+    """
+    message = _get_target(update)
+    if message is None:
+        raise ValueError("Update carries no message to reply to")
+    return message
+
+
+def _require_query(update: Update) -> CallbackQuery:
+    """Return the callback query behind an update.
+
+    Args:
+        update: The incoming update.
+
+    Returns:
+        The callback query.
+
+    Raises:
+        ValueError: If the update is not a callback query.
+    """
+    query = update.callback_query
+    if query is None:
+        raise ValueError("Update carries no callback query")
+    return query
 
 
 async def _check_authorization(
@@ -43,7 +100,7 @@ async def _check_authorization(
     context: ContextTypes.DEFAULT_TYPE,
 ) -> bool:
     """Check if user is authorized. Replies and returns False if not allowed."""
-    user = update.effective_user
+    user = _require_user(update)
 
     if settings.telegram.admin_user_id is None:
         return True
@@ -98,7 +155,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if not await _check_authorization(update, context):
         return
 
-    user = update.effective_user
+    user = _require_user(update)
     logger.info(f"User {user.id} ({user.username}) started the bot")
 
     session = state_manager.get_session(user.id)
@@ -118,7 +175,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "Choose an option:"
     )
 
-    await update.message.reply_text(
+    await _require_message(update).reply_text(
         welcome_text,
         reply_markup=get_start_menu_keyboard(has_previous_topic),
     )
@@ -129,11 +186,11 @@ async def exercise_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if not await _check_authorization(update, context):
         return
 
-    user = update.effective_user
+    user = _require_user(update)
     session = state_manager.get_session(user.id)
     has_previous_topic = session.current_topic_id is not None
 
-    await update.message.reply_text(
+    await _require_message(update).reply_text(
         "Choose an option:",
         reply_markup=get_start_menu_keyboard(has_previous_topic),
     )
@@ -144,10 +201,10 @@ async def rule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if not await _check_authorization(update, context):
         return
 
-    user = update.effective_user
+    user = _require_user(update)
     new_value = state_manager.toggle_show_rule(user.id)
     status = "enabled ✅" if new_value else "disabled ❌"
-    await update.message.reply_text(f"📋 Rule display is now {status}.")
+    await _require_message(update).reply_text(f"📋 Rule display is now {status}.")
 
 
 async def handle_topic_selection(
@@ -155,21 +212,21 @@ async def handle_topic_selection(
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
     """Handle topic selection callback."""
-    query = update.callback_query
+    query = _require_query(update)
     await query.answer()
 
     if not await _check_authorization(update, context):
         return
 
-    user_id = update.effective_user.id
-    callback_data = query.data
+    user_id = _require_user(update).id
+    callback_data = query.data or ""
 
     _, topic_id = callback_data.split(":")
 
     if topic_id == "new_topic":
         repository = DatabaseRepository()
         topics = repository.get_all_topics()
-        await query.message.reply_text(
+        await _require_message(update).reply_text(
             "Select a topic:",
             reply_markup=get_topic_keyboard(topics),
         )
@@ -211,7 +268,7 @@ async def send_new_exercise(
     exercise = repository.get_random_exercise(topic_id)
 
     if not exercise:
-        message = update.message if update.message else update.callback_query.message
+        message = _require_message(update)
         await message.reply_text(
             "[X] No exercises found for this topic. Please try another."
         )
@@ -220,7 +277,7 @@ async def send_new_exercise(
     exercise_data = repository.get_exercise_with_questions(exercise["id"])
 
     if not exercise_data or not exercise_data["questions"]:
-        message = update.message if update.message else update.callback_query.message
+        message = _require_message(update)
         await message.reply_text("[X] Exercise has no questions. Trying another...")
         await send_new_exercise(update, context, user_id, topic_id, topic_name)
         return
@@ -243,7 +300,7 @@ async def send_new_exercise(
         is_open_ended=question["is_open_ended"],
     )
 
-    message = update.message if update.message else update.callback_query.message
+    message = _require_message(update)
 
     # Send topic message
     await message.reply_text(
@@ -274,22 +331,22 @@ async def handle_exercise_action(
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
     """Handle exercise action buttons."""
-    query = update.callback_query
+    query = _require_query(update)
     await query.answer()
 
     if not await _check_authorization(update, context):
         return
 
-    user_id = update.effective_user.id
+    user_id = _require_user(update).id
     session = state_manager.get_session(user_id)
 
     if not session.current_exercise_id:
-        await query.message.reply_text(
+        await _require_message(update).reply_text(
             "[X] No active exercise. Use /start to select a topic."
         )
         return
 
-    _, action = query.data.split(":")
+    _, action = (query.data or "").split(":")
 
     if action == "show_unit":
         await show_unit_info(update, user_id)
@@ -302,11 +359,16 @@ async def show_unit_info(
     """Show unit information."""
     repository = DatabaseRepository()
     session = state_manager.get_session(user_id)
+    exercise_id = session.current_exercise_id
 
-    exercise = repository.get_exercise_with_questions(session.current_exercise_id)
+    exercise = (
+        repository.get_exercise_with_questions(exercise_id)
+        if exercise_id is not None
+        else None
+    )
 
     if not exercise:
-        await update.callback_query.message.reply_text(
+        await _require_message(update).reply_text(
             "[X] Could not retrieve unit information."
         )
         return
@@ -318,7 +380,101 @@ async def show_unit_info(
         title=exercise["title"],
     )
 
-    await update.callback_query.message.reply_text(text, parse_mode="HTML")
+    await _require_message(update).reply_text(text, parse_mode="HTML")
+
+
+async def _handle_followup_question(
+    message: Message,
+    user_id: int,
+    image_data: bytes | None,
+    user_text: str,
+    question_number: str,
+    topic_name: str,
+    exercise_id: int,
+) -> None:
+    """Answer a follow-up question about an already-answered exercise."""
+    try:
+        agent_service = AgentService()
+        result = await agent_service.assist(
+            user_id=user_id,
+            image_data=image_data,
+            question_number=question_number,
+            user_input=user_text,
+            topic_name=topic_name,
+            exercise_id=exercise_id,
+        )
+        response = MessageFormatter.format_assistant_answer(result.answer)
+        await message.reply_text(response, parse_mode="HTML")
+    except Exception as e:
+        logger.error(f"Assistant error: {e}")
+        await message.reply_text(
+            "[X] Sorry, I couldn't process your question at the moment."
+        )
+
+
+async def _send_first_answers(
+    message: Message, short_answers: list[str], full_answers: list[str]
+) -> None:
+    """Send the first known answer — the fallback when nothing matched."""
+    if short_answers:
+        await message.reply_text(
+            MessageFormatter.format_short_answer(short_answers[0]),
+            parse_mode="HTML",
+        )
+    if full_answers:
+        await message.reply_text(
+            MessageFormatter.format_full_answer(full_answers[0]),
+            parse_mode="HTML",
+        )
+
+
+async def _send_matched_answers(
+    message: Message,
+    short_answers: list[str],
+    full_answers: list[str],
+    matched_indexes: list[int],
+) -> None:
+    """Send the answers the evaluation matched, or the first one if none did."""
+    if not matched_indexes:
+        await _send_first_answers(message, short_answers, full_answers)
+        return
+
+    matched_short = [
+        short_answers[i] for i in matched_indexes if i < len(short_answers)
+    ]
+    matched_full = [full_answers[i] for i in matched_indexes if i < len(full_answers)]
+    await message.reply_text(
+        MessageFormatter.format_short_answers(matched_short),
+        parse_mode="HTML",
+    )
+    if matched_full:
+        await message.reply_text(
+            MessageFormatter.format_full_answers(matched_full),
+            parse_mode="HTML",
+        )
+
+
+async def _send_rule_if_enabled(
+    message: Message, session: UserSession, rule_data: dict | None
+) -> None:
+    """Send the grammar rule when the session has rule display enabled."""
+    unit_number = session.current_unit_number
+    if not (rule_data and session.show_rule) or unit_number is None:
+        return
+    rule_msg = MessageFormatter.format_rule(
+        unit_number,
+        rule_data["section_letter"],
+        rule_data["rule"],
+    )
+    await message.reply_text(rule_msg, parse_mode="HTML")
+
+
+async def _send_next_exercise_prompt(message: Message, session: UserSession) -> None:
+    """Offer the next exercise."""
+    await message.reply_text(
+        "Choose next exercise:",
+        reply_markup=get_start_menu_keyboard(session.current_topic_id is not None),
+    )
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -326,46 +482,42 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not await _check_authorization(update, context):
         return
 
-    user_id = update.effective_user.id
+    user_id = _require_user(update).id
     session = state_manager.get_session(user_id)
+    message = _require_message(update)
 
-    if not session.current_exercise_id:
-        await update.message.reply_text(
+    # set_exercise() populates the exercise, question and unit fields together,
+    # so any one of them being unset means there is no exercise in progress.
+    exercise_id = session.current_exercise_id
+    target_question_id = session.current_question_db_id
+    target_question_number = session.current_question_id
+    if not exercise_id or target_question_id is None or target_question_number is None:
+        await message.reply_text(
             "👋 Welcome! Use /start to begin practicing English grammar."
         )
         return
 
-    user_text = update.message.text.strip()
+    user_text = (message.text or "").strip()
 
     repository = DatabaseRepository()
-    image_data = repository.get_exercise_image(session.current_exercise_id)
+    image_data = repository.get_exercise_image(exercise_id)
 
     # If already answered, treat as follow-up question for assistant
     if session.answered:
-        try:
-            agent_service = AgentService()
-            result = await agent_service.assist(
-                user_id=user_id,
-                image_data=image_data,
-                question_number=session.current_question_id,
-                user_input=user_text,
-                topic_name=session.current_topic_name or "Random",
-                exercise_id=session.current_exercise_id,
-            )
-            response = MessageFormatter.format_assistant_answer(result.answer)
-            await update.message.reply_text(response, parse_mode="HTML")
-        except Exception as e:
-            logger.error(f"Assistant error: {e}")
-            await update.message.reply_text(
-                "[X] Sorry, I couldn't process your question at the moment."
-            )
+        await _handle_followup_question(
+            message,
+            user_id,
+            image_data,
+            user_text,
+            question_number=target_question_number,
+            topic_name=session.current_topic_name or "Random",
+            exercise_id=exercise_id,
+        )
         return
 
     # User is providing an answer
     answer_text = user_text
 
-    target_question_id = session.current_question_db_id
-    target_question_number = session.current_question_id
     is_open_ended = session.current_is_open_ended
 
     # Get all answers from database (outside try so available on error)
@@ -394,89 +546,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         state_manager.mark_answered(user_id)
 
         feedback = MessageFormatter.format_evaluation(evaluation.is_correct)
-        await update.message.reply_text(feedback, parse_mode="HTML")
+        await message.reply_text(feedback, parse_mode="HTML")
 
         matched_indexes = evaluation.answer_idx
 
-        if matched_indexes:
-            matched_short = [
-                short_answers[i] for i in matched_indexes if i < len(short_answers)
-            ]
-            matched_full = [
-                full_answers[i] for i in matched_indexes if i < len(full_answers)
-            ]
-            await update.message.reply_text(
-                MessageFormatter.format_short_answers(matched_short),
-                parse_mode="HTML",
-            )
-            if matched_full:
-                await update.message.reply_text(
-                    MessageFormatter.format_full_answers(matched_full),
-                    parse_mode="HTML",
-                )
-        else:
-            if short_answers:
-                await update.message.reply_text(
-                    MessageFormatter.format_short_answer(short_answers[0]),
-                    parse_mode="HTML",
-                )
-            if full_answers:
-                await update.message.reply_text(
-                    MessageFormatter.format_full_answer(full_answers[0]),
-                    parse_mode="HTML",
-                )
-
-        # Send rule message if available and enabled
-        if rule_data and session.show_rule:
-            rule_msg = MessageFormatter.format_rule(
-                session.current_unit_number,
-                rule_data["section_letter"],
-                rule_data["rule"],
-            )
-            await update.message.reply_text(rule_msg, parse_mode="HTML")
-
-        # Send new exercise options
-        await update.message.reply_text(
-            "Choose next exercise:",
-            reply_markup=get_start_menu_keyboard(session.current_topic_id is not None),
+        await _send_matched_answers(
+            message, short_answers, full_answers, matched_indexes
         )
+        await _send_rule_if_enabled(message, session, rule_data)
+        await _send_next_exercise_prompt(message, session)
 
     except Exception as e:
         logger.error(f"Agent error: {e}")
-        await update.message.reply_text("[X] Sorry, I couldn't evaluate your answer.")
+        await message.reply_text("[X] Sorry, I couldn't evaluate your answer.")
         # Show first answer on error
-        if short_answers:
-            await update.message.reply_text(
-                MessageFormatter.format_short_answer(short_answers[0]),
-                parse_mode="HTML",
-            )
-        if full_answers:
-            await update.message.reply_text(
-                MessageFormatter.format_full_answer(full_answers[0]),
-                parse_mode="HTML",
-            )
-        if session.show_rule and rule_data:
-            rule_msg = MessageFormatter.format_rule(
-                session.current_unit_number,
-                rule_data["section_letter"],
-                rule_data["rule"],
-            )
-            await update.message.reply_text(rule_msg, parse_mode="HTML")
-        await update.message.reply_text(
-            "Choose next exercise:",
-            reply_markup=get_start_menu_keyboard(session.current_topic_id is not None),
-        )
+        await _send_first_answers(message, short_answers, full_answers)
+        await _send_rule_if_enabled(message, session, rule_data)
+        await _send_next_exercise_prompt(message, session)
 
 
 async def pending_command(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /pending command — show pending users for admin approval."""
-    user = update.effective_user
+    user = _require_user(update)
 
     if (
         settings.telegram.admin_user_id is None
         or user.id != settings.telegram.admin_user_id
     ):
-        await update.message.reply_text(
+        await _require_message(update).reply_text(
             "[X] You are not authorized to use this command."
         )
         return
@@ -485,10 +582,10 @@ async def pending_command(update: Update, _context: ContextTypes.DEFAULT_TYPE) -
     pending_users = repository.get_pending_users()
 
     if not pending_users:
-        await update.message.reply_text("No pending users at the moment.")
+        await _require_message(update).reply_text("No pending users at the moment.")
         return
 
-    await update.message.reply_text(
+    await _require_message(update).reply_text(
         f"📋 Pending users ({len(pending_users)}):",
         reply_markup=get_admin_pending_keyboard(pending_users),
     )
@@ -499,27 +596,29 @@ async def handle_admin_action(
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
     """Handle admin approve/reject actions."""
-    query = update.callback_query
+    query = _require_query(update)
     await query.answer()
 
-    user = update.effective_user
+    user = _require_user(update)
 
     if (
         settings.telegram.admin_user_id is None
         or user.id != settings.telegram.admin_user_id
     ):
-        await query.message.reply_text(
+        await _require_message(update).reply_text(
             "[X] You are not authorized to perform this action."
         )
         return
 
-    _, action, target_id = query.data.split(":")
+    _, action, target_id = (query.data or "").split(":")
     target_id = int(target_id)
     repository = DatabaseRepository()
 
     if action == "approve":
         repository.set_user_status(target_id, "approved", user.id)
-        await query.message.reply_text(f"✅ User {target_id} has been approved.")
+        await _require_message(update).reply_text(
+            f"✅ User {target_id} has been approved."
+        )
         try:
             await context.bot.send_message(
                 chat_id=target_id,
@@ -531,7 +630,9 @@ async def handle_admin_action(
             logger.warning(f"Could not notify approved user {target_id}")
     elif action == "reject":
         repository.set_user_status(target_id, "rejected", user.id)
-        await query.message.reply_text(f"❌ User {target_id} has been rejected.")
+        await _require_message(update).reply_text(
+            f"❌ User {target_id} has been rejected."
+        )
         try:
             await context.bot.send_message(
                 chat_id=target_id,
@@ -542,7 +643,7 @@ async def handle_admin_action(
 
     remaining = repository.get_pending_users()
     if remaining:
-        await query.message.reply_text(
+        await _require_message(update).reply_text(
             f"📋 Remaining pending ({len(remaining)}):",
             reply_markup=get_admin_pending_keyboard(remaining),
         )

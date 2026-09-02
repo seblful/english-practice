@@ -13,7 +13,7 @@ class RulesAgent(BaseAgent):
 
     async def extract_exercise(
         self,
-        image_path: Path,
+        image_path: Path | None,
         questions: list[dict],
         rules_md: str,
         topic_name: str,
@@ -21,7 +21,7 @@ class RulesAgent(BaseAgent):
         """Extract grammar rules for all questions in an exercise.
 
         Args:
-            image_path: Path to the exercise image.
+            image_path: Path to the exercise image, if one exists.
             questions: List of dicts with question_id, short_answer, full_answer.
             rules_md: The grammar rules markdown.
             topic_name: The topic name for context.
@@ -36,7 +36,11 @@ class RulesAgent(BaseAgent):
         )
         prompt = self.render(context)
 
-        image_data = image_path.read_bytes() if image_path.exists() else None
+        image_data = (
+            image_path.read_bytes()
+            if image_path is not None and image_path.exists()
+            else None
+        )
 
         return await self.invoke_structured(
             prompt=prompt,

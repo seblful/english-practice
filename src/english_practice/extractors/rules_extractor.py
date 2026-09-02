@@ -79,14 +79,14 @@ class RulesExtractor(BaseExtractor):
                 logger.info(f"Skipping already processed unit {unit_id}")
                 continue
 
-            unit_data = await self._process_unit(unit, answers_full_map)
+            unit_data = await self._process_unit_rules(unit, answers_full_map)
             self._add_unit(output, unit_data)
             self._save_output(output)
 
         logger.info(f"Rules extracted to {self._output_path}")
         return {"output_path": self._output_path}
 
-    async def _process_unit(
+    async def _process_unit_rules(
         self,
         unit: dict,
         answers_full_map: dict[str, dict],
@@ -99,6 +99,9 @@ class RulesExtractor(BaseExtractor):
 
         if not rules_md:
             logger.warning(f"Grammar markdown not found for unit {unit_number}")
+            # RulesContext requires a string; the prompt renders an empty
+            # rules section rather than failing validation.
+            rules_md = ""
 
         exercises = [
             await self._process_exercise(ex, answers_full_map, rules_md, topic_name)

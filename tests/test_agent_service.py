@@ -1,5 +1,6 @@
 """Tests for AgentService."""
 
+from collections.abc import Iterator
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -11,7 +12,7 @@ class TestAgentService:
     """Tests for AgentService."""
 
     @pytest.fixture(autouse=True)
-    def mock_agents(self) -> None:
+    def mock_agents(self) -> Iterator[None]:
         """Mock the underlying agents to avoid LLM calls."""
         with (
             patch(

@@ -12,7 +12,9 @@ class ChatHistoryManager:
 
     def __init__(self) -> None:
         """Initialize empty chat history storage."""
-        self._history: dict[int, dict[int, list[dict[str, Any]]]] = {}
+        # exercise_id is None for messages recorded outside an exercise, so it
+        # is part of the key type rather than being coerced away.
+        self._history: dict[int, dict[int | None, list[dict[str, Any]]]] = {}
 
     def add_message(
         self,

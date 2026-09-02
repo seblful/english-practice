@@ -113,4 +113,4 @@ class AnswersExtractor(BaseExtractor):
 
     async def extract(self) -> dict[str, Path]:
         """Extract full answers from all exercises."""
-        return await super().extract(ExtractedFullAnswers)
+        return await super()._extract_units(ExtractedFullAnswers)

@@ -124,7 +124,7 @@ class TestBaseExtractor:
     async def test_extract_processes_all_units(self, extractor) -> None:
         data = {"units": [{"unit_id": "1"}, {"unit_id": "2"}]}
         extractor._answers_path.write_text(json.dumps(data))
-        result = await extractor.extract(_OutputModel)
+        result = await extractor._extract_units(_OutputModel)
         assert result == {"output_path": extractor._output_path}
         assert extractor._output_path.exists()
 
@@ -134,7 +134,7 @@ class TestBaseExtractor:
         extractor._answers_path.write_text(json.dumps(data))
         output = _OutputModel(units=[_UnitModel(unit_id="1")])
         extractor._output_path.write_text(output.model_dump_json(indent=2))
-        result = await extractor.extract(_OutputModel)
+        result = await extractor._extract_units(_OutputModel)
         assert result == {"output_path": extractor._output_path}
 
     def test_process_unit_raises_not_implemented(self, tmp_path) -> None:

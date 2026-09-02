@@ -2,11 +2,15 @@
 
 import json
 from pathlib import Path
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
 from tqdm import tqdm
 
 from english_practice.logging import get_logger
+from english_practice.models.extraction import ExtractedUnitsRoot
+
+RootT = TypeVar("RootT", bound=ExtractedUnitsRoot[Any])
 
 # Exercise ids are "<unit>.<number>", so they split into exactly two parts.
 _EXERCISE_ID_PARTS = 2
@@ -69,7 +73,7 @@ class BaseExtractor:
             return {}
         return json.loads(self._answers_path.read_text(encoding="utf-8"))
 
-    def _load_output(self, output_model: type[BaseModel]) -> BaseModel:
+    def _load_output(self, output_model: type[RootT]) -> RootT:
         """Load existing output or return empty model."""
         if self._output_path.exists():
             return output_model.model_validate_json(
@@ -77,21 +81,21 @@ class BaseExtractor:
             )
         return output_model()
 
-    def _save_output(self, output: BaseModel) -> None:
+    def _save_output(self, output: ExtractedUnitsRoot[Any]) -> None:
         """Save output incrementally."""
         self._output_path.parent.mkdir(parents=True, exist_ok=True)
         self._output_path.write_text(output.model_dump_json(indent=2), encoding="utf-8")
 
-    def _is_unit_processed(self, output: BaseModel, unit_id: str) -> bool:
+    def _is_unit_processed(self, output: ExtractedUnitsRoot[Any], unit_id: str) -> bool:
         """Check if unit was already processed."""
         return any(u.unit_id == unit_id for u in output.units)
 
-    def _add_unit(self, output: BaseModel, unit: BaseModel) -> None:
+    def _add_unit(self, output: ExtractedUnitsRoot[Any], unit: Any) -> None:
         """Add unit to output."""
         output.units.append(unit)
 
-    async def extract(self, output_model: type[BaseModel]) -> dict[str, Path]:
-        """Extract data from all units.
+    async def _extract_units(self, output_model: type[RootT]) -> dict[str, Path]:
+        """Extract data from all units, resuming past ones already processed.
 
         Args:
             output_model: The output model class to use.

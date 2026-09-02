@@ -1,8 +1,7 @@
 """Evaluate Answer Agent - determines if user answer is correct."""
 
-from langsmith import traceable
-
 from english_practice.agents.base import BaseAgent
+from english_practice.agents.tracing import traced
 from english_practice.models.agents import EvaluateAnswerInput, EvaluateAnswerOutput
 
 
@@ -11,10 +10,10 @@ class EvaluateAnswerAgent(BaseAgent):
 
     PROMPT_TEMPLATE = "evaluate.j2"
 
-    @traceable(name="evaluate_answer")
+    @traced(name="evaluate_answer")
     async def evaluate(
         self,
-        image_data: bytes,
+        image_data: bytes | None,
         question_number: str,
         user_input: str,
         short_answers: list[str],
@@ -26,7 +25,7 @@ class EvaluateAnswerAgent(BaseAgent):
         """Evaluate if the user's answer is correct.
 
         Args:
-            image_data: Raw exercise image bytes.
+            image_data: Raw exercise image bytes, if the exercise has one.
             question_number: The question number/ID.
             user_input: The user's answer.
             short_answers: All short answer variants.

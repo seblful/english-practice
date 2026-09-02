@@ -10,6 +10,13 @@ from pydantic import BaseModel
 from english_practice.agents.base import BaseAgent, _get_prompt_env
 
 
+def _parts(msg: HumanMessage) -> list[dict]:
+    """Return the message's content blocks, asserting the multimodal shape."""
+    assert isinstance(msg.content, list)
+    assert all(isinstance(part, dict) for part in msg.content)
+    return [part for part in msg.content if isinstance(part, dict)]
+
+
 class DummyModel(BaseModel):
     name: str
 
@@ -67,18 +74,20 @@ class TestBaseAgentCreateMessage:
         agent = _TestAgent()
         msg = await agent._create_message("hello")
         assert isinstance(msg, HumanMessage)
-        assert msg.content[0]["text"] == "hello"
-        assert len(msg.content) == 1
+        parts = _parts(msg)
+        assert parts[0]["text"] == "hello"
+        assert len(parts) == 1
 
     @pytest.mark.asyncio
     async def test_with_image(self) -> None:
         agent = _TestAgent()
         msg = await agent._create_message("hello", image_data=b"fake_img")
         assert isinstance(msg, HumanMessage)
-        assert len(msg.content) == 2
-        assert msg.content[0]["text"] == "hello"
-        assert msg.content[1]["type"] == "image_url"
-        assert "data:image/png;base64," in msg.content[1]["image_url"]["url"]
+        parts = _parts(msg)
+        assert len(parts) == 2
+        assert parts[0]["text"] == "hello"
+        assert parts[1]["type"] == "image_url"
+        assert "data:image/png;base64," in parts[1]["image_url"]["url"]
 
     @pytest.mark.asyncio
     async def test_with_custom_mime_type(self) -> None:
@@ -86,7 +95,7 @@ class TestBaseAgentCreateMessage:
         msg = await agent._create_message(
             "hello", image_data=b"img", mime_type="image/jpeg"
         )
-        assert "data:image/jpeg;base64," in msg.content[1]["image_url"]["url"]
+        assert "data:image/jpeg;base64," in _parts(msg)[1]["image_url"]["url"]
 
 
 class TestBaseAgentInvokeStructured:

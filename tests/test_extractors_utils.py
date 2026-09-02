@@ -84,5 +84,6 @@ class TestGetImagePath:
         img2.write_text("content_version")
 
         result = get_image_path("1.1", exercises_dir, content_dir)
+        assert result is not None
         assert result == img1
         assert result.read_bytes() == b"exercises_version"

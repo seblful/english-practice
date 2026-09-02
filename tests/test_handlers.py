@@ -507,15 +507,17 @@ class TestAuthorization:
         assert "pending" in mock_update.message.reply_text.call_args[0][0].lower()
 
     @pytest.mark.asyncio
-    async def test_auth_enabled_rejected_blocked(
+    async def test_auth_enabled_rejected_reapplies(
         self, mock_update, mock_context, mock_repository, patch_auth_admin
     ) -> None:
-        """Rejected user is blocked with denial message."""
+        """Rejected user is reset to pending and re-submitted for approval."""
         mock_repository.get_user_auth_status.return_value = "rejected"
 
         await start_command(mock_update, mock_context)
+
+        mock_repository.reset_user_to_pending.assert_called_once()
         mock_update.message.reply_text.assert_called_once()
-        assert "denied" in mock_update.message.reply_text.call_args[0][0].lower()
+        assert "approval" in mock_update.message.reply_text.call_args[0][0].lower()
 
     @pytest.mark.asyncio
     async def test_auth_enabled_new_user_added_as_pending(

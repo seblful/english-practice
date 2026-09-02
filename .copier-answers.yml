@@ -13,4 +13,3 @@ project_description: A VLLM-based English grammar practice application with exer
     from English Grammar in Use by Murphy.
 project_slug: english-practice
 python_version: '3.13'
-

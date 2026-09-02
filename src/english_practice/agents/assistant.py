@@ -2,9 +2,8 @@
 
 from typing import TYPE_CHECKING
 
-from langsmith import traceable
-
 from english_practice.agents.base import BaseAgent
+from english_practice.agents.tracing import traced
 from english_practice.models.agents import (
     AssistantContext,
     AssistantOutput,
@@ -20,11 +19,11 @@ class AssistantAgent(BaseAgent):
 
     PROMPT_TEMPLATE = "assistant.j2"
 
-    @traceable(name="assistant")
+    @traced(name="assistant")
     async def assist(
         self,
         user_id: int,
-        image_data: bytes,
+        image_data: bytes | None,
         question_number: str,
         user_input: str,
         topic_name: str,
@@ -35,7 +34,7 @@ class AssistantAgent(BaseAgent):
 
         Args:
             user_id: The user's ID for history tracking.
-            image_data: Raw exercise image bytes.
+            image_data: Raw exercise image bytes, if the exercise has one.
             question_number: The question number/ID.
             user_input: The user's question or message.
             topic_name: The topic name for context.

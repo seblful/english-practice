@@ -3,14 +3,14 @@
 import base64
 import logging
 from functools import lru_cache
-from typing import Any, ClassVar, TypeVar
+from typing import Any, ClassVar, TypeVar, cast
 
 from jinja2 import Environment, FileSystemLoader
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
-from langsmith import traceable
 from pydantic import BaseModel
 
+from english_practice.agents.tracing import traced
 from english_practice.llm import get_llm
 from english_practice.settings import settings
 
@@ -85,7 +85,7 @@ class BaseAgent:
         Returns:
             HumanMessage with text and optional image content.
         """
-        content: list[dict[str, Any]] = [
+        content: list[str | dict[str, Any]] = [
             {"type": "text", "text": prompt},
         ]
 
@@ -100,7 +100,7 @@ class BaseAgent:
 
         return HumanMessage(content=content)
 
-    @traceable
+    @traced()
     async def invoke_structured(
         self,
         prompt: str,
@@ -123,4 +123,6 @@ class BaseAgent:
 
         structured_llm = self.llm.with_structured_output(output_model)
 
-        return await structured_llm.ainvoke([message])
+        # with_structured_output is typed as returning dict | BaseModel; the
+        # runtime value is an instance of output_model.
+        return cast("T", await structured_llm.ainvoke([message]))

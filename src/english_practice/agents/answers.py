@@ -13,14 +13,14 @@ class AnswersAgent(BaseAgent):
 
     async def extract_exercise(
         self,
-        image_path: Path,
+        image_path: Path | None,
         questions: list[dict],
         topic_name: str,
     ) -> ExerciseAnswersOutput:
         """Extract full answers for all questions in an exercise.
 
         Args:
-            image_path: Path to the exercise image.
+            image_path: Path to the exercise image, if one exists.
             questions: List of dicts with question_id and short_answers.
             topic_name: The topic name for context.
 
@@ -30,7 +30,11 @@ class AnswersAgent(BaseAgent):
         context = AnswersContext(questions=questions, topic_name=topic_name)
         prompt = self.render(context)
 
-        image_data = image_path.read_bytes() if image_path.exists() else None
+        image_data = (
+            image_path.read_bytes()
+            if image_path is not None and image_path.exists()
+            else None
+        )
 
         return await self.invoke_structured(
             prompt=prompt,

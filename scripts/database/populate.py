@@ -72,10 +72,8 @@ def parse_exercise_id(exercise_id: str) -> tuple[int, int]:
     return int(parts[0]), int(parts[1])
 
 
-def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
-    """Import exercises and questions from answers_full.json and rules.json."""
-    project_root = get_project_root()
-
+def _load_import_metadata(project_root: Path) -> tuple[dict, dict]:
+    """Load answers_full.json and rules.json, failing if extraction has not run."""
     answers_full_path = (
         project_root / "data" / "content" / "metadata" / "answers_full.json"
     )
@@ -97,12 +95,113 @@ def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
     with rules_path.open(encoding="utf-8") as f:
         rules_data = json.load(f)
 
+    return answers_data, rules_data
+
+
+def _build_rules_map(rules_data: dict) -> dict[str, dict]:
+    """Index rule metadata by "<exercise_id>:<question_id>"."""
     rules_map: dict[str, dict] = {}
     for unit in rules_data.get("units", []):
         for exercise in unit.get("exercises", []):
             exercise_id = exercise["exercise_id"]
             for q in exercise.get("questions", []):
                 rules_map[f"{exercise_id}:{q['question_id']}"] = q
+    return rules_map
+
+
+def _store_exercise_image(
+    cursor: sqlite3.Cursor,
+    project_root: Path,
+    exercise_db_id: int,
+    page_num: str,
+    exercise_id: str,
+) -> None:
+    """Store the exercise image blob when the image file exists."""
+    image_path = f"exercises/{page_num}/{exercise_id}.png"
+    image_full_path = project_root / "data" / "content" / image_path
+    if not image_full_path.exists():
+        return
+
+    cursor.execute(
+        """
+        INSERT OR IGNORE INTO exercise_images
+        (exercise_id, image_data)
+        VALUES (?, ?)
+        """,
+        (exercise_db_id, image_full_path.read_bytes()),
+    )
+
+
+def _import_answers(cursor: sqlite3.Cursor, question_db_id: int, question: dict) -> int:
+    """Insert a question's answers and return how many were newly added."""
+    added = 0
+    for answer in question.get("answers", []):
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO question_answers
+            (question_id, short_answer, full_answer)
+            VALUES (?, ?, ?)
+            """,
+            (question_db_id, answer["short_answer"], answer["full_answer"]),
+        )
+        if cursor.lastrowid:
+            added += 1
+    return added
+
+
+def _import_questions(
+    cursor: sqlite3.Cursor,
+    exercise_db_id: int,
+    exercise: dict,
+    exercise_id: str,
+    rules_map: dict[str, dict],
+) -> tuple[int, int]:
+    """Import one exercise's questions, returning (questions, answers) added."""
+    questions_imported = 0
+    answers_imported = 0
+
+    for idx, question in enumerate(exercise.get("questions", [])):
+        question_id = question["question_id"]
+        is_open_ended = question.get("is_open_ended", False)
+        rule_info = rules_map.get(f"{exercise_id}:{question_id}", {})
+
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO questions
+            (exercise_id, question_id, is_open_ended,
+             section_letter, rule, display_order)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                exercise_db_id,
+                question_id,
+                int(is_open_ended),
+                rule_info.get("section_letter"),
+                rule_info.get("rule"),
+                idx,
+            ),
+        )
+
+        question_db_id = cursor.lastrowid
+        if not question_db_id:
+            question_db_id = cursor.execute(
+                "SELECT id FROM questions WHERE exercise_id = ? AND question_id = ?",
+                (exercise_db_id, question_id),
+            ).fetchone()[0]
+        else:
+            questions_imported += 1
+
+        if not is_open_ended:
+            answers_imported += _import_answers(cursor, question_db_id, question)
+
+    return questions_imported, answers_imported
+
+
+def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
+    """Import exercises and questions from answers_full.json and rules.json."""
+    project_root = get_project_root()
+    answers_data, rules_data = _load_import_metadata(project_root)
+    rules_map = _build_rules_map(rules_data)
 
     cursor = conn.cursor()
     exercises_imported = 0
@@ -140,71 +239,14 @@ def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
             else:
                 exercises_imported += 1
 
-            # Store image blob if file exists
-            image_path = f"exercises/{page_num}/{exercise_id}.png"
-            image_full_path = project_root / "data" / "content" / image_path
-            if image_full_path.exists():
-                image_data = image_full_path.read_bytes()
-                cursor.execute(
-                    """
-                    INSERT OR IGNORE INTO exercise_images
-                    (exercise_id, image_data)
-                    VALUES (?, ?)
-                    """,
-                    (exercise_db_id, image_data),
-                )
-
-            for idx, question in enumerate(exercise.get("questions", [])):
-                question_id = question["question_id"]
-                is_open_ended = question.get("is_open_ended", False)
-
-                rule_info = rules_map.get(f"{exercise_id}:{question_id}", {})
-                section_letter = rule_info.get("section_letter")
-                rule = rule_info.get("rule")
-
-                cursor.execute(
-                    """
-                    INSERT OR IGNORE INTO questions
-                    (exercise_id, question_id, is_open_ended,
-                     section_letter, rule, display_order)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        exercise_db_id,
-                        question_id,
-                        int(is_open_ended),
-                        section_letter,
-                        rule,
-                        idx,
-                    ),
-                )
-
-                question_db_id = cursor.lastrowid
-                if not question_db_id:
-                    question_db_id = cursor.execute(
-                        "SELECT id FROM questions "
-                        "WHERE exercise_id = ? AND question_id = ?",
-                        (exercise_db_id, question_id),
-                    ).fetchone()[0]
-                else:
-                    questions_imported += 1
-
-                if not is_open_ended:
-                    for answer in question.get("answers", []):
-                        cursor.execute(
-                            """
-                            INSERT OR IGNORE INTO question_answers
-                            (question_id, short_answer, full_answer)
-                            VALUES (?, ?, ?)
-                            """,
-                            (
-                                question_db_id,
-                                answer["short_answer"],
-                                answer["full_answer"],
-                            ),
-                        )
-                        if cursor.lastrowid:
-                            answers_imported += 1
+            _store_exercise_image(
+                cursor, project_root, exercise_db_id, page_num, exercise_id
+            )
+            q_added, a_added = _import_questions(
+                cursor, exercise_db_id, exercise, exercise_id, rules_map
+            )
+            questions_imported += q_added
+            answers_imported += a_added
 
     conn.commit()
     print(

@@ -17,8 +17,8 @@ def get_db_path() -> Path:
 
 
 # How many offending rows to list before collapsing into a "... and N more" line.
+MAX_LISTED_DEFAULT = 3
 MAX_LISTED_IMAGES = 5
-MAX_LISTED_EXERCISES = 3
 MAX_LISTED_QUESTIONS = 10
 
 
@@ -383,172 +383,155 @@ class DatabaseValidator:
 
         return results
 
+    _REFERENTIAL_CHECKS = (
+        ("invalid_exercise_unit_ids", "Invalid exercise unit_ids"),
+        ("invalid_question_exercise_ids", "Invalid question exercise_ids"),
+        ("invalid_unit_topic_unit_ids", "Invalid unit_topic unit_ids"),
+        ("invalid_unit_topic_topic_ids", "Invalid unit_topic topic_ids"),
+        ("invalid_topic_parents", "Invalid topic parents"),
+        ("invalid_question_answers", "Invalid question_answers"),
+        ("invalid_exercise_images", "Invalid exercise_images"),
+    )
+
+    @staticmethod
+    def _print_issue(
+        label: str,
+        items: list,
+        *,
+        warn: bool = False,
+        sample: int = 0,
+        show_remainder: bool = False,
+    ) -> int:
+        """Print one issue line plus up to ``sample`` rows; return the row count.
+
+        Args:
+            label: Human-readable name of the issue.
+            items: The offending rows; nothing is printed when empty.
+            warn: Report as a warning rather than a failure.
+            sample: How many offending rows to list underneath.
+            show_remainder: Add a "... and N more" line when rows were elided.
+
+        Returns:
+            The number of offending rows.
+        """
+        if not items:
+            return 0
+
+        count = len(items)
+        marker = "[[WARN]]" if warn else "[FAIL]"
+        print(f"  {marker} {label}: {count}")
+        for item in items[:sample]:
+            print(f"    - {item}")
+        if show_remainder and count > sample:
+            print(f"    ... and {count - sample} more")
+        return count
+
+    def _report_image_blobs(self, img: dict) -> int:
+        """Print the image BLOB section and return the error count."""
+        print("\n[IMG] EXERCISE IMAGE BLOBS")
+        if img["status"] == "ok":
+            print(f"  [OK] Exercises in DB: {img['db_exercises']}")
+            print(f"  [OK] Images in DB: {img['images_in_db']}")
+            print(f"  [OK] Total image size: {img['total_image_size_kb']:.1f} KB")
+            return 0
+
+        print(f"  [FAIL] Exercises in DB: {img['db_exercises']}")
+        print(f"  [FAIL] Images in DB: {img['images_in_db']}")
+
+        errors = 0
+        for key, title, remainder in (
+            ("missing_images", "Missing Images", True),
+            ("empty_images", "Empty Images", False),
+        ):
+            items = img.get(key)
+            if not items:
+                continue
+            count = len(items)
+            print(f"\n  {title} ({count}):")
+            for item in items[:MAX_LISTED_IMAGES]:
+                print(f"    - {item}")
+            if remainder and count > MAX_LISTED_IMAGES:
+                print(f"    ... and {count - MAX_LISTED_IMAGES} more")
+            errors += count
+        return errors
+
+    def _report_duplicates(self, dup: dict) -> int:
+        """Print the duplicate-detection section and return the error count."""
+        print("\n[DUP] DUPLICATE DETECTION")
+        if dup["status"] == "ok":
+            print("  [OK] No duplicates found")
+            return 0
+
+        errors = self._print_issue(
+            "Duplicate exercise_ids", dup["duplicate_exercise_ids"]
+        )
+        errors += self._print_issue(
+            "Duplicate question_ids",
+            dup["duplicate_question_ids"],
+            sample=MAX_LISTED_DEFAULT,
+        )
+        errors += self._print_issue(
+            "Duplicate unit_numbers", dup["duplicate_unit_numbers"]
+        )
+        errors += self._print_issue(
+            "Duplicate topic names", dup["duplicate_topic_names"]
+        )
+        return errors
+
+    def _report_orphaned(self, orphan: dict) -> tuple[int, int]:
+        """Print the orphaned-data section and return (errors, warnings)."""
+        print("\n[DATA] ORPHANED/MISSING DATA")
+        if orphan["status"] == "ok":
+            print("  [OK] No orphaned data found")
+            return 0, 0
+
+        errors = self._print_issue(
+            "Exercises without questions",
+            orphan["exercises_without_questions"],
+            sample=MAX_LISTED_DEFAULT,
+            show_remainder=True,
+        )
+        errors += self._print_issue(
+            "Questions without answers",
+            orphan["questions_without_answers"],
+            sample=MAX_LISTED_QUESTIONS,
+            show_remainder=True,
+        )
+        warnings = self._print_issue(
+            "Units without exercises",
+            orphan["units_without_exercises"],
+            warn=True,
+            sample=MAX_LISTED_DEFAULT,
+        )
+        warnings += self._print_issue(
+            "Topics without units", orphan["topics_without_units"], warn=True
+        )
+        return errors, warnings
+
+    def _report_referential(self, ref: dict) -> int:
+        """Print the referential-integrity section and return the error count."""
+        print("\n[REF] REFERENTIAL INTEGRITY")
+        if ref["status"] == "ok":
+            print("  [OK] All foreign keys valid")
+            return 0
+
+        return sum(
+            self._print_issue(label, ref.get(key) or [])
+            for key, label in self._REFERENTIAL_CHECKS
+        )
+
     def print_report(self, results: dict) -> int:
         """Print validation report and return exit code."""
         print("\n" + "=" * 60)
         print("DATABASE VALIDATION REPORT")
         print("=" * 60)
 
-        total_errors = 0
-        total_warnings = 0
+        total_errors = self._report_image_blobs(results["image_blobs"])
+        total_errors += self._report_duplicates(results["duplicates"])
+        orphan_errors, total_warnings = self._report_orphaned(results["orphaned"])
+        total_errors += orphan_errors
+        total_errors += self._report_referential(results["referential"])
 
-        # Image BLOBs
-        print("\n[IMG] EXERCISE IMAGE BLOBS")
-        img = results["image_blobs"]
-        if img["status"] == "ok":
-            print(f"  [OK] Exercises in DB: {img['db_exercises']}")
-            print(f"  [OK] Images in DB: {img['images_in_db']}")
-            print(f"  [OK] Total image size: {img['total_image_size_kb']:.1f} KB")
-        else:
-            print(f"  [FAIL] Exercises in DB: {img['db_exercises']}")
-            print(f"  [FAIL] Images in DB: {img['images_in_db']}")
-            if img["missing_images"]:
-                print(f"\n  Missing Images ({len(img['missing_images'])}):")
-                for item in img["missing_images"][:MAX_LISTED_IMAGES]:
-                    print(f"    - {item}")
-                if len(img["missing_images"]) > MAX_LISTED_IMAGES:
-                    extra = len(img["missing_images"]) - MAX_LISTED_IMAGES
-                    print(f"    ... and {extra} more")
-                total_errors += len(img["missing_images"])
-            if img["empty_images"]:
-                print(f"\n  Empty Images ({len(img['empty_images'])}):")
-                for item in img["empty_images"][:5]:
-                    print(f"    - {item}")
-                total_errors += len(img["empty_images"])
-
-        # Duplicates
-        print("\n[DUP] DUPLICATE DETECTION")
-        dup = results["duplicates"]
-        if dup["status"] == "ok":
-            print("  [OK] No duplicates found")
-        else:
-            if dup["duplicate_exercise_ids"]:
-                print(
-                    "  [FAIL] Duplicate exercise_ids: "
-                    f"{len(dup['duplicate_exercise_ids'])}"
-                )
-                total_errors += len(dup["duplicate_exercise_ids"])
-            if dup["duplicate_question_ids"]:
-                print(
-                    "  [FAIL] Duplicate question_ids: "
-                    f"{len(dup['duplicate_question_ids'])}"
-                )
-                for item in dup["duplicate_question_ids"][:3]:
-                    print(f"    - {item}")
-                total_errors += len(dup["duplicate_question_ids"])
-            if dup["duplicate_unit_numbers"]:
-                print(
-                    "  [FAIL] Duplicate unit_numbers: "
-                    f"{len(dup['duplicate_unit_numbers'])}"
-                )
-                total_errors += len(dup["duplicate_unit_numbers"])
-            if dup["duplicate_topic_names"]:
-                print(
-                    "  [FAIL] Duplicate topic names: "
-                    f"{len(dup['duplicate_topic_names'])}"
-                )
-                total_errors += len(dup["duplicate_topic_names"])
-
-        # Orphaned Data
-        print("\n[DATA] ORPHANED/MISSING DATA")
-        orphan = results["orphaned"]
-        if orphan["status"] == "ok":
-            print("  [OK] No orphaned data found")
-        else:
-            if orphan["exercises_without_questions"]:
-                print(
-                    "  [FAIL] Exercises without questions: "
-                    f"{len(orphan['exercises_without_questions'])}"
-                )
-                for item in orphan["exercises_without_questions"][
-                    :MAX_LISTED_EXERCISES
-                ]:
-                    print(f"    - {item}")
-                if len(orphan["exercises_without_questions"]) > MAX_LISTED_EXERCISES:
-                    extra = (
-                        len(orphan["exercises_without_questions"])
-                        - MAX_LISTED_EXERCISES
-                    )
-                    print(f"    ... and {extra} more")
-                total_errors += len(orphan["exercises_without_questions"])
-            if orphan["questions_without_answers"]:
-                print(
-                    "  [FAIL] Questions without answers: "
-                    f"{len(orphan['questions_without_answers'])}"
-                )
-                for item in orphan["questions_without_answers"][:MAX_LISTED_QUESTIONS]:
-                    print(f"    - {item}")
-                if len(orphan["questions_without_answers"]) > MAX_LISTED_QUESTIONS:
-                    extra = (
-                        len(orphan["questions_without_answers"]) - MAX_LISTED_QUESTIONS
-                    )
-                    print(f"    ... and {extra} more")
-                total_errors += len(orphan["questions_without_answers"])
-            if orphan["units_without_exercises"]:
-                print(
-                    "  [[WARN]] Units without exercises: "
-                    f"{len(orphan['units_without_exercises'])}"
-                )
-                for item in orphan["units_without_exercises"][:3]:
-                    print(f"    - {item}")
-                total_warnings += len(orphan["units_without_exercises"])
-            if orphan["topics_without_units"]:
-                print(
-                    "  [[WARN]] Topics without units: "
-                    f"{len(orphan['topics_without_units'])}"
-                )
-                total_warnings += len(orphan["topics_without_units"])
-
-        # Referential Integrity
-        print("\n[REF] REFERENTIAL INTEGRITY")
-        ref = results["referential"]
-        if ref["status"] == "ok":
-            print("  [OK] All foreign keys valid")
-        else:
-            if ref["invalid_exercise_unit_ids"]:
-                print(
-                    "  [FAIL] Invalid exercise unit_ids: "
-                    f"{len(ref['invalid_exercise_unit_ids'])}"
-                )
-                total_errors += len(ref["invalid_exercise_unit_ids"])
-            if ref["invalid_question_exercise_ids"]:
-                print(
-                    "  [FAIL] Invalid question exercise_ids: "
-                    f"{len(ref['invalid_question_exercise_ids'])}"
-                )
-                total_errors += len(ref["invalid_question_exercise_ids"])
-            if ref["invalid_unit_topic_unit_ids"]:
-                print(
-                    "  [FAIL] Invalid unit_topic unit_ids: "
-                    f"{len(ref['invalid_unit_topic_unit_ids'])}"
-                )
-                total_errors += len(ref["invalid_unit_topic_unit_ids"])
-            if ref["invalid_unit_topic_topic_ids"]:
-                print(
-                    "  [FAIL] Invalid unit_topic topic_ids: "
-                    f"{len(ref['invalid_unit_topic_topic_ids'])}"
-                )
-                total_errors += len(ref["invalid_unit_topic_topic_ids"])
-            if ref["invalid_topic_parents"]:
-                print(
-                    "  [FAIL] Invalid topic parents: "
-                    f"{len(ref['invalid_topic_parents'])}"
-                )
-                total_errors += len(ref["invalid_topic_parents"])
-            if ref.get("invalid_question_answers"):
-                print(
-                    "  [FAIL] Invalid question_answers: "
-                    f"{len(ref['invalid_question_answers'])}"
-                )
-                total_errors += len(ref["invalid_question_answers"])
-            if ref.get("invalid_exercise_images"):
-                print(
-                    "  [FAIL] Invalid exercise_images: "
-                    f"{len(ref['invalid_exercise_images'])}"
-                )
-                total_errors += len(ref["invalid_exercise_images"])
-
-        # Summary
         print("\n" + "=" * 60)
         if total_errors == 0 and total_warnings == 0:
             print("[OK] ALL VALIDATIONS PASSED")

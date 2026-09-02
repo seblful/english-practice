@@ -161,7 +161,7 @@ class TestRulesExtractor:
             mock_proc.return_value = ExtractedExerciseRules(
                 exercise_id="1.1", questions=[]
             )
-            result = await extractor._process_unit(
+            result = await extractor._process_unit_rules(
                 {"unit_id": "1", "exercises": [{"exercise_id": "1.1"}]},
                 {},
             )
