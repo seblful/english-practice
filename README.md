@@ -8,168 +8,135 @@ Two front ends, one book:
 
 | | |
 | :-- | :-- |
-| **Telegram bot** (this project) | Sends the exercise, grades the answer, and answers follow-up questions about it. Approves users. |
-| **[Android app](mobile/README.md)** | The same loop on a phone, with the chat taken out: no message history, but a progress screen and per-provider settings. |
+| **[Telegram bot](packages/bot/README.md)** | Sends the exercise, grades the answer, and answers follow-up questions about it. Approves users. |
+| **[Android app](packages/app/README.md)** | The same loop on a phone, with the chat taken out: no message history, but a progress screen and per-provider settings. |
 
 Both grade with the same prompt and the same rules, because those live in
-**[`practice-core`](core/README.md)** — the domain both import. Nothing that
+**[`practice-core`](packages/core/README.md)**, which both import. Nothing that
 decides whether an answer is correct is written twice.
 
-```
-core/           practice-core: models, exercise queries, the grading prompt
-  │
-  ├── src/english_practice/   the bot: Telegram, LangChain, the PDF pipeline
-  └── mobile/                 the app: Flet, httpx, progress, settings
-```
+## The repository
 
-`practice-core` may only use what both a container and an APK can carry, which
-is why it depends on `pydantic` and `jinja2` and nothing else. The bot's
-LangChain stack and the app's httpx client sit on either side of it and never
-meet.
-
-## How the bot works
+It is a uv workspace with no package at the root. Every deliverable is a
+package under `packages/`, and none of them is privileged by where it sits.
 
 ```
-Telegram update
-      │
-      ▼
-bot/handlers/*        one module per feature; access control is a decorator
-      │
-      ├── repository  async SQLite reads (content + who may use the bot)
-      ├── agents      LLM calls: grade an answer, explain an exercise
-      ├── states      what each user is working on, in memory
-      └── formatter   domain objects → Telegram HTML
+english-practice/
+├── pyproject.toml          the workspace, and the lint rules every package extends
+├── packages/
+│   ├── core/               practice-core         the shared domain
+│   ├── runtime/            practice-runtime      settings, logging, the LLM client
+│   ├── bot/                english-practice-bot  the Telegram bot
+│   ├── app/                english-practice-app  the Flet Android app
+│   └── extraction/         ...-extraction        the offline content pipeline
+├── data/                   the book, what was extracted from it, the database
+└── scripts/                thin entry points: bot.py, content.py
 ```
 
-Layers only depend downwards. Handlers never construct a repository or an LLM
-client: `bot/app.py` builds one of each at startup and hands them to every
-handler through the context (`bot/context.py`), which is what makes the
-handlers testable without patching module globals.
+Dependencies point one way only:
 
-| Module | Responsibility |
-| :----- | :------------- |
-| `bot/app.py` | Builds the application, wires dependencies, starts polling |
-| `bot/context.py` | `BotDependencies` and the `BotContext` handlers receive |
-| `bot/handlers/` | `access` (authorization + the handler decorator), `menu`, `exercises`, `answers`, `admin`, `errors` |
-| `bot/callbacks.py` | Typed inline-button payloads, encode and parse in one place |
-| `bot/states.py` | `SessionStore`: the active exercise per user, with idle eviction |
-| `bot/formatter.py` | Message text, with HTML escaping |
-| `bot/keyboards.py` | Inline keyboards built from domain objects |
-| `repositories/database.py` | Who may use the bot; content queries are inherited from `practice-core` |
-| `packaging.py` | Re-encodes the exercise images for the Android bundle |
-| `services/agent_service.py` | Owns the chat-model client and the assistant transcripts |
-| `agents/` | One class per prompt: `evaluate`, `assistant`, plus the extraction agents |
-| `models/` | `book` (content), `auth`, `agents` (LLM I/O), `extraction` |
-| `extractors/` | The offline pipeline that turns the PDF into content |
+```
+                  practice-core          pydantic, jinja2
+                  ╱            ╲
+     practice-runtime           english-practice-app
+     ╱            ╲                    flet, httpx
+english-        english-
+practice-bot    practice-extraction
+ telegram        opencv, pymupdf, mistral
+```
 
-## Running the bot
+Two boundaries are the point of this shape:
+
+- **`practice-core` may only use what a container and an APK can both carry.**
+  It ships inside the bot's image *and* inside the APK, so its dependency list
+  is `pydantic` and `jinja2` — no HTTP client, no LLM SDK, no settings library,
+  nothing with a compiled extension Flet's package index does not prebuild.
+- **The bot's image installs no computer-vision stack.** Reading the PDF,
+  finding the exercises on a page and OCR-ing the grammar are the content
+  pipeline's job, in its own package, run on a workstation. The bot resolves
+  `--package english-practice-bot` and never sees OpenCV, PyMuPDF or Mistral.
+
+`practice-runtime` sits between them: what the bot and the pipeline both need
+and neither should own — how settings are read, how logs are written, how a
+chat-model client is built, and what an LLM call with a prompt and a typed
+result looks like.
+
+## Getting started
 
 ```bash
-uv sync                          # install
-uv run english-practice check    # verify the configuration
+uv sync --all-packages           # everything except the app
+uv run english-practice check    # what the bot still needs configured
 uv run english-practice bot      # run until Ctrl+C
 ```
 
-`uv run main.py` still works as a shim. The other commands are
-`english-practice info` (version, environment, provider, database path) and
-`english-practice mobile-content` (build the compact database the Android app
-bundles — see [mobile/README.md](mobile/README.md)).
-
-### Configuration
-
-Settings come from the environment; `.env` and `.env.<environment>` only seed
-it. Precedence, highest first: real environment variables, `.env.<environment>`,
-`.env` — so a deployment that exports `TELEGRAM_BOT_TOKEN` is never overridden
-by a stale checked-out file. Set `APP__ENVIRONMENT` (default `development`) to
-choose which `.env.<environment>` is loaded; a missing file is ignored.
-
-```env
-TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
-TELEGRAM_ADMIN_USER_ID=your_telegram_user_id   # required; approves new users
-LLM__PROVIDER=dashscope                        # dashscope | gemini | openrouter
-DASHSCOPE_API_KEY=your_key                     # key for the chosen provider
-LANGSMITH_API_KEY=your_key                     # optional, for tracing
-LANGSMITH_TRACING=false
-PATHS_DATABASE_PATH=data/content/english_practice.db
-```
-
-`english-practice check` reports every missing setting at once, and the bot
-refuses to start rather than failing on the first user who says hello.
-
-Other groups: `BOT_*` (history cap, session TTL), `LLM_REQUEST_TIMEOUT`,
-`LLM_MAX_RETRIES`, `LOGGING__*`, `OCR_*` and `IMAGES_*`/`BOOK_*` for the
-extraction pipeline. API keys are held as `SecretStr`, so they do not appear in
-logs or reprs.
-
-> Note: settings groups are prefixed (`PATHS_`, `OCR_`, `BOOK_`, `IMAGES_`,
-> `LLM_`). `DATABASE_PATH` and a bare `API_KEY` are still accepted as legacy
-> aliases. `.env` files cannot carry inline comments — `KEY=value  # comment`
-> makes the comment part of the value.
-
-### Access control
-
-Every new user is recorded as pending, and the admin named by
-`TELEGRAM_ADMIN_USER_ID` gets an approve/reject message. `/pending` lists the
-queue. A rejected user re-applies simply by messaging again. The bot refuses to
-start without that variable, since nobody could then ever be approved.
-
-### Bot commands
-
-| Command | Description |
-| :------ | :---------- |
-| `/start` | Welcome message and the exercise menu |
-| `/exercise` | Draw another exercise |
-| `/rule` | Toggle whether the grammar rule follows each answer |
-| `/help` | What the bot does, and its commands |
-| `/pending` | Admin only: review access requests |
-
-## Database
-
-SQLite, with exercise images stored as BLOBs.
+The app has its own environment, because it resolves a much smaller dependency
+set:
 
 ```bash
-uv run scripts/database/populate.py --force   # rebuild the configured PATHS_DATABASE_PATH
-uv run scripts/database/validate.py           # check that same database
+cd packages/app && uv sync && uv run flet run src/main.py
 ```
 
-`populate.py` rebuilds from scratch, so it refuses to run when the database
-already exists; `--force` deletes it first.
+Settings come from the environment; `.env` and `.env.<environment>` only seed
+it. See [packages/bot/README.md](packages/bot/README.md) for the bot's
+variables and [`.env.example`](.env.example) for the full list.
 
-The seeded database holds 145 units, 433 exercises, 3,025 questions and 16
-topics. Schema: `scripts/database/schema.sql`.
+## The database
 
-**Core tables:** `units`, `exercises`, `exercise_images`, `questions`,
-`question_answers`, `topics`, `unit_topics`, and `authorized_users` for access
-control.
+SQLite, with the exercise images stored as BLOBs. The schema is
+`packages/core/src/practice_core/schema/content.sql`, shipped with the package
+that queries it — so the pipeline, the bundler, both front ends and all five
+test suites build from one text.
+
+```bash
+uv run practice-content populate --force   # rebuild PATHS_DATABASE_PATH
+uv run practice-content validate           # check that same database
+uv run practice-content bundle             # the compact copy the APK ships
+```
+
+`populate` rebuilds from scratch, so it refuses to run when the database
+already exists; `--force` deletes it first. The seeded database holds 145
+units, 433 exercises, 3,025 questions and 16 topics.
+
+The bot's own `authorized_users` table is not in that schema. It belongs to the
+bot, and the bot creates it at startup.
 
 ## Extracting content from the PDF
 
-The pipeline that produced the database, in order:
+The pipeline that produced the database, in order — every stage resumable:
 
 ```bash
-uv run scripts/extract.py cut-pdf [contents|units|answers]
-uv run scripts/extract.py separate-page-images
-uv run scripts/extract.py ocr-grammar-images     # needs OCR_API_KEY (Mistral)
-uv run scripts/extract.py organize-exercises
-uv run scripts/extract.py extract-answers        # LLM
-uv run scripts/extract.py extract-rules          # LLM
+uv run practice-content check                  # what a full run is missing
+uv run practice-content cut-pdf units
+uv run practice-content separate-page-images
+uv run practice-content ocr-grammar-images     # needs OCR_API_KEY (Mistral)
+uv run practice-content organize-exercises
+uv run practice-content extract-answers        # LLM
+uv run practice-content extract-rules          # LLM
+uv run practice-content populate
 ```
+
+See [packages/extraction/README.md](packages/extraction/README.md) for what
+each stage reads and writes.
 
 ## Development
 
 Requires Python 3.13+, [uv](https://docs.astral.sh/uv/), and SQLite (built in).
 
 ```bash
-uv run pytest                       # tests + coverage gate (95%, src and scripts)
-uv run ruff check .                 # lint
-uv run ruff format .                # format
-uv run ty check                     # type check
-uv run pre-commit run --all-files   # everything the hooks run
+uv sync --all-packages
+uv run pre-commit run --all-files     # everything the hooks run
+
+# Per package — each has its own coverage gate at 95%.
+uv run --directory packages/core       pytest
+uv run --directory packages/runtime    pytest
+uv run --directory packages/bot        pytest
+uv run --directory packages/extraction pytest
+uv run --directory packages/app        pytest
 ```
 
-Tests mirror the layers: handler tests drive the real `SessionStore` with a
-mocked repository and agent service, and the repository tests run against a
-real SQLite file built from `schema.sql`.
+The five packages are checked from their own directories because they resolve
+different dependency sets: the app's Flet stack is not in the workspace
+environment at all, and the pipeline's OpenCV is not in the bot's.
 
 ### Docker
 
@@ -178,8 +145,8 @@ docker build -t english-practice-bot .
 docker run --rm --env-file .env -v .\data:/app/data -v .\logs:/app/logs english-practice-bot
 ```
 
-Or `docker compose up -d`. See [docs/deployment.md](docs/deployment.md) for a
-VPS walkthrough.
+Or `docker compose up -d`. The image is the bot only. See
+[docs/deployment.md](docs/deployment.md) for a VPS walkthrough.
 
 ## Data sources
 
