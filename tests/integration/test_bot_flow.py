@@ -71,7 +71,7 @@ def application(
 ) -> BotApplication:
     """The real application, wired to the seeded database."""
     settings = Settings(
-        telegram=TelegramSettings(bot_token=SecretStr("123:abc")),
+        telegram=TelegramSettings(bot_token=SecretStr("123:abc"), admin_user_id=1),
         llm=LLMSettings(
             provider="dashscope",
             dashscope=DashscopeSettings(api_key=SecretStr("key")),

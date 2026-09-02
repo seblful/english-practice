@@ -60,7 +60,7 @@ choose which `.env.<environment>` is loaded; a missing file is ignored.
 
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
-TELEGRAM_ADMIN_USER_ID=your_telegram_user_id   # optional; enables approvals
+TELEGRAM_ADMIN_USER_ID=your_telegram_user_id   # required; approves new users
 LLM__PROVIDER=dashscope                        # dashscope | gemini | openrouter
 DASHSCOPE_API_KEY=your_key                     # key for the chosen provider
 LANGSMITH_API_KEY=your_key                     # optional, for tracing
@@ -83,10 +83,10 @@ logs or reprs.
 
 ### Access control
 
-Setting `TELEGRAM_ADMIN_USER_ID` puts the bot behind approval: a new user is
-recorded as pending and the admin gets an approve/reject message. `/pending`
-lists the queue. A rejected user re-applies simply by messaging again. Without
-that variable the bot is open to everyone.
+Every new user is recorded as pending, and the admin named by
+`TELEGRAM_ADMIN_USER_ID` gets an approve/reject message. `/pending` lists the
+queue. A rejected user re-applies simply by messaging again. The bot refuses to
+start without that variable, since nobody could then ever be approved.
 
 ### Bot commands
 

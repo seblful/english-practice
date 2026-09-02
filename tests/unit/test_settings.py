@@ -113,13 +113,8 @@ class TestActiveApiKey:
         assert config.active_api_key == expected
 
     def test_none_when_selected_provider_has_no_key(self) -> None:
-        # Each group reads the process environment, so the unkeyed provider is
-        # passed in explicitly rather than left to its default factory.
-        config = LLMSettings(
-            provider="gemini",
-            gemini=GeminiSettings(api_key=None),
-            dashscope=DashscopeSettings(api_key=SecretStr("dash-key")),
-        )
+        config = LLMSettings(provider="gemini")
+
         assert config.active_api_key is None
 
 

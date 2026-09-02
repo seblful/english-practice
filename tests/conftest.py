@@ -16,6 +16,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 import structlog
+from pydantic import AliasChoices, BaseModel
+from pydantic_settings import BaseSettings
 from telegram import CallbackQuery, Message, Update, User
 
 from english_practice.bot.context import BotContext, BotDependencies
@@ -55,6 +57,54 @@ def extraction_paths(root: Path) -> PathSettings:
     ):
         directory.mkdir(parents=True, exist_ok=True)
     return paths
+
+
+def _settings_env_names() -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return the env-var prefixes and exact names the settings groups read.
+
+    Derived from the model rather than hand-listed, so a new group cannot be
+    forgotten here and start leaking the developer's environment into tests.
+    """
+    prefixes: list[str] = []
+    names: list[str] = []
+
+    def walk(model: type[BaseModel]) -> None:
+        for field_name, field in model.model_fields.items():
+            alias = field.validation_alias
+            if isinstance(alias, AliasChoices):
+                names.extend(str(choice).upper() for choice in alias.choices)
+
+            group = field.annotation
+            if not isinstance(group, type) or not issubclass(group, BaseModel):
+                continue
+            if issubclass(group, BaseSettings):
+                prefixes.append(group.model_config.get("env_prefix", "").upper())
+            else:
+                # Plain models are populated through the nested delimiter.
+                prefixes.append(f"{field_name.upper()}__")
+            # The provider groups hang off LLMSettings, not off Settings.
+            walk(group)
+
+    walk(Settings)
+    return tuple(prefix for prefix in prefixes if prefix), tuple(names)
+
+
+ENV_PREFIXES, ENV_ALIASES = _settings_env_names()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_settings_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hide the developer's own environment from every test.
+
+    Each settings group is its own ``BaseSettings`` reading ``os.environ``
+    through its prefix, so ``Settings(_env_file=...)`` does not isolate them --
+    an exported ``GEMINI_PROXY`` or ``PATHS_DATABASE_PATH`` would otherwise
+    decide the outcome of a test that never mentions it.
+    """
+    for key in list(os.environ):
+        upper = key.upper()
+        if upper.startswith(ENV_PREFIXES) or upper in ENV_ALIASES:
+            monkeypatch.delenv(key, raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -167,11 +217,12 @@ def tmp_env_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def test_settings(tmp_env_file: Path, monkeypatch: pytest.MonkeyPatch) -> Settings:
-    """Settings isolated from the host environment."""
-    for key in list(os.environ):
-        if key.startswith(("APP__", "LOGGING__")):
-            monkeypatch.delenv(key, raising=False)
+def test_settings(tmp_env_file: Path) -> Settings:
+    """Settings isolated from the host environment.
+
+    The isolation itself is autouse; this only points them at a scratch
+    ``.env``.
+    """
     return Settings(_env_file=tmp_env_file)
 
 
