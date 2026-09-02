@@ -106,9 +106,10 @@ class TestConstruction:
 class TestEvaluateAnswer:
     """Tests for grading."""
 
-    async def test_splits_answers_into_the_prompt_lists(
+    async def test_hands_the_answers_to_the_agent_unchanged(
         self, stubbed: Stubbed, answers: list[QuestionAnswer]
     ) -> None:
+        """``answer_idx`` indexes this sequence, so it must arrive intact."""
         await stubbed.service.evaluate_answer(
             image_data=b"png",
             question_number="1",
@@ -120,11 +121,7 @@ class TestEvaluateAnswer:
         )
 
         kwargs = stubbed.graded()
-        assert kwargs["short_answers"] == ["is doing", "'s doing"]
-        assert kwargs["full_answers"] == [
-            "He **is doing** his homework.",
-            "He **'s doing** his homework.",
-        ]
+        assert kwargs["answers"] == answers
         assert kwargs["rule"] == "a rule"
 
     async def test_returns_the_verdict(
@@ -153,7 +150,7 @@ class TestEvaluateAnswer:
         )
 
         kwargs = stubbed.graded()
-        assert kwargs["short_answers"] == []
+        assert kwargs["answers"] == []
         assert kwargs["is_open_ended"] is True
 
 

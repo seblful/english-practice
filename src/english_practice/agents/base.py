@@ -5,7 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, ClassVar, TypeVar, cast
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, StrictUndefined, UndefinedError
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
@@ -36,6 +36,10 @@ def _prompt_env(prompts_dir: Path) -> Environment:
         autoescape=False,
         trim_blocks=True,
         lstrip_blocks=True,
+        # Without this a template variable the context does not supply renders
+        # as empty text, so a renamed field silently produces a hollow prompt
+        # that the provider still answers and still charges for.
+        undefined=StrictUndefined,
     )
 
 
@@ -77,7 +81,8 @@ class BaseAgent:
             The rendered prompt.
 
         Raises:
-            ConfigurationError: If the subclass declares no prompt template.
+            ConfigurationError: If the subclass declares no prompt template, or
+                if the template asks for something the context does not carry.
         """
         if not self.PROMPT_TEMPLATE:
             raise ConfigurationError(
@@ -86,20 +91,22 @@ class BaseAgent:
         template = _prompt_env(get_settings().paths.prompts_dir).get_template(
             self.PROMPT_TEMPLATE
         )
-        return template.render(**context.model_dump())
+        try:
+            return template.render(**context.model_dump())
+        except UndefinedError as exc:
+            raise ConfigurationError(
+                f"{self.PROMPT_TEMPLATE} needs a variable that "
+                f"{type(context).__name__} does not provide"
+            ) from exc
 
     @staticmethod
-    def _build_message(
-        prompt: str,
-        image_data: bytes | None = None,
-        mime_type: str = "image/png",
-    ) -> HumanMessage:
+    def _build_message(prompt: str, image_data: bytes | None = None) -> HumanMessage:
         """Build a multimodal user message.
 
         Args:
             prompt: The text prompt.
-            image_data: Optional raw image bytes to attach.
-            mime_type: MIME type of the image.
+            image_data: Optional raw image bytes to attach. Every image in this
+                application is a PNG, from ``exercise_images``.
 
         Returns:
             A message carrying the text and, when given, the inline image.
@@ -111,7 +118,7 @@ class BaseAgent:
             content.append(
                 {
                     "type": "image_url",
-                    "image_url": {"url": f"data:{mime_type};base64,{encoded}"},
+                    "image_url": {"url": f"data:image/png;base64,{encoded}"},
                 }
             )
 
@@ -123,7 +130,6 @@ class BaseAgent:
         prompt: str,
         output_model: type[T],
         image_data: bytes | None = None,
-        mime_type: str = "image/png",
     ) -> T:
         """Invoke the LLM and parse the reply into ``output_model``.
 
@@ -131,7 +137,6 @@ class BaseAgent:
             prompt: The rendered prompt.
             output_model: Pydantic model the provider must fill in.
             image_data: Optional raw image bytes to attach.
-            mime_type: MIME type of the image.
 
         Returns:
             The parsed result.
@@ -140,7 +145,7 @@ class BaseAgent:
             AgentError: If the call fails or the reply cannot be parsed. The
                 provider's own exception is kept as the cause.
         """
-        message = self._build_message(prompt, image_data, mime_type)
+        message = self._build_message(prompt, image_data)
         structured_llm = self.llm.with_structured_output(output_model)
 
         try:

@@ -38,7 +38,7 @@ class TestImageOcrExtractor:
         img = tmp_path / "test.png"
         img.write_bytes(b"fake_image_data")
 
-        result = extractor.encode_image(img)
+        result = extractor._encode_image(img)
         assert result.startswith("data:image/png;base64,")
         assert "ZmFrZV9pbWFnZV9kYXRh" in result
 
@@ -46,7 +46,7 @@ class TestImageOcrExtractor:
         extractor = ImageOcrExtractor(api_key="test")
         img = tmp_path / "test.jpg"
         img.write_bytes(b"data")
-        result = extractor.encode_image(img)
+        result = extractor._encode_image(img)
         assert result.startswith("data:image/jpeg;base64,")
 
     def test_ocr_returns_markdown(self, tmp_path) -> None:

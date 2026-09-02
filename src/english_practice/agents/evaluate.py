@@ -1,8 +1,11 @@
 """Evaluate agent: decides whether the student's answer is correct."""
 
+from collections.abc import Sequence
+
 from english_practice.agents.base import BaseAgent
 from english_practice.agents.tracing import traced
 from english_practice.models.agents import EvaluateAnswerInput, EvaluateAnswerOutput
+from english_practice.models.book import QuestionAnswer
 
 
 class EvaluateAnswerAgent(BaseAgent):
@@ -17,8 +20,7 @@ class EvaluateAnswerAgent(BaseAgent):
         image_data: bytes | None,
         question_number: str,
         user_input: str,
-        short_answers: list[str],
-        full_answers: list[str],
+        answers: Sequence[QuestionAnswer],
         is_open_ended: bool,
         topic_name: str,
         rule: str | None = None,
@@ -29,8 +31,8 @@ class EvaluateAnswerAgent(BaseAgent):
             image_data: Raw exercise image bytes, if the exercise has one.
             question_number: The question number/ID.
             user_input: The student's answer.
-            short_answers: Expected short answers, in display order.
-            full_answers: Expected full sentences, parallel to ``short_answers``.
+            answers: Expected answers in display order; ``answer_idx`` in the
+                result indexes into this sequence.
             is_open_ended: Whether the question allows free-form responses.
             topic_name: The topic name, for context.
             rule: The grammar rule for this question, when known.
@@ -44,8 +46,7 @@ class EvaluateAnswerAgent(BaseAgent):
         context = EvaluateAnswerInput(
             question_number=question_number,
             user_input=user_input,
-            short_answers=short_answers,
-            full_answers=full_answers,
+            answers=list(answers),
             is_open_ended=is_open_ended,
             topic_name=topic_name,
             rule=rule,

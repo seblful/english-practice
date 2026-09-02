@@ -38,7 +38,7 @@ class ImageOcrExtractor:
             self._client = Mistral(api_key=self._api_key)
         return self._client
 
-    def encode_image(self, image_path: Path) -> str:
+    def _encode_image(self, image_path: Path) -> str:
         """Encode an image file to a data URL (base64).
 
         Args:
@@ -67,7 +67,7 @@ class ImageOcrExtractor:
             Extracted text as markdown.
         """
         client = self._get_client()
-        data_url = self.encode_image(image_path)
+        data_url = self._encode_image(image_path)
 
         res = client.ocr.process(
             model=self._model,

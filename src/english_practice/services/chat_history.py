@@ -21,14 +21,12 @@ class ChatHistoryManager:
             max_messages: Newest messages kept per exercise. Must be positive.
         """
         self._max_messages = max(1, max_messages)
-        # exercise_id is None for messages recorded outside an exercise, so it
-        # is part of the key type rather than being coerced away.
-        self._history: dict[int, dict[int | None, list[ChatMessage]]] = {}
+        self._history: dict[int, dict[int, list[ChatMessage]]] = {}
 
     def add_turn(
         self,
         user_id: int,
-        exercise_id: int | None,
+        exercise_id: int,
         role: ChatRole,
         content: str,
     ) -> None:
@@ -45,7 +43,7 @@ class ChatHistoryManager:
         if len(transcript) > self._max_messages:
             del transcript[: -self._max_messages]
 
-    def history(self, user_id: int, exercise_id: int | None) -> list[ChatMessage]:
+    def history(self, user_id: int, exercise_id: int) -> list[ChatMessage]:
         """Return the transcript for one user and exercise.
 
         Args:
@@ -57,7 +55,7 @@ class ChatHistoryManager:
         """
         return list(self._history.get(user_id, {}).get(exercise_id, ()))
 
-    def start_exercise(self, user_id: int, exercise_id: int | None) -> None:
+    def start_exercise(self, user_id: int, exercise_id: int) -> None:
         """Keep only the given exercise's transcript for this user.
 
         Args:

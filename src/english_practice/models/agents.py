@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from english_practice.models.book import QuestionAnswer
+
 ChatRole = Literal["user", "assistant"]
 
 
@@ -12,8 +14,7 @@ class EvaluateAnswerInput(BaseModel):
 
     question_number: str
     user_input: str
-    short_answers: list[str]
-    full_answers: list[str]
+    answers: list[QuestionAnswer]
     is_open_ended: bool
     topic_name: str
     rule: str | None = None
@@ -28,8 +29,8 @@ class EvaluateAnswerOutput(BaseModel):
     answer_idx: list[int] = Field(
         default_factory=list,
         description=(
-            "List of indexes of matched answers in short_answers/full_answers "
-            "arrays. Empty list for open-ended or no match."
+            "List of indexes of matched answers in the answers array. "
+            "Empty list for open-ended or no match."
         ),
     )
 

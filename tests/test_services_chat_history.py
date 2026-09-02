@@ -37,11 +37,11 @@ class TestTranscripts:
 
         assert len(history.history(1, 1)) == 1
 
-    def test_turns_outside_an_exercise_are_kept_apart(self) -> None:
+    def test_exercises_are_kept_apart(self) -> None:
         history = ChatHistoryManager()
-        history.add_turn(1, None, "user", "hello")
+        history.add_turn(1, 7, "user", "hello")
 
-        assert len(history.history(1, None)) == 1
+        assert len(history.history(1, 7)) == 1
         assert history.history(1, 1) == []
 
 

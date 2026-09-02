@@ -9,6 +9,8 @@ from pydantic import BaseModel
 
 from english_practice.agents.base import BaseAgent, _prompt_env
 from english_practice.errors import AgentError, ConfigurationError
+from english_practice.models.agents import EvaluateAnswerInput
+from english_practice.models.book import QuestionAnswer
 from english_practice.settings import get_settings
 
 
@@ -51,10 +53,23 @@ class TestRender:
     """Tests for prompt rendering."""
 
     def test_renders_the_template(self) -> None:
-        result = _TestAgent().render(DummyModel(name="test"))
+        result = _TestAgent().render(
+            EvaluateAnswerInput(
+                question_number="1",
+                user_input="is doing",
+                answers=[QuestionAnswer(short_answer="is doing", full_answer="He is.")],
+                is_open_ended=False,
+                topic_name="Present Tenses",
+            )
+        )
 
-        assert isinstance(result, str)
-        assert result
+        assert "is doing" in result
+        assert "Present Tenses" in result
+
+    def test_a_context_the_template_does_not_fit_is_an_error(self) -> None:
+        """Rendering the wrong model used to yield a hollow prompt, not a failure."""
+        with pytest.raises(ConfigurationError, match=r"evaluate\.j2"):
+            _TestAgent().render(DummyModel(name="test"))
 
     def test_agent_without_a_template_is_a_configuration_error(self) -> None:
         with pytest.raises(ConfigurationError, match="PROMPT_TEMPLATE"):
@@ -76,13 +91,6 @@ class TestBuildMessage:
         assert len(parts) == 2
         encoded = base64.b64encode(b"hi").decode("utf-8")
         assert parts[1]["image_url"]["url"] == f"data:image/png;base64,{encoded}"
-
-    def test_with_custom_mime_type(self) -> None:
-        message = _TestAgent()._build_message(
-            "hello", image_data=b"img", mime_type="image/jpeg"
-        )
-
-        assert "data:image/jpeg;base64," in _parts(message)[1]["image_url"]["url"]
 
 
 class TestInvokeStructured:

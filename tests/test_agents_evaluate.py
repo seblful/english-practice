@@ -6,6 +6,7 @@ import pytest
 
 from english_practice.agents.evaluate import EvaluateAnswerAgent
 from english_practice.models.agents import EvaluateAnswerInput, EvaluateAnswerOutput
+from english_practice.models.book import QuestionAnswer
 
 
 class TestEvaluateAnswerAgent:
@@ -19,8 +20,9 @@ class TestEvaluateAnswerAgent:
         context = EvaluateAnswerInput(
             question_number="1",
             user_input="my answer",
-            short_answers=["a"],
-            full_answers=["b"],
+            answers=[
+                QuestionAnswer(short_answer="a", full_answer="b"),
+            ],
             is_open_ended=False,
             topic_name="Test",
             rule="some rule",
@@ -36,8 +38,9 @@ class TestEvaluateAnswerAgent:
         context = EvaluateAnswerInput(
             question_number="2",
             user_input="answer",
-            short_answers=["a"],
-            full_answers=["b"],
+            answers=[
+                QuestionAnswer(short_answer="a", full_answer="b"),
+            ],
             is_open_ended=False,
             topic_name="Test",
         )
@@ -56,8 +59,7 @@ class TestEvaluateAnswerAgent:
                 image_data=b"img",
                 question_number="1",
                 user_input="test",
-                short_answers=["a"],
-                full_answers=["b"],
+                answers=[QuestionAnswer(short_answer="a", full_answer="b")],
                 is_open_ended=False,
                 topic_name="Test",
                 rule="rule",

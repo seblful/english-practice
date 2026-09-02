@@ -18,6 +18,7 @@ from english_practice.models.agents import (
     RulesContext,
     RulesQuestion,
 )
+from english_practice.models.book import QuestionAnswer
 
 
 class TestEvaluateAnswerInput:
@@ -27,8 +28,9 @@ class TestEvaluateAnswerInput:
         model = EvaluateAnswerInput(
             question_number="1",
             user_input="my answer",
-            short_answers=["a"],
-            full_answers=["b"],
+            answers=[
+                QuestionAnswer(short_answer="a", full_answer="b"),
+            ],
             is_open_ended=False,
             topic_name="Test",
         )
@@ -39,8 +41,9 @@ class TestEvaluateAnswerInput:
         model = EvaluateAnswerInput(
             question_number="2",
             user_input="answer",
-            short_answers=["a"],
-            full_answers=["b"],
+            answers=[
+                QuestionAnswer(short_answer="a", full_answer="b"),
+            ],
             is_open_ended=False,
             topic_name="Test",
             rule="Use present tense",
