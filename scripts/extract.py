@@ -23,11 +23,21 @@ from english_practice.models.constants import (
     START_CONTENT_PAGE,
     START_UNIT_PAGE,
 )
-from english_practice.settings import settings
+from english_practice.settings import get_settings, secret_value
 
 logger = get_logger(__name__)
 
 app = typer.Typer()
+
+# This is a script entry point, so reading settings at import time is fine; the
+# library modules all go through get_settings() at call time instead.
+settings = get_settings()
+
+
+@app.callback()
+def prepare() -> None:
+    """Create the source and content directories the pipeline writes into."""
+    settings.paths.create_directories()
 
 
 class SectionType(StrEnum):
@@ -98,7 +108,7 @@ def separate_page_images() -> None:
 def ocr_grammar_images() -> None:
     """Run OCR on grammar page images; save .md to data/grammar. Skips existing."""
     extractor = ImageOcrExtractor(
-        api_key=settings.ocr.api_key,
+        api_key=secret_value(settings.ocr.api_key),
         model=settings.ocr.model,
     )
     settings.paths.grammar_md_dir.mkdir(parents=True, exist_ok=True)
@@ -122,7 +132,11 @@ def organize_exercises() -> None:
         file_path=settings.paths.exercises_pages_dir,
         output_dir=settings.paths.exercises_dir,
     )
-    logger.info(f"Organized {len(created)} exercises to {settings.paths.exercises_dir}")
+    logger.info(
+        "exercises_organized",
+        count=len(created),
+        output_dir=str(settings.paths.exercises_dir),
+    )
 
 
 @app.command(
@@ -142,7 +156,7 @@ def extract_answers() -> None:
         content_dir=settings.paths.content_dir,
     )
     result = asyncio.run(extractor.extract())
-    logger.info(f"Answers extracted to {result['output_path']}")
+    logger.info("answers_extracted", output_path=str(result["output_path"]))
 
 
 @app.command(
@@ -164,7 +178,7 @@ def extract_rules() -> None:
         grammar_md_dir=settings.paths.grammar_md_dir,
     )
     result = asyncio.run(extractor.extract())
-    logger.info(f"Rules extracted to {result['output_path']}")
+    logger.info("rules_extracted", output_path=str(result["output_path"]))
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ from english_practice.models.agents import ExerciseRulesOutput, QuestionRuleItem
 from english_practice.models.extraction import (
     ExtractedExerciseRules,
     ExtractedFullRules,
+    ExtractedUnitRules,
 )
 
 
@@ -186,6 +187,26 @@ class TestRulesExtractor:
             assert result.exercise_id == "1.1"
 
     @pytest.mark.asyncio
+    async def test_process_unit_without_grammar_markdown(self, extractor) -> None:
+        """A missing unit file must not stop the run; the prompt gets no rules."""
+        with (
+            patch.object(extractor, "_get_grammar_md", return_value=None),
+            patch.object(extractor, "_process_exercise") as mock_proc,
+        ):
+            mock_proc.return_value = ExtractedExerciseRules(
+                exercise_id="1.1", questions=[]
+            )
+
+            result = await extractor._process_unit_rules(
+                {"unit_id": "1", "exercises": [{"exercise_id": "1.1"}]}, {}
+            )
+
+            assert result.unit_id == "1"
+            call = mock_proc.await_args
+            assert call is not None
+            assert call.args[2] == ""
+
+    @pytest.mark.asyncio
     async def test_extract(self, extractor) -> None:
         with (
             patch.object(extractor, "_load_answers_data", return_value={"units": []}),
@@ -194,3 +215,33 @@ class TestRulesExtractor:
         ):
             result = await extractor.extract()
             assert "output_path" in result
+
+    @pytest.mark.asyncio
+    async def test_extract_processes_and_saves_each_unit(self, extractor) -> None:
+        output = ExtractedFullRules()
+        unit = ExtractedUnitRules(unit_id="1", exercises=[])
+
+        with (
+            patch.object(extractor, "_load_output", return_value=output),
+            patch.object(extractor, "_process_unit_rules", return_value=unit),
+            patch.object(extractor, "_save_output") as mock_save,
+        ):
+            await extractor.extract()
+
+            assert [u.unit_id for u in output.units] == ["1"]
+            mock_save.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_extract_resumes_past_processed_units(self, extractor) -> None:
+        """Re-running must not redo the units already written out."""
+        output = ExtractedFullRules(units=[ExtractedUnitRules(unit_id="1")])
+
+        with (
+            patch.object(extractor, "_load_output", return_value=output),
+            patch.object(extractor, "_process_unit_rules") as mock_process,
+            patch.object(extractor, "_save_output") as mock_save,
+        ):
+            await extractor.extract()
+
+            mock_process.assert_not_called()
+            mock_save.assert_not_called()

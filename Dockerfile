@@ -19,4 +19,6 @@ COPY . .
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "main.py"]
+# The console script from pyproject.toml, so the container runs the same
+# entry point a developer does.
+CMD ["english-practice", "bot"]

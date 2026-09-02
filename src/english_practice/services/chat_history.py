@@ -1,97 +1,84 @@
-"""Chat history manager for assistant agent."""
+"""In-memory assistant transcripts, scoped to a user's current exercise."""
 
-from typing import Any
+from english_practice.models.agents import ChatMessage, ChatRole
+
+DEFAULT_MAX_MESSAGES = 20
 
 
 class ChatHistoryManager:
-    """Manages chat history per user and exercise.
+    """Keeps the recent assistant conversation for each user and exercise.
 
-    Structure: {user_id: {exercise_id: [messages]}}
-    History is cleared when a new exercise is processed.
+    A user only ever converses about the exercise in front of them, so
+    :meth:`start_exercise` drops every other exercise's transcript, and each
+    transcript is capped at ``max_messages``. Without both, a long-running
+    process would accumulate one list per exercise per user forever.
     """
 
-    def __init__(self) -> None:
-        """Initialize empty chat history storage."""
+    def __init__(self, max_messages: int = DEFAULT_MAX_MESSAGES) -> None:
+        """Initialize empty history storage.
+
+        Args:
+            max_messages: Newest messages kept per exercise. Must be positive.
+        """
+        self._max_messages = max(1, max_messages)
         # exercise_id is None for messages recorded outside an exercise, so it
         # is part of the key type rather than being coerced away.
-        self._history: dict[int, dict[int | None, list[dict[str, Any]]]] = {}
+        self._history: dict[int, dict[int | None, list[ChatMessage]]] = {}
 
-    def add_message(
+    def add_turn(
         self,
         user_id: int,
         exercise_id: int | None,
-        role: str,
+        role: ChatRole,
         content: str,
     ) -> None:
-        """Add a message to the chat history.
+        """Append one message, discarding the oldest beyond the cap.
 
         Args:
-            user_id: The user's ID.
-            exercise_id: The exercise database ID.
-            role: Message role ('user' or 'assistant').
-            content: Message content.
+            user_id: The user's Telegram ID.
+            exercise_id: The exercise being discussed.
+            role: Who produced the message.
+            content: Message text.
         """
-        if user_id not in self._history:
-            self._history[user_id] = {}
+        transcript = self._history.setdefault(user_id, {}).setdefault(exercise_id, [])
+        transcript.append(ChatMessage(role=role, content=content))
+        if len(transcript) > self._max_messages:
+            del transcript[: -self._max_messages]
 
-        if exercise_id not in self._history[user_id]:
-            self._history[user_id][exercise_id] = []
-
-        self._history[user_id][exercise_id].append(
-            {
-                "role": role,
-                "content": content,
-            }
-        )
-
-    def get_history(
-        self,
-        user_id: int,
-        exercise_id: int | None,
-    ) -> list[dict[str, Any]]:
-        """Get chat history for a specific user and exercise.
+    def history(self, user_id: int, exercise_id: int | None) -> list[ChatMessage]:
+        """Return the transcript for one user and exercise.
 
         Args:
-            user_id: The user's ID.
-            exercise_id: The exercise database ID.
+            user_id: The user's Telegram ID.
+            exercise_id: The exercise being discussed.
 
         Returns:
-            List of message dictionaries with 'role' and 'content' keys.
+            The messages in order, oldest first; empty when there are none.
         """
-        if user_id not in self._history:
-            return []
+        return list(self._history.get(user_id, {}).get(exercise_id, ()))
 
-        return self._history[user_id].get(exercise_id, [])
-
-    def clear_history(self, user_id: int, exercise_id: int | None) -> None:
-        """Clear chat history for a specific user and exercise.
+    def start_exercise(self, user_id: int, exercise_id: int | None) -> None:
+        """Keep only the given exercise's transcript for this user.
 
         Args:
-            user_id: The user's ID.
-            exercise_id: The exercise database ID.
+            user_id: The user's Telegram ID.
+            exercise_id: The exercise the user just started.
         """
-        if user_id in self._history and exercise_id in self._history[user_id]:
-            del self._history[user_id][exercise_id]
-
-    def clear_user_history(self, user_id: int) -> None:
-        """Clear all chat history for a user.
-
-        Args:
-            user_id: The user's ID.
-        """
-        if user_id in self._history:
+        transcripts = self._history.get(user_id)
+        if transcripts is None:
+            return
+        kept = transcripts.get(exercise_id)
+        if kept is None:
+            # Nothing to keep, so drop the user's entry rather than leaving an
+            # empty mapping behind for every user who ever asked a question.
             del self._history[user_id]
+            return
+        self._history[user_id] = {exercise_id: kept}
 
-    def on_new_image(self, user_id: int, exercise_id: int | None) -> None:
-        """Handle new exercise - clear history for all other exercises of this user.
+    def forget_user(self, user_id: int) -> None:
+        """Drop everything stored for one user.
 
         Args:
-            user_id: The user's ID.
-            exercise_id: The new exercise database ID.
+            user_id: The user's Telegram ID.
         """
-        if user_id in self._history:
-            # Keep only the new exercise's history (if any)
-            new_history: dict[int | None, list[dict[str, Any]]] = {}
-            if exercise_id in self._history[user_id]:
-                new_history[exercise_id] = self._history[user_id][exercise_id]
-            self._history[user_id] = new_history
+        self._history.pop(user_id, None)

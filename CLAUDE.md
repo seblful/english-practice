@@ -49,6 +49,35 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Architecture Rules
+
+The bot is layered `app → handlers → {repository, services, states} → models`,
+and dependencies only point downwards. When adding to it:
+
+- **Dependencies come from the context.** `bot/app.py` builds the repository,
+  the `AgentService` (which owns the one chat-model client) and the
+  `SessionStore`; handlers reach them through `BotContext`. Never construct
+  them inside a handler — one client per message exhausts connection pools.
+- **Handlers are decorated, not defensive.** `@handler(...)` in
+  `bot/handlers/access.py` narrows the update, answers the callback query and
+  enforces the access level. Handlers take an `Interaction`, never a raw
+  `Update`.
+- **Database calls are `async` and typed.** Every repository method hands its
+  query to a worker thread and returns models from `models/`, never
+  `sqlite3.Row` or `dict`.
+- **Everything interpolated into a message is escaped.** Use
+  `bot/formatter.py`; book text and Telegram names routinely contain `&`
+  and `<`, which break `parse_mode="HTML"`.
+- **Button payloads live in `bot/callbacks.py`.** Keyboards encode, handlers
+  parse, and a parse of an unknown payload returns `None` — old messages stay
+  clickable forever.
+- **Agents are stateless.** A class per prompt, one method, raising
+  `AgentError`; conversation state belongs to the service.
+- **Settings are read through `get_settings()`,** never a module-level
+  instance, and secrets are `SecretStr`.
+
+______________________________________________________________________
+
 ## Security
 
 - **Never** hardcode secrets (API keys, passwords, tokens)

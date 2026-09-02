@@ -380,10 +380,9 @@ class ExerciseOrganizer:
 
         for page_path in tqdm(page_files, desc="Processing pages"):
             page_num = int(page_path.stem)
+            # Always at least one image: a page with no detected header is kept
+            # whole rather than dropped.
             exercises = self._extract_from_page(page_path)
-
-            if not exercises:
-                continue
 
             page_output_paths = self._save_exercises(exercises, output_dir, page_num)
             output_paths.extend(page_output_paths)

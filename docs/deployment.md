@@ -66,15 +66,32 @@ micro .env
 ### Required Environment Variables
 
 | Variable | Description | Required |
-| ------------------------ | ------------------------------------------ | -------- |
+| -------------------------- | ------------------------------------------ | -------- |
 | `TELEGRAM_BOT_TOKEN` | Token from @BotFather | Yes |
 | `TELEGRAM_ADMIN_USER_ID` | Your Telegram user ID | Yes |
 | `LLM__PROVIDER` | LLM provider (dashscope/gemini/openrouter) | Yes |
 | `OPENROUTER_API_KEY` | OpenRouter API key | Yes\* |
 | `APP__ENVIRONMENT` | Set to `production` | Yes |
-| `DATABASE_PATH` | Path to SQLite database | Yes |
+| `PATHS_DATABASE_PATH` | Path to the SQLite database | No\*\* |
 
 _\*Required for your chosen provider — use `DASHSCOPE_API_KEY` or `GEMINI_API_KEY` instead if using those providers._
+
+_\*\*Defaults to `data/content/english_practice.db`. The old unprefixed
+`DATABASE_PATH` is still accepted._
+
+Optional tuning: `BOT_MAX_HISTORY_MESSAGES` (assistant turns kept per exercise),
+`BOT_SESSION_IDLE_TTL_MINUTES` (when an idle session is dropped),
+`LLM_REQUEST_TIMEOUT` and `LLM_MAX_RETRIES`.
+
+Variables exported into the container's environment take precedence over the
+`.env` file, so `docker-compose.yml` can override anything the file sets.
+
+### Verify the configuration
+
+```bash
+# Inside the container: lists every missing or unusable setting, exit code 1 if any
+docker compose run --rm bot english-practice check
+```
 
 ### 3. Copy Seed Database
 
@@ -113,4 +130,7 @@ docker compose restart
 
 # Rebuild and restart after code changes
 docker compose build && docker compose up -d
+
+# Check the configuration the bot would start with
+docker compose run --rm bot english-practice check
 ```

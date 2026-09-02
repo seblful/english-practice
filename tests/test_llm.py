@@ -1,123 +1,111 @@
-"""Tests for LLM provider factory."""
-
-from unittest.mock import patch
+"""Tests for the chat-model factory."""
 
 import pytest
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
 
+from english_practice.errors import ConfigurationError
 from english_practice.llm import (
     _create_dashscope,
     _create_gemini,
     _create_openrouter,
     get_llm,
 )
+from english_practice.settings import (
+    DashscopeSettings,
+    GeminiSettings,
+    LLMProvider,
+    LLMSettings,
+    OpenRouterSettings,
+    Settings,
+)
+
+
+def _config(
+    provider: LLMProvider = "dashscope", key: str | None = "test-key"
+) -> LLMSettings:
+    """Build LLM settings with the given provider keyed and ready."""
+    secret = SecretStr(key) if key is not None else None
+    return LLMSettings(
+        provider=provider,
+        request_timeout=12.5,
+        max_retries=3,
+        dashscope=DashscopeSettings(api_key=secret, model="qwen3-vl-flash"),
+        gemini=GeminiSettings(api_key=secret, model="gemini-2.5-flash"),
+        openrouter=OpenRouterSettings(api_key=secret, model="openai/gpt-4o-mini"),
+    )
 
 
 class TestGetLLM:
-    """Tests for get_llm factory."""
+    """Tests for provider dispatch."""
 
-    @patch("english_practice.llm._create_dashscope")
-    def test_dashscope_provider(self, mock_create) -> None:
-        with patch("english_practice.llm.settings") as mock_settings:
-            mock_settings.llm.provider = "dashscope"
-            get_llm()
-            mock_create.assert_called_once()
+    def test_dashscope_provider(self) -> None:
+        llm = get_llm(_config("dashscope"))
+        assert isinstance(llm, ChatOpenAI)
+        assert llm.model_name == "qwen3-vl-flash"
 
-    @patch("english_practice.llm._create_gemini")
-    def test_gemini_provider(self, mock_create) -> None:
-        with patch("english_practice.llm.settings") as mock_settings:
-            mock_settings.llm.provider = "gemini"
-            get_llm()
-            mock_create.assert_called_once()
+    def test_gemini_provider(self) -> None:
+        assert isinstance(get_llm(_config("gemini")), ChatGoogleGenerativeAI)
 
-    @patch("english_practice.llm._create_openrouter")
-    def test_openrouter_provider(self, mock_create) -> None:
-        with patch("english_practice.llm.settings") as mock_settings:
-            mock_settings.llm.provider = "openrouter"
-            get_llm()
-            mock_create.assert_called_once()
+    def test_openrouter_provider(self) -> None:
+        llm = get_llm(_config("openrouter"))
+        assert isinstance(llm, ChatOpenAI)
+        assert llm.model_name == "openai/gpt-4o-mini"
 
-    def test_unknown_provider(self) -> None:
-        with patch("english_practice.llm.settings") as mock_settings:
-            mock_settings.llm.provider = "unknown"
-            with pytest.raises(ValueError, match="Unknown LLM provider"):
-                get_llm()
+    def test_defaults_to_application_settings(self, monkeypatch) -> None:
+        """With no argument the factory reads the application settings."""
+        settings = Settings(llm=_config("openrouter"))
+        monkeypatch.setattr("english_practice.llm.get_settings", lambda: settings)
+
+        assert isinstance(get_llm(), ChatOpenAI)
+
+    def test_invalid_provider_is_rejected_by_settings(self) -> None:
+        """An unknown provider cannot be constructed, so dispatch stays total."""
+        with pytest.raises(ValueError, match="provider"):
+            LLMSettings.model_validate({"provider": "unknown"})
 
 
 class TestCreateDashscope:
-    """Tests for _create_dashscope."""
+    """Tests for the DashScope client."""
 
     def test_missing_api_key(self) -> None:
-        with patch("english_practice.llm.settings") as mock_settings:
-            mock_settings.llm.dashscope.api_key = None
-            mock_settings.llm.provider = "dashscope"
-            with pytest.raises(ValueError, match="DASHSCOPE_API_KEY not set"):
-                _create_dashscope()
+        with pytest.raises(ConfigurationError, match="DASHSCOPE_API_KEY is not set"):
+            _create_dashscope(_config(key=None))
 
-    def test_returns_chat_openai(self) -> None:
-        with patch("english_practice.llm.settings") as mock_settings:
-            mock_settings.llm.dashscope.api_key = "test-key"
-            mock_settings.llm.dashscope.model = "qwen3-vl-flash"
-            mock_settings.llm.dashscope.base_url = "https://dashscope.intl.com"
-            mock_settings.llm.dashscope.temperature = 0.7
-            mock_settings.llm.dashscope.max_tokens = 2048
-            result = _create_dashscope()
-            assert isinstance(result, ChatOpenAI)
-            assert result.model_name == "qwen3-vl-flash"
+    def test_blank_api_key_counts_as_unset(self) -> None:
+        with pytest.raises(ConfigurationError, match="DASHSCOPE_API_KEY is not set"):
+            _create_dashscope(_config(key="   "))
+
+    def test_applies_timeout_and_retries(self) -> None:
+        llm = _create_dashscope(_config())
+        assert llm.request_timeout == 12.5
+        assert llm.max_retries == 3
 
 
 class TestCreateGemini:
-    """Tests for _create_gemini."""
+    """Tests for the Gemini client."""
 
     def test_missing_api_key(self) -> None:
-        with patch("english_practice.llm.settings") as mock_settings:
-            mock_settings.llm.gemini.api_key = None
-            mock_settings.llm.gemini.proxy = None
-            with pytest.raises(ValueError, match="GEMINI_API_KEY not set"):
-                _create_gemini()
+        with pytest.raises(ConfigurationError, match="GEMINI_API_KEY is not set"):
+            _create_gemini(_config(key=None))
 
     def test_returns_generative_ai(self) -> None:
-        with patch("english_practice.llm.settings") as mock_settings:
-            mock_settings.llm.gemini.api_key = "test-key"
-            mock_settings.llm.gemini.model = "gemini-2.5-flash"
-            mock_settings.llm.gemini.temperature = 0.7
-            mock_settings.llm.gemini.max_tokens = 2048
-            mock_settings.llm.gemini.top_p = 0.95
-            mock_settings.llm.gemini.proxy = None
-            result = _create_gemini()
-            assert isinstance(result, ChatGoogleGenerativeAI)
+        assert isinstance(_create_gemini(_config()), ChatGoogleGenerativeAI)
 
     def test_with_proxy(self) -> None:
-        with patch("english_practice.llm.settings") as mock_settings:
-            mock_settings.llm.gemini.api_key = "test-key"
-            mock_settings.llm.gemini.model = "gemini-2.5-flash"
-            mock_settings.llm.gemini.temperature = 0.7
-            mock_settings.llm.gemini.max_tokens = 2048
-            mock_settings.llm.gemini.top_p = 0.95
-            mock_settings.llm.gemini.proxy = "http://proxy:8080"
+        config = _config()
+        config.gemini.proxy = "http://proxy:8080"
 
-            result = _create_gemini()
-            # Should not raise when proxy is set
-            assert result is not None
+        assert _create_gemini(config) is not None
 
 
 class TestCreateOpenRouter:
-    """Tests for _create_openrouter."""
+    """Tests for the OpenRouter client."""
 
     def test_missing_api_key(self) -> None:
-        with patch("english_practice.llm.settings") as mock_settings:
-            mock_settings.llm.openrouter.api_key = None
-            with pytest.raises(ValueError, match="OPENROUTER_API_KEY not set"):
-                _create_openrouter()
+        with pytest.raises(ConfigurationError, match="OPENROUTER_API_KEY is not set"):
+            _create_openrouter(_config(key=None))
 
     def test_returns_chat_openai(self) -> None:
-        with patch("english_practice.llm.settings") as mock_settings:
-            mock_settings.llm.openrouter.api_key = "test-key"
-            mock_settings.llm.openrouter.model = "openai/gpt-4o-mini"
-            mock_settings.llm.openrouter.base_url = "https://openrouter.ai"
-            mock_settings.llm.openrouter.temperature = 0.7
-            mock_settings.llm.openrouter.max_tokens = 2048
-            result = _create_openrouter()
-            assert isinstance(result, ChatOpenAI)
-            assert result.model_name == "openai/gpt-4o-mini"
+        assert isinstance(_create_openrouter(_config()), ChatOpenAI)

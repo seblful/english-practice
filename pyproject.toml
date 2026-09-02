@@ -1,6 +1,6 @@
 [project]
 name = "english-practice"
-description = "A VLLM-based English grammar practice application with exercises from English Grammar in Use by Murphy."
+description = "Telegram bot that grades English grammar exercises from English Grammar in Use (Murphy) with a vision LLM."
 readme = "README.md"
 requires-python = ">=3.13"
 version = "0.1.0"
@@ -11,7 +11,7 @@ license-files = ["LICENSE"]
 authors = [
     { name = "Aliaksei Chymba", email = "alesha.chimba@gmail.com" }
 ]
-keywords = ["python"]
+keywords = ["telegram-bot", "english", "grammar", "llm", "langchain"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -68,7 +68,9 @@ packages = ["src/english_practice"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=src/english_practice --cov-report=term-missing --cov-fail-under=80"
+addopts = "--cov=src/english_practice --cov-report=term-missing --cov-fail-under=95"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "unit: fast, isolated unit tests",
     "integration: tests that hit real I/O (DB, filesystem, network)",
@@ -118,7 +120,7 @@ exclude = ["scripts"]
 
 [tool.coverage.run]
 source = ["src/english_practice"]
-# branch = true  # enable once the suite covers both sides of conditionals
+branch = true
 
 [tool.coverage.report]
 show_missing = true

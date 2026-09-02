@@ -1,102 +1,150 @@
-"""Bot keyboards for UI."""
+"""Inline keyboards.
+
+Buttons carry payloads built by :mod:`english_practice.bot.callbacks`, so a
+button can only ever emit something a handler is registered to parse.
+"""
+
+from collections.abc import Sequence
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from english_practice.bot.callbacks import (
+    AdminAction,
+    AdminDecision,
+    ExerciseAction,
+    TopicChoice,
+    TopicSelection,
+)
+from english_practice.models.auth import PendingUser
+from english_practice.models.book import Topic
 
-def get_admin_user_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    """Create admin keyboard for a single pending user.
+
+def main_menu_keyboard(has_previous_topic: bool) -> InlineKeyboardMarkup:
+    """Offer the ways to start the next exercise.
 
     Args:
-        user_id: Telegram user ID.
+        has_previous_topic: Whether the user has practised a specific topic,
+            which is what makes "Same Topic" meaningful.
 
     Returns:
-        Inline keyboard markup.
+        The keyboard.
     """
-    keyboard = [
+    rows = [
         [
             InlineKeyboardButton(
-                "✅ Approve", callback_data=f"admin:approve:{user_id}"
-            ),
-            InlineKeyboardButton("❌ Reject", callback_data=f"admin:reject:{user_id}"),
-        ]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-
-def get_admin_pending_keyboard(pending_users: list[dict]) -> InlineKeyboardMarkup:
-    """Create admin keyboard for pending user approvals.
-
-    Args:
-        pending_users: List of pending user dicts with telegram_id,
-            full_name and telegram_username.
-
-    Returns:
-        Inline keyboard markup.
-    """
-    keyboard = []
-    for user in pending_users:
-        label = user["full_name"]
-        if user["telegram_username"]:
-            label += f" (@{user['telegram_username']})"
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    f"✅ {label}", callback_data=f"admin:approve:{user['telegram_id']}"
-                ),
-                InlineKeyboardButton(
-                    "❌ Reject", callback_data=f"admin:reject:{user['telegram_id']}"
-                ),
-            ]
-        )
-    return InlineKeyboardMarkup(keyboard)
-
-
-def get_topic_keyboard(topics: list[dict]) -> InlineKeyboardMarkup:
-    """Create topic selection keyboard.
-
-    Args:
-        topics: List of topic dicts with id and name.
-
-    Returns:
-        Inline keyboard markup.
-    """
-    keyboard = []
-
-    for topic in topics:
-        keyboard.append(
-            [InlineKeyboardButton(topic["name"], callback_data=f"topic:{topic['id']}")]
-        )
-
-    return InlineKeyboardMarkup(keyboard)
-
-
-def get_exercise_keyboard() -> InlineKeyboardMarkup:
-    """Create exercise action keyboard.
-
-    Returns:
-        Inline keyboard markup.
-    """
-    keyboard = [
-        [InlineKeyboardButton("📖 Show Unit", callback_data="action:show_unit")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-
-def get_start_menu_keyboard(has_previous_topic: bool) -> InlineKeyboardMarkup:
-    """Create start/menu keyboard with exercise options.
-
-    Args:
-        has_previous_topic: Whether user has a previous topic to continue.
-
-    Returns:
-        Inline keyboard markup.
-    """
-    keyboard = [
-        [InlineKeyboardButton("🎲 Random", callback_data="topic:random")],
-        [InlineKeyboardButton("📚 New Topic", callback_data="topic:new_topic")],
+                "🎲 Random",
+                callback_data=TopicChoice(TopicSelection.RANDOM).payload(),
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "📚 New Topic",
+                callback_data=TopicChoice(TopicSelection.NEW_TOPIC).payload(),
+            )
+        ],
     ]
     if has_previous_topic:
-        keyboard.append(
-            [InlineKeyboardButton("🔄 Same Topic", callback_data="topic:same")]
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    "🔄 Same Topic",
+                    callback_data=TopicChoice(TopicSelection.SAME).payload(),
+                )
+            ]
         )
-    return InlineKeyboardMarkup(keyboard)
+    return InlineKeyboardMarkup(rows)
+
+
+def topics_keyboard(topics: Sequence[Topic]) -> InlineKeyboardMarkup:
+    """List every topic, one per row.
+
+    Args:
+        topics: Topics to offer.
+
+    Returns:
+        The keyboard.
+    """
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    topic.name,
+                    callback_data=TopicChoice.for_topic(topic.id).payload(),
+                )
+            ]
+            for topic in topics
+        ]
+    )
+
+
+def exercise_keyboard() -> InlineKeyboardMarkup:
+    """Offer the actions available while an exercise is open.
+
+    Returns:
+        The keyboard.
+    """
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "📖 Show Unit",
+                    callback_data=ExerciseAction.SHOW_UNIT.payload(),
+                )
+            ]
+        ]
+    )
+
+
+def access_request_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    """Let the admin decide about one access request.
+
+    Args:
+        user_id: Telegram ID of the user requesting access.
+
+    Returns:
+        The keyboard.
+    """
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "✅ Approve",
+                    callback_data=AdminAction(AdminDecision.APPROVE, user_id).payload(),
+                ),
+                InlineKeyboardButton(
+                    "❌ Reject",
+                    callback_data=AdminAction(AdminDecision.REJECT, user_id).payload(),
+                ),
+            ]
+        ]
+    )
+
+
+def pending_users_keyboard(pending: Sequence[PendingUser]) -> InlineKeyboardMarkup:
+    """Let the admin work through the approval queue.
+
+    Args:
+        pending: Users awaiting a decision.
+
+    Returns:
+        The keyboard, one row per user.
+    """
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    f"✅ {user.label}",
+                    callback_data=AdminAction(
+                        AdminDecision.APPROVE, user.telegram_id
+                    ).payload(),
+                ),
+                InlineKeyboardButton(
+                    "❌ Reject",
+                    callback_data=AdminAction(
+                        AdminDecision.REJECT, user.telegram_id
+                    ).payload(),
+                ),
+            ]
+            for user in pending
+        ]
+    )

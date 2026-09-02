@@ -1,4 +1,4 @@
-"""Evaluate Answer Agent - determines if user answer is correct."""
+"""Evaluate agent: decides whether the student's answer is correct."""
 
 from english_practice.agents.base import BaseAgent
 from english_practice.agents.tracing import traced
@@ -6,13 +6,14 @@ from english_practice.models.agents import EvaluateAnswerInput, EvaluateAnswerOu
 
 
 class EvaluateAnswerAgent(BaseAgent):
-    """Agent for evaluating if a user's answer is correct."""
+    """Grades a student's answer against the book's expected answers."""
 
     PROMPT_TEMPLATE = "evaluate.j2"
 
     @traced(name="evaluate_answer")
     async def evaluate(
         self,
+        *,
         image_data: bytes | None,
         question_number: str,
         user_input: str,
@@ -22,20 +23,23 @@ class EvaluateAnswerAgent(BaseAgent):
         topic_name: str,
         rule: str | None = None,
     ) -> EvaluateAnswerOutput:
-        """Evaluate if the user's answer is correct.
+        """Grade the student's answer.
 
         Args:
             image_data: Raw exercise image bytes, if the exercise has one.
             question_number: The question number/ID.
-            user_input: The user's answer.
-            short_answers: All short answer variants.
-            full_answers: All full answer variants (parallel to short_answers).
+            user_input: The student's answer.
+            short_answers: Expected short answers, in display order.
+            full_answers: Expected full sentences, parallel to ``short_answers``.
             is_open_ended: Whether the question allows free-form responses.
-            topic_name: The topic name for context.
-            rule: Optional grammar rule for this question.
+            topic_name: The topic name, for context.
+            rule: The grammar rule for this question, when known.
 
         Returns:
-            EvaluateAnswerOutput with is_correct and answer_idx.
+            Whether the answer is correct, and which expected answers matched.
+
+        Raises:
+            AgentError: If the LLM call fails or cannot be parsed.
         """
         context = EvaluateAnswerInput(
             question_number=question_number,
@@ -46,10 +50,9 @@ class EvaluateAnswerAgent(BaseAgent):
             topic_name=topic_name,
             rule=rule,
         )
-        prompt = self.render(context)
 
         return await self.invoke_structured(
-            prompt=prompt,
+            prompt=self.render(context),
             output_model=EvaluateAnswerOutput,
             image_data=image_data,
         )

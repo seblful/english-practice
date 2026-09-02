@@ -1,163 +1,164 @@
-# English Practice App
+# English Practice Bot
 
-A VLLM-based English grammar practice application with exercises from English Grammar in Use by Murphy.
+A Telegram bot for practising English grammar with exercises from *English
+Grammar in Use* (Murphy). It sends you an exercise image, grades the answer you
+type with a vision LLM, shows the book's answer and the rule behind it, and
+answers follow-up questions about the exercise.
 
-## Database
+## How it works
 
-The application uses SQLite for storing exercise data.
-
-### Setup Database
-
-```bash
-# Initialize database and import data
-uv run scripts/database/populate.py
+```
+Telegram update
+      │
+      ▼
+bot/handlers/*        one module per feature; access control is a decorator
+      │
+      ├── repository  async SQLite reads (content + who may use the bot)
+      ├── agents      LLM calls: grade an answer, explain an exercise
+      ├── states      what each user is working on, in memory
+      └── formatter   domain objects → Telegram HTML
 ```
 
-This creates `data/content/english_practice.db` with:
+Layers only depend downwards. Handlers never construct a repository or an LLM
+client: `bot/app.py` builds one of each at startup and hands them to every
+handler through the context (`bot/context.py`), which is what makes the
+handlers testable without patching module globals.
 
-- **145 units** - Grammar lessons
-- **433 exercises** - Exercise images
-- **3,025 questions** - Questions with answers
-- **16 topics** - Grammar topics
+| Module | Responsibility |
+| :----- | :------------- |
+| `bot/app.py` | Builds the application, wires dependencies, starts polling |
+| `bot/context.py` | `BotDependencies` and the `BotContext` handlers receive |
+| `bot/handlers/` | `access` (authorization + the handler decorator), `menu`, `exercises`, `answers`, `admin`, `errors` |
+| `bot/callbacks.py` | Typed inline-button payloads, encode and parse in one place |
+| `bot/states.py` | `SessionStore`: the active exercise per user, with idle eviction |
+| `bot/formatter.py` | Message text, with HTML escaping |
+| `bot/keyboards.py` | Inline keyboards built from domain objects |
+| `repositories/database.py` | SQLite queries, async and typed |
+| `services/agent_service.py` | Owns the chat-model client and the assistant transcripts |
+| `agents/` | One class per prompt: `evaluate`, `assistant`, plus the extraction agents |
+| `models/` | `book` (content), `auth`, `agents` (LLM I/O), `extraction` |
+| `extractors/` | The offline pipeline that turns the PDF into content |
 
-### Validate Database
-
-```bash
-# Check database integrity
-uv run scripts/database/validate.py
-```
-
-Validates:
-
-- Image files exist for all exercises
-- No duplicate entries
-- No orphaned data
-- Referential integrity
-- External file references
-
-### Database Schema
-
-**Core Tables:**
-
-- `units` - Grammar units (id, unit_number, title, grammar_md_path)
-- `exercises` - Exercise metadata (id, exercise_id, unit_id, exercise_number)
-- `exercise_images` - Exercise image BLOBs (id, exercise_id, image_data)
-- `questions` - Individual questions (id, exercise_id, question_id, correct_answer, display_order)
-- `topics` - Grammar topics (id, name, parent_topic_id)
-- `unit_topics` - Topic-unit relationships (unit_id, topic_id)
-
-## Running the Bot
+## Running the bot
 
 ```bash
-uv run main.py
+uv sync                          # install
+uv run english-practice check    # verify the configuration
+uv run english-practice bot      # run until Ctrl+C
 ```
 
-The project also exposes a CLI entry point:
-
-```bash
-uv run english-practice info
-```
+`uv run main.py` still works as a shim. The other commands are
+`english-practice info` (version, environment, provider, database path).
 
 ### Configuration
 
-Create a `.env` file in the project root (see `.env.example`):
+Settings come from the environment; `.env` and `.env.<environment>` only seed
+it. Precedence, highest first: real environment variables, `.env.<environment>`,
+`.env` — so a deployment that exports `TELEGRAM_BOT_TOKEN` is never overridden
+by a stale checked-out file. Set `APP__ENVIRONMENT` (default `development`) to
+choose which `.env.<environment>` is loaded; a missing file is ignored.
 
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
-DASHSCOPE_API_KEY=your_key   # or GEMINI_API_KEY / OPENROUTER_API_KEY
-LLM__PROVIDER=dashscope      # one of: dashscope, gemini, openrouter
-LANGSMITH_API_KEY=your_key   # optional, for tracing
+TELEGRAM_ADMIN_USER_ID=your_telegram_user_id   # optional; enables approvals
+LLM__PROVIDER=dashscope                        # dashscope | gemini | openrouter
+DASHSCOPE_API_KEY=your_key                     # key for the chosen provider
+LANGSMITH_API_KEY=your_key                     # optional, for tracing
 LANGSMITH_TRACING=false
+PATHS_DATABASE_PATH=data/content/english_practice.db
 ```
 
-The bot validates required settings on startup and will show which ones are missing.
+`english-practice check` reports every missing setting at once, and the bot
+refuses to start rather than failing on the first user who says hello.
 
-Set `APP__ENVIRONMENT` to select which `.env.<environment>` file is loaded alongside
-`.env` (missing files are ignored). It defaults to `development`.
+Other groups: `BOT_*` (history cap, session TTL), `LLM_REQUEST_TIMEOUT`,
+`LLM_MAX_RETRIES`, `LOGGING__*`, `OCR_*` and `IMAGES_*`/`BOOK_*` for the
+extraction pipeline. API keys are held as `SecretStr`, so they do not appear in
+logs or reprs.
 
-### Bot Commands
+> Note: settings groups are prefixed (`PATHS_`, `OCR_`, `BOOK_`, `IMAGES_`,
+> `LLM_`). `DATABASE_PATH` and a bare `API_KEY` are still accepted as legacy
+> aliases. `.env` files cannot carry inline comments — `KEY=value  # comment`
+> makes the comment part of the value.
+
+### Access control
+
+Setting `TELEGRAM_ADMIN_USER_ID` puts the bot behind approval: a new user is
+recorded as pending and the admin gets an approve/reject message. `/pending`
+lists the queue. A rejected user re-applies simply by messaging again. Without
+that variable the bot is open to everyone.
+
+### Bot commands
 
 | Command | Description |
-|---------|-------------|
-| `/start` | Welcome message and topic selection |
-| `/exercise` | Get a new random exercise |
-| `/rule` | Toggle grammar rule display on/off |
+| :------ | :---------- |
+| `/start` | Welcome message and the exercise menu |
+| `/exercise` | Draw another exercise |
+| `/rule` | Toggle whether the grammar rule follows each answer |
+| `/help` | What the bot does, and its commands |
+| `/pending` | Admin only: review access requests |
 
-## Usage
+## Database
 
-### Extract PDF Content
+SQLite, with exercise images stored as BLOBs.
 
 ```bash
-# Cut PDF into sections
+uv run scripts/database/populate.py   # build data/content/english_practice.db
+uv run scripts/database/validate.py   # check integrity and referential sanity
+```
+
+The seeded database holds 145 units, 433 exercises, 3,025 questions and 16
+topics. Schema: `scripts/database/schema.sql`.
+
+**Core tables:** `units`, `exercises`, `exercise_images`, `questions`,
+`question_answers`, `topics`, `unit_topics`, and `authorized_users` for access
+control.
+
+## Extracting content from the PDF
+
+The pipeline that produced the database, in order:
+
+```bash
 uv run scripts/extract.py cut-pdf [contents|units|answers]
-
-# Separate pages into grammar and exercise images
 uv run scripts/extract.py separate-page-images
-
-# OCR grammar images to markdown
-uv run scripts/extract.py ocr-grammar-images
-
-# Organize exercise images into folders
+uv run scripts/extract.py ocr-grammar-images     # needs OCR_API_KEY (Mistral)
 uv run scripts/extract.py organize-exercises
+uv run scripts/extract.py extract-answers        # LLM
+uv run scripts/extract.py extract-rules          # LLM
 ```
 
 ## Development
 
-### Requirements
-
-- Python 3.13+
-- uv package manager
-- SQLite (built-in)
-
-### Setup
+Requires Python 3.13+, [uv](https://docs.astral.sh/uv/), and SQLite (built in).
 
 ```bash
-# Install dependencies
-uv sync
-```
-
-### Checks
-
-```bash
-uv run pytest                       # run tests
+uv run pytest                       # tests + coverage gate (90%)
 uv run ruff check .                 # lint
 uv run ruff format .                # format
-uv run ty check src/ tests/         # type check
-uv run pre-commit run --all-files   # run all hooks
+uv run ty check                     # type check
+uv run pre-commit run --all-files   # everything the hooks run
 ```
 
-### Docker (Local Testing)
+Tests mirror the layers: handler tests drive the real `SessionStore` with a
+mocked repository and agent service, and the repository tests run against a
+real SQLite file built from `schema.sql`.
+
+### Docker
 
 ```bash
-# Build the image
 docker build -t english-practice-bot .
-
-# Run with local env files and mounted data/logs
-docker run --rm --env-file .env --env-file .env.development `
-  -v .\data:/app/data -v .\logs:/app/logs english-practice-bot
+docker run --rm --env-file .env -v .\data:/app/data -v .\logs:/app/logs english-practice-bot
 ```
 
-Note: `.env` files cannot have inline comments — values like `KEY=value  # comment` will include the comment as part of the value.
+Or `docker compose up -d`. See [docs/deployment.md](docs/deployment.md) for a
+VPS walkthrough.
 
-### Code Standards
+## Data sources
 
-- Follow PEP 8
-- Use type hints for all functions
-- Use `pathlib.Path` for file operations
-- Use Google-style docstrings
-
-See `CLAUDE.md` for detailed guidelines.
-
-## Data Sources
-
-- **Exercises**: Extracted from English Grammar in Use (Murphy)
-- **Grammar Lessons**: Markdown files with grammar explanations
-- **Answers**: JSON format with unit/exercise/question hierarchy
-
-## Deployment
-
-See [docs/deployment.md](docs/deployment.md) for VPS deployment instructions using Docker.
+- **Exercises**: extracted from *English Grammar in Use* (Murphy)
+- **Grammar lessons**: markdown produced by OCR of the unit pages
+- **Answers and rules**: JSON produced by the LLM extraction steps
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+Apache License 2.0 — see [LICENSE](LICENSE).

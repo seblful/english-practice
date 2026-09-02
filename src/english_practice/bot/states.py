@@ -1,135 +1,151 @@
-"""Bot states for user session management."""
+"""In-memory session state, one entry per user."""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+
+from english_practice.models.book import Exercise, Question
+
+DEFAULT_IDLE_TTL = timedelta(hours=12)
 
 
-@dataclass
+def _now() -> datetime:
+    """Return the current UTC time."""
+    return datetime.now(UTC)
+
+
+@dataclass(slots=True)
+class ActiveExercise:
+    """The exercise and question a user is working on right now.
+
+    Grouping them makes the states that used to be spellable — a question
+    without its exercise, an exercise without its unit — impossible.
+    """
+
+    exercise: Exercise
+    question: Question
+    topic_id: int | None
+    topic_name: str
+    answered: bool = False
+
+
+@dataclass(slots=True)
 class UserSession:
-    """User session state."""
+    """What the bot remembers about one user between updates."""
 
     user_id: int
-    current_exercise_id: int | None = None
-    current_question_id: str | None = None
-    current_question_db_id: int | None = None
-    current_topic_id: int | None = None
-    current_topic_name: str | None = None
-    current_unit_number: int | None = None
-    current_is_open_ended: bool = False
-    unit_shown: bool = False
-    answered: bool = False
-    available_questions: list[str] = field(default_factory=list)
+    active: ActiveExercise | None = None
+    # Kept when the exercise is cleared, so "Same Topic" survives a new draw.
+    last_topic_id: int | None = None
     show_rule: bool = True
+    last_seen: datetime = field(default_factory=_now)
 
-    def clear_exercise(self) -> None:
-        """Clear current exercise context."""
-        self.current_exercise_id = None
-        self.current_question_id = None
-        self.current_question_db_id = None
-        self.current_topic_name = None
-        self.current_unit_number = None
-        self.current_is_open_ended = False
-        self.unit_shown = False
-        self.answered = False
-        self.available_questions = []
+    @property
+    def has_previous_topic(self) -> bool:
+        """Whether the user has already practised a specific topic."""
+        return self.last_topic_id is not None
 
 
-class StateManager:
-    """Manager for user sessions."""
+class SessionStore:
+    """Holds user sessions for the lifetime of the process.
 
-    def __init__(self) -> None:
-        """Initialize state manager."""
-        self.sessions: dict[int, UserSession] = {}
+    Sessions are deliberately not persisted: they are a convenience (which
+    exercise am I on, do I want rules shown), and a restart costing the user one
+    ``/start`` is cheaper than the schema and migrations to keep them. Idle
+    sessions are evicted so that a long-running bot does not grow one entry per
+    person who ever messaged it.
+    """
 
-    def get_session(self, user_id: int) -> UserSession:
-        """Get or create user session.
+    def __init__(
+        self,
+        idle_ttl: timedelta = DEFAULT_IDLE_TTL,
+        clock: Callable[[], datetime] = _now,
+    ) -> None:
+        """Initialize the store.
+
+        Args:
+            idle_ttl: How long a session survives without activity.
+            clock: Time source, injectable for tests.
+        """
+        self._idle_ttl = idle_ttl
+        self._clock = clock
+        self._sessions: dict[int, UserSession] = {}
+
+    def __len__(self) -> int:
+        """Return the number of live sessions."""
+        return len(self._sessions)
+
+    def get(self, user_id: int) -> UserSession:
+        """Return a user's session, creating it if needed.
+
+        Any interaction is also the moment to drop sessions nobody has touched
+        in a while, which keeps eviction free of background tasks.
 
         Args:
             user_id: Telegram user ID.
 
         Returns:
-            User session.
+            The user's session, marked as just used.
         """
-        if user_id not in self.sessions:
-            self.sessions[user_id] = UserSession(user_id=user_id)
-        return self.sessions[user_id]
+        now = self._clock()
+        self._evict_idle(now)
 
-    def clear_session(self, user_id: int) -> None:
-        """Clear user session.
+        session = self._sessions.get(user_id)
+        if session is None:
+            session = UserSession(user_id=user_id, last_seen=now)
+            self._sessions[user_id] = session
+        else:
+            session.last_seen = now
+        return session
+
+    def forget(self, user_id: int) -> None:
+        """Drop a user's session.
 
         Args:
             user_id: Telegram user ID.
         """
-        if user_id in self.sessions:
-            del self.sessions[user_id]
+        self._sessions.pop(user_id, None)
 
-    def set_exercise(
-        self,
-        *,
-        user_id: int,
-        exercise_id: int,
-        question_id: str,
-        question_db_id: int,
-        topic_id: int | None,
-        topic_name: str,
-        unit_number: int,
-        available_questions: list[str],
-        is_open_ended: bool = False,
-    ) -> None:
-        """Set current exercise for user.
+    def start_exercise(self, user_id: int, active: ActiveExercise) -> UserSession:
+        """Make an exercise the user's current one.
 
         Args:
             user_id: Telegram user ID.
-            exercise_id: Exercise database ID.
-            question_id: Current question number.
-            question_db_id: Question database ID.
-            topic_id: Current topic ID (None for random).
-            topic_name: Current topic name.
-            unit_number: Current unit number.
-            available_questions: List of available question numbers.
-            is_open_ended: Whether the question is open-ended.
+            active: The exercise and question just sent.
+
+        Returns:
+            The updated session.
         """
-        session = self.get_session(user_id)
-        session.current_exercise_id = exercise_id
-        session.current_question_id = question_id
-        session.current_question_db_id = question_db_id
-        session.current_topic_id = topic_id
-        session.current_topic_name = topic_name
-        session.current_unit_number = unit_number
-        session.current_is_open_ended = is_open_ended
-        session.unit_shown = False
-        session.answered = False
-        session.available_questions = available_questions
-
-    def mark_unit_shown(self, user_id: int) -> None:
-        """Mark unit as shown for user.
-
-        Args:
-            user_id: Telegram user ID.
-        """
-        session = self.get_session(user_id)
-        session.unit_shown = True
-
-    def mark_answered(self, user_id: int) -> None:
-        """Mark question as answered for user.
-
-        Args:
-            user_id: Telegram user ID.
-        """
-        session = self.get_session(user_id)
-        session.answered = True
+        session = self.get(user_id)
+        session.active = active
+        if active.topic_id is not None:
+            session.last_topic_id = active.topic_id
+        return session
 
     def toggle_show_rule(self, user_id: int) -> bool:
-        """Toggle show_rule setting for user.
+        """Flip whether grammar rules are shown after an answer.
 
         Args:
             user_id: Telegram user ID.
 
         Returns:
-            New show_rule value.
+            The new setting.
         """
-        session = self.get_session(user_id)
+        session = self.get(user_id)
         session.show_rule = not session.show_rule
         return session.show_rule
 
+    def _evict_idle(self, now: datetime) -> None:
+        """Drop sessions untouched for longer than the TTL.
 
-state_manager = StateManager()
+        Args:
+            now: Current time.
+        """
+        cutoff = now - self._idle_ttl
+        stale = [
+            user_id
+            for user_id, session in self._sessions.items()
+            if session.last_seen < cutoff
+        ]
+        for user_id in stale:
+            del self._sessions[user_id]

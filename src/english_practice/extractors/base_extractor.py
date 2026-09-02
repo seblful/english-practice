@@ -109,14 +109,14 @@ class BaseExtractor:
         for unit in tqdm(data.get("units", []), desc="Processing units"):
             unit_id = unit["unit_id"]
             if self._is_unit_processed(output, unit_id):
-                logger.info(f"Skipping already processed unit {unit_id}")
+                logger.info("unit_already_processed", unit_id=unit_id)
                 continue
 
             unit_data = await self._process_unit(unit)
             self._add_unit(output, unit_data)
             self._save_output(output)
 
-        logger.info(f"Extracted to {self._output_path}")
+        logger.info("extraction_written", output_path=str(self._output_path))
         return {"output_path": self._output_path}
 
     async def _process_unit(self, unit: dict) -> BaseModel:

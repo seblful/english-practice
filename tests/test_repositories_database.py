@@ -1,273 +1,264 @@
-"""Tests for DatabaseRepository with in-memory SQLite."""
+"""Tests for the SQLite repository, against a real database file."""
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from english_practice.repositories.database import DatabaseRepository
-
-SCHEMA = """
-PRAGMA foreign_keys = ON;
-
-CREATE TABLE IF NOT EXISTS units (
-    id INTEGER PRIMARY KEY,
-    unit_number INTEGER NOT NULL UNIQUE,
-    title TEXT NOT NULL,
-    grammar_md_path TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS exercises (
-    id INTEGER PRIMARY KEY,
-    exercise_id TEXT NOT NULL UNIQUE,
-    unit_id INTEGER NOT NULL,
-    exercise_number INTEGER NOT NULL,
-    FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS exercise_images (
-    id INTEGER PRIMARY KEY,
-    exercise_id INTEGER NOT NULL UNIQUE,
-    image_data BLOB NOT NULL,
-    FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS questions (
-    id INTEGER PRIMARY KEY,
-    exercise_id INTEGER NOT NULL,
-    question_id TEXT NOT NULL,
-    is_open_ended BOOLEAN DEFAULT 0,
-    section_letter TEXT,
-    rule TEXT,
-    display_order INTEGER DEFAULT 0,
-    FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE,
-    UNIQUE(exercise_id, question_id)
-);
-
-CREATE TABLE IF NOT EXISTS question_answers (
-    id INTEGER PRIMARY KEY,
-    question_id INTEGER NOT NULL,
-    short_answer TEXT NOT NULL,
-    full_answer TEXT NOT NULL,
-    FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
-    UNIQUE(question_id, short_answer)
-);
-
-CREATE TABLE IF NOT EXISTS topics (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    parent_topic_id INTEGER,
-    FOREIGN KEY (parent_topic_id) REFERENCES topics(id)
-);
-
-CREATE TABLE IF NOT EXISTS unit_topics (
-    unit_id INTEGER NOT NULL,
-    topic_id INTEGER NOT NULL,
-    PRIMARY KEY (unit_id, topic_id),
-    FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE,
-    FOREIGN KEY (topic_id) REFERENCES topics(id) ON DELETE CASCADE
-);
-"""
-
-
-def _build_db(db_path: Path) -> None:
-    """Build a test database with schema and sample data."""
-    conn = sqlite3.connect(str(db_path))
-    conn.executescript(SCHEMA)
-
-    conn.execute(
-        "INSERT INTO units (unit_number, title, grammar_md_path) "
-        "VALUES (1, 'Present Continuous', 'grammar/1.md')"
-    )
-    conn.execute(
-        "INSERT INTO units (unit_number, title, grammar_md_path) "
-        "VALUES (2, 'Present Simple', 'grammar/2.md')"
-    )
-    conn.execute(
-        "INSERT INTO exercises (exercise_id, unit_id, exercise_number) "
-        "VALUES ('1.1', 1, 1)"
-    )
-    conn.execute(
-        "INSERT INTO exercises (exercise_id, unit_id, exercise_number) "
-        "VALUES ('1.2', 1, 2)"
-    )
-    conn.execute(
-        "INSERT INTO exercises (exercise_id, unit_id, exercise_number) "
-        "VALUES ('2.1', 2, 1)"
-    )
-    conn.execute(
-        "INSERT INTO exercise_images (exercise_id, image_data) VALUES (1, X'010203')"
-    )
-    conn.execute("""INSERT INTO questions (exercise_id, question_id, is_open_ended,
-                                           section_letter, rule, display_order)
-                    VALUES (1, '1', 0, 'A', 'Use for now', 0)""")
-    conn.execute("""INSERT INTO questions (exercise_id, question_id, is_open_ended,
-                                           section_letter, rule, display_order)
-                    VALUES (1, '2', 0, 'A', 'Use for temp', 1)""")
-    conn.execute("""INSERT INTO questions (exercise_id, question_id, is_open_ended,
-                                           section_letter, rule, display_order)
-                    VALUES (2, '1', 1, NULL, NULL, 0)""")
-    conn.execute("""INSERT INTO question_answers
-                          (question_id, short_answer, full_answer)
-                    VALUES (1, 'is doing', 'He **is doing** his homework.')""")
-    conn.execute("""INSERT INTO question_answers
-                          (question_id, short_answer, full_answer)
-                    VALUES (1, 'is making', 'He **is making** dinner.')""")
-    conn.execute("""INSERT INTO question_answers
-                          (question_id, short_answer, full_answer)
-                    VALUES (2, 'are going', 'They **are going** to school.')""")
-    conn.execute("INSERT INTO topics (name) VALUES ('Present Tenses')")
-    conn.execute("INSERT INTO topics (name) VALUES ('Past Tenses')")
-    conn.execute("INSERT INTO unit_topics (unit_id, topic_id) VALUES (1, 1)")
-    conn.execute("INSERT INTO unit_topics (unit_id, topic_id) VALUES (2, 1)")
-
-    conn.commit()
-    conn.close()
-
-
-def _build_empty_db(db_path: Path) -> None:
-    """Build an empty test database with just the schema."""
-    conn = sqlite3.connect(str(db_path))
-    conn.executescript(SCHEMA)
-    conn.commit()
-    conn.close()
+from english_practice.settings import Settings
 
 
 @pytest.fixture
-def empty_repo(tmp_path) -> DatabaseRepository:
-    """Create a DatabaseRepository with empty schema."""
-    db_path = tmp_path / "empty.db"
-    _build_empty_db(db_path)
-    return DatabaseRepository(db_path)
+def db_path(seeded_db_path: Path) -> Path:
+    """The seeded database, under the name these tests use."""
+    return seeded_db_path
 
 
 @pytest.fixture
-def populated_repo(tmp_path) -> DatabaseRepository:
-    """Create a DatabaseRepository with test data."""
-    db_path = tmp_path / "test.db"
-    _build_db(db_path)
+def repository(db_path: Path) -> DatabaseRepository:
+    """A repository pointed at the seeded database."""
     return DatabaseRepository(db_path)
 
 
-class TestDatabaseRepositoryEmpty:
-    """Tests with empty database."""
+class TestTopics:
+    """Tests for reading topics."""
 
-    def test_get_all_topics_empty(self, empty_repo) -> None:
-        assert empty_repo.get_all_topics() == []
+    async def test_lists_topics_alphabetically_with_unit_counts(
+        self, repository: DatabaseRepository
+    ) -> None:
+        topics = await repository.list_topics()
 
-    def test_get_topic_by_id_nonexistent(self, empty_repo) -> None:
-        assert empty_repo.get_topic_by_id(999) is None
+        assert [topic.name for topic in topics] == [
+            "Past Tenses",
+            "Present Tenses",
+            "Unused Topic",
+        ]
+        assert {topic.name: topic.unit_count for topic in topics}["Present Tenses"] == 1
 
-    def test_get_random_exercise_empty(self, empty_repo) -> None:
-        assert empty_repo.get_random_exercise() is None
+    async def test_gets_one_topic(self, repository: DatabaseRepository) -> None:
+        topic = await repository.get_topic(1)
 
-    def test_get_random_exercise_with_topic_empty(self, empty_repo) -> None:
-        assert empty_repo.get_random_exercise(topic_id=1) is None
-
-    def test_get_exercise_image_nonexistent(self, empty_repo) -> None:
-        assert empty_repo.get_exercise_image(999) is None
-
-    def test_get_exercise_with_questions_nonexistent(self, empty_repo) -> None:
-        assert empty_repo.get_exercise_with_questions(999) is None
-
-    def test_get_all_answers_nonexistent(self, empty_repo) -> None:
-        assert empty_repo.get_all_answers(999) == []
-
-    def test_get_rule_nonexistent(self, empty_repo) -> None:
-        assert empty_repo.get_rule(999) is None
-
-    def test_get_topic_for_question_nonexistent(self, empty_repo) -> None:
-        assert empty_repo.get_topic_for_question(999) is None
-
-
-class TestDatabaseRepositoryPopulated:
-    """Tests with populated database."""
-
-    def test_get_all_topics(self, populated_repo) -> None:
-        topics = populated_repo.get_all_topics()
-        assert len(topics) == 2
-        names = [t["name"] for t in topics]
-        assert "Past Tenses" in names
-        assert "Present Tenses" in names
-
-    def test_get_all_topics_includes_unit_count(self, populated_repo) -> None:
-        topics = populated_repo.get_all_topics()
-        present = next(t for t in topics if t["name"] == "Present Tenses")
-        assert present["unit_count"] == 2
-        past = next(t for t in topics if t["name"] == "Past Tenses")
-        assert past["unit_count"] == 0
-
-    def test_get_topic_by_id_found(self, populated_repo) -> None:
-        topic = populated_repo.get_topic_by_id(1)
         assert topic is not None
-        assert topic["name"] == "Present Tenses"
+        assert topic.name == "Present Tenses"
 
-    def test_get_topic_by_id_not_found(self, populated_repo) -> None:
-        assert populated_repo.get_topic_by_id(999) is None
+    async def test_unknown_topic(self, repository: DatabaseRepository) -> None:
+        assert await repository.get_topic(404) is None
 
-    def test_get_random_exercise_any(self, populated_repo) -> None:
-        ex = populated_repo.get_random_exercise()
-        assert ex is not None
-        assert ex["exercise_id"] in ("1.1", "1.2", "2.1")
 
-    def test_get_random_exercise_by_topic(self, populated_repo) -> None:
-        ex = populated_repo.get_random_exercise(topic_id=1)
-        assert ex is not None
-        assert ex["unit_number"] in (1, 2)
+class TestExercises:
+    """Tests for drawing and reading exercises."""
 
-    def test_get_random_exercise_by_nonexistent_topic(self, populated_repo) -> None:
-        assert populated_repo.get_random_exercise(topic_id=999) is None
+    async def test_random_draw_respects_the_topic(
+        self, repository: DatabaseRepository
+    ) -> None:
+        for _ in range(10):
+            exercise = await repository.random_exercise(topic_id=2)
 
-    def test_get_exercise_image_found(self, populated_repo) -> None:
-        img = populated_repo.get_exercise_image(1)
-        assert img == b"\x01\x02\x03"
+            assert exercise is not None
+            assert exercise.unit.unit_number == 2
 
-    def test_get_exercise_image_not_found(self, populated_repo) -> None:
-        img = populated_repo.get_exercise_image(2)
-        assert img is None
+    async def test_random_draw_never_returns_a_questionless_exercise(
+        self, repository: DatabaseRepository
+    ) -> None:
+        """Exercise 2 has no questions, so the draw must skip it."""
+        for _ in range(20):
+            exercise = await repository.random_exercise(topic_id=1)
 
-    def test_get_exercise_with_questions_found(self, populated_repo) -> None:
-        ex = populated_repo.get_exercise_with_questions(1)
-        assert ex is not None
-        assert ex["exercise_id"] == "1.1"
-        assert len(ex["questions"]) == 2
-        assert ex["questions"][0]["question_id"] == "1"
-        assert len(ex["questions"][0]["answers"]) == 2
-        assert ex["questions"][1]["question_id"] == "2"
-        assert len(ex["questions"][1]["answers"]) == 1
+            assert exercise is not None
+            assert exercise.id == 1
+            assert exercise.questions
 
-    def test_get_exercise_with_questions_not_found(self, populated_repo) -> None:
-        assert populated_repo.get_exercise_with_questions(999) is None
+    async def test_random_draw_from_all_topics(
+        self, repository: DatabaseRepository
+    ) -> None:
+        exercise = await repository.random_exercise()
 
-    def test_get_exercise_with_questions_open_ended(self, populated_repo) -> None:
-        ex = populated_repo.get_exercise_with_questions(2)
-        assert ex is not None
-        assert len(ex["questions"]) == 1
-        assert ex["questions"][0]["is_open_ended"] is True
-        assert ex["questions"][0]["section_letter"] is None
+        assert exercise is not None
+        assert exercise.id in {1, 3}
 
-    def test_get_all_answers_found(self, populated_repo) -> None:
-        answers = populated_repo.get_all_answers(1)
-        assert len(answers) == 2
-        shorts = [a.short_answer for a in answers]
-        assert "is doing" in shorts
-        assert "is making" in shorts
+    async def test_empty_topic_yields_nothing(
+        self, repository: DatabaseRepository
+    ) -> None:
+        assert await repository.random_exercise(topic_id=3) is None
 
-    def test_get_all_answers_not_found(self, populated_repo) -> None:
-        assert populated_repo.get_all_answers(999) == []
+    async def test_exercise_carries_its_unit_and_topic(
+        self, repository: DatabaseRepository
+    ) -> None:
+        exercise = await repository.get_exercise(1)
 
-    def test_get_rule_found(self, populated_repo) -> None:
-        rule = populated_repo.get_rule(1)
-        assert rule is not None
-        assert rule["section_letter"] == "A"
-        assert rule["rule"] == "Use for now"
+        assert exercise is not None
+        assert exercise.exercise_id == "1.1"
+        assert exercise.unit.title == "Present Continuous"
+        assert exercise.unit.topic_name == "Present Tenses"
 
-    def test_get_rule_not_found(self, populated_repo) -> None:
-        assert populated_repo.get_rule(999) is None
+    async def test_questions_come_back_in_display_order(
+        self, repository: DatabaseRepository
+    ) -> None:
+        exercise = await repository.get_exercise(1)
 
-    def test_get_topic_for_question_found(self, populated_repo) -> None:
-        topic = populated_repo.get_topic_for_question(1)
-        assert topic == "Present Tenses"
+        assert exercise is not None
+        assert [q.question_id for q in exercise.questions] == ["1", "2"]
 
-    def test_get_topic_for_question_not_found(self, populated_repo) -> None:
-        assert populated_repo.get_topic_for_question(999) is None
+    async def test_question_fields_are_typed(
+        self, repository: DatabaseRepository
+    ) -> None:
+        exercise = await repository.get_exercise(1)
+
+        assert exercise is not None
+        open_ended, closed = exercise.questions
+        assert open_ended.is_open_ended is True
+        assert open_ended.rule is None
+        assert closed.is_open_ended is False
+        assert closed.rule == "Use present continuous"
+
+    async def test_unknown_exercise(self, repository: DatabaseRepository) -> None:
+        assert await repository.get_exercise(404) is None
+
+    async def test_exercise_image(self, repository: DatabaseRepository) -> None:
+        assert await repository.get_exercise_image(1) == b"\x89PNG"
+
+    async def test_missing_exercise_image(self, repository: DatabaseRepository) -> None:
+        assert await repository.get_exercise_image(2) is None
+
+
+class TestAnswers:
+    """Tests for reading a question's answers."""
+
+    async def test_lists_answers_in_insertion_order(
+        self, repository: DatabaseRepository
+    ) -> None:
+        answers = await repository.list_answers(1)
+
+        assert [answer.short_answer for answer in answers] == ["is doing", "'s doing"]
+        assert answers[0].full_answer == "He is doing."
+
+    async def test_question_without_answers(
+        self, repository: DatabaseRepository
+    ) -> None:
+        assert await repository.list_answers(2) == []
+
+
+class TestAuthorization:
+    """Tests for the access-control tables."""
+
+    async def test_unknown_user_has_no_status(
+        self, repository: DatabaseRepository
+    ) -> None:
+        assert await repository.get_auth_status(1) is None
+
+    async def test_registering_starts_as_pending(
+        self, repository: DatabaseRepository
+    ) -> None:
+        await repository.register_user(1, "Alice", "alice")
+
+        assert await repository.get_auth_status(1) == "pending"
+
+    async def test_registering_twice_keeps_the_first_record(
+        self, repository: DatabaseRepository
+    ) -> None:
+        await repository.register_user(1, "Alice", "alice")
+        await repository.set_auth_status(1, "approved", handled_by=9)
+        await repository.register_user(1, "Alice", "alice")
+
+        assert await repository.get_auth_status(1) == "approved"
+
+    async def test_approving_and_rejecting(
+        self, repository: DatabaseRepository
+    ) -> None:
+        await repository.register_user(1, "Alice", None)
+
+        await repository.set_auth_status(1, "approved", handled_by=9)
+        assert await repository.get_auth_status(1) == "approved"
+
+        await repository.set_auth_status(1, "rejected", handled_by=9)
+        assert await repository.get_auth_status(1) == "rejected"
+
+    async def test_reset_to_pending_clears_the_decision(
+        self, repository: DatabaseRepository, db_path: Path
+    ) -> None:
+        await repository.register_user(1, "Alice", "alice")
+        await repository.set_auth_status(1, "rejected", handled_by=9)
+
+        await repository.reset_to_pending(1, "Alice Updated", "alice2")
+
+        assert await repository.get_auth_status(1) == "pending"
+        with closing(sqlite3.connect(db_path)) as conn, conn:
+            row = conn.execute(
+                "SELECT full_name, telegram_username, handled_at, handled_by "
+                "FROM authorized_users WHERE telegram_id = 1"
+            ).fetchone()
+        assert row == ("Alice Updated", "alice2", None, None)
+
+    async def test_pending_queue_is_oldest_first_and_excludes_decided(
+        self, repository: DatabaseRepository, db_path: Path
+    ) -> None:
+        with closing(sqlite3.connect(db_path)) as conn, conn:
+            conn.executescript(
+                """
+                INSERT INTO authorized_users
+                    (telegram_id, full_name, telegram_username, status, created_at)
+                VALUES (1, 'Alice', 'alice', 'pending', '2026-01-01'),
+                       (2, 'Bob', NULL, 'pending', '2026-01-02'),
+                       (3, 'Carol', NULL, 'approved', '2026-01-03');
+                """
+            )
+
+        pending = await repository.list_pending_users()
+
+        assert [user.full_name for user in pending] == ["Alice", "Bob"]
+        assert pending[0].label == "Alice (@alice)"
+        assert pending[1].label == "Bob"
+
+
+class TestConnectionHandling:
+    """A bot that leaks connections dies slowly; assert it does not."""
+
+    async def test_connections_are_closed(
+        self, repository: DatabaseRepository, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`with sqlite3.connect(...)` commits but does not close — so we must."""
+        opened = 0
+        closed = 0
+        real_connect = sqlite3.connect
+
+        class TrackingConnection(sqlite3.Connection):
+            def close(self) -> None:
+                nonlocal closed
+                closed += 1
+                super().close()
+
+        def tracking_connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+            nonlocal opened
+            opened += 1
+            kwargs["factory"] = TrackingConnection
+            return real_connect(*args, **kwargs)
+
+        monkeypatch.setattr(sqlite3, "connect", tracking_connect)
+
+        await repository.list_topics()
+        await repository.register_user(1, "Alice", None)
+
+        assert opened == 2
+        assert closed == opened
+
+    async def test_write_is_committed(self, repository: DatabaseRepository) -> None:
+        await repository.register_user(1, "Alice", None)
+
+        # A fresh repository sees only committed data.
+        assert await DatabaseRepository(repository.db_path).get_auth_status(1) == (
+            "pending"
+        )
+
+    async def test_defaults_to_the_configured_database(
+        self, monkeypatch: pytest.MonkeyPatch, db_path: Path
+    ) -> None:
+        settings = Settings()
+        settings.paths.database_path = db_path
+        monkeypatch.setattr(
+            "english_practice.repositories.database.get_settings", lambda: settings
+        )
+
+        assert DatabaseRepository().db_path == db_path

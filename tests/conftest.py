@@ -1,14 +1,106 @@
-"""Shared fixtures for bot tests."""
+"""Shared fixtures.
 
+The bot's handlers take their collaborators from the context, so a test wires
+mocks into :class:`BotDependencies` instead of patching module globals. The
+session store is real: its behaviour is part of what the handler tests assert.
+"""
+
+import logging
 import os
+import sqlite3
+from collections.abc import Callable
+from contextlib import closing
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+import structlog
 from telegram import CallbackQuery, Message, Update, User
 
-from english_practice.bot.states import state_manager
+from english_practice.bot.context import BotContext, BotDependencies
+from english_practice.bot.states import SessionStore
+from english_practice.models.auth import PendingUser
+from english_practice.models.book import Exercise, Question, QuestionAnswer, Topic, Unit
+from english_practice.repositories.database import DatabaseRepository
+from english_practice.services.agent_service import AgentService
 from english_practice.settings import Settings
+
+USER_ID = 12345
+ADMIN_ID = 99999
+
+SCHEMA_PATH = Path("scripts/database/schema.sql")
+
+
+@pytest.fixture(autouse=True)
+def _quiet_logging() -> None:
+    """Drop application log records so test output stays readable.
+
+    The code under test logs deliberately, including full tracebacks from the
+    error handler; none of that belongs in pytest's captured output. This runs
+    per test because the logging tests reconfigure structlog themselves.
+    """
+    structlog.configure(
+        wrapper_class=structlog.make_filtering_bound_logger(logging.CRITICAL),
+        logger_factory=structlog.ReturnLoggerFactory(),
+    )
+
+
+# ----------------------------------------------------------------------
+# Database
+# ----------------------------------------------------------------------
+
+
+@pytest.fixture
+def seeded_db_path(tmp_path: Path) -> Path:
+    """Build a database from the project schema, with a little content.
+
+    Using the real schema is deliberate: a column renamed in ``schema.sql``
+    should break these tests rather than production. Exercise 2 deliberately
+    has no questions, and topic 3 no units, so the queries that must skip them
+    have something to skip.
+    """
+    path = tmp_path / "test.db"
+    # `with sqlite3.connect(...)` commits but does not close, which is the very
+    # leak the repository fixes -- so the fixture must not repeat it either.
+    with closing(sqlite3.connect(path)) as conn, conn:
+        conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        conn.executescript(
+            """
+            INSERT INTO units (id, unit_number, title)
+            VALUES (1, 1, 'Present Continuous'), (2, 2, 'Past Simple');
+
+            INSERT INTO topics (id, name) VALUES (1, 'Present Tenses'),
+                                                 (2, 'Past Tenses'),
+                                                 (3, 'Unused Topic');
+
+            INSERT INTO unit_topics (unit_id, topic_id) VALUES (1, 1), (2, 2);
+
+            INSERT INTO exercises (id, exercise_id, unit_id, exercise_number)
+            VALUES (1, '1.1', 1, 1), (2, '1.2', 1, 2), (3, '2.1', 2, 1);
+
+            INSERT INTO exercise_images (exercise_id, image_data)
+            VALUES (1, X'89504E47');
+
+            INSERT INTO questions
+                (id, exercise_id, question_id, is_open_ended,
+                 section_letter, rule, display_order)
+            VALUES
+                (1, 1, '2', 0, 'A', 'Use present continuous', 1),
+                (2, 1, '1', 1, 'B', NULL, 0),
+                (3, 3, '1', 0, 'A', 'Use past simple', 0);
+
+            INSERT INTO question_answers (question_id, short_answer, full_answer)
+            VALUES (1, 'is doing', 'He is doing.'),
+                   (1, "'s doing", "He's doing.");
+            """
+        )
+    return path
+
+
+# ----------------------------------------------------------------------
+# Settings
+# ----------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -28,221 +120,196 @@ def test_settings(tmp_env_file: Path, monkeypatch: pytest.MonkeyPatch) -> Settin
     return Settings(_env_file=tmp_env_file)
 
 
+# ----------------------------------------------------------------------
+# Domain fixtures
+# ----------------------------------------------------------------------
+
+
+@pytest.fixture
+def unit() -> Unit:
+    """A grammar unit."""
+    return Unit(
+        id=1, unit_number=1, title="Present Continuous", topic_name="Present Tenses"
+    )
+
+
+@pytest.fixture
+def question() -> Question:
+    """A closed question with a rule attached."""
+    return Question(
+        id=1,
+        question_id="1",
+        is_open_ended=False,
+        section_letter="A",
+        rule="Use present continuous for actions happening now",
+        display_order=0,
+    )
+
+
+@pytest.fixture
+def exercise(unit: Unit, question: Question) -> Exercise:
+    """An exercise with two questions."""
+    second = Question(id=2, question_id="2", section_letter="A", display_order=1)
+    return Exercise(
+        id=1,
+        exercise_id="1.1",
+        exercise_number=1,
+        unit=unit,
+        questions=(question, second),
+    )
+
+
+@pytest.fixture
+def answers() -> list[QuestionAnswer]:
+    """Two accepted answers for a question."""
+    return [
+        QuestionAnswer(
+            short_answer="is doing", full_answer="He **is doing** his homework."
+        ),
+        QuestionAnswer(
+            short_answer="'s doing", full_answer="He **'s doing** his homework."
+        ),
+    ]
+
+
+@pytest.fixture
+def topics() -> list[Topic]:
+    """Two topics."""
+    return [
+        Topic(id=1, name="Present Tenses", unit_count=10),
+        Topic(id=2, name="Past Tenses", unit_count=8),
+    ]
+
+
+# ----------------------------------------------------------------------
+# Telegram fixtures
+# ----------------------------------------------------------------------
+
+
 @pytest.fixture
 def mock_user() -> Mock:
-    """Create a mock Telegram user."""
+    """A Telegram user."""
     user = Mock(spec=User)
-    user.id = 12345
+    user.id = USER_ID
     user.first_name = "Test"
-    user.full_name = "Test"
+    user.full_name = "Test User"
     user.username = "testuser"
     return user
 
 
 @pytest.fixture
-def mock_message(mock_user) -> AsyncMock:
-    """Create a mock Telegram message with async reply methods."""
+def mock_message(mock_user: Mock) -> AsyncMock:
+    """A Telegram message with async reply methods."""
     message = AsyncMock(spec=Message)
-    message.text = "test message"
-    message.reply_text = AsyncMock(return_value=None)
-    message.reply_photo = AsyncMock(return_value=None)
+    message.text = "is doing"
     message.from_user = mock_user
     return message
 
 
 @pytest.fixture
-def mock_callback_query(mock_user, mock_message) -> AsyncMock:
-    """Create a mock callback query."""
-    query = AsyncMock(spec=CallbackQuery)
-    query.data = "topic:random"
-    query.from_user = mock_user
-    query.message = mock_message
-    query.answer = AsyncMock(return_value=None)
-    return query
-
-
-@pytest.fixture
-def mock_update(mock_user, mock_message) -> Mock:
-    """Create a mock Update for command/text messages."""
+def mock_update(mock_user: Mock, mock_message: AsyncMock) -> Mock:
+    """An update carrying a text message."""
     update = Mock(spec=Update)
+    update.update_id = 1
     update.effective_user = mock_user
-    update.effective_chat = Mock()
-    update.effective_chat.id = 12345
     update.message = mock_message
     update.callback_query = None
     return update
 
 
 @pytest.fixture
-def mock_callback_update(mock_user, mock_callback_query) -> Mock:
-    """Create a mock Update for callback queries."""
+def mock_callback_query(mock_user: Mock, mock_message: AsyncMock) -> AsyncMock:
+    """A pressed inline button."""
+    query = AsyncMock(spec=CallbackQuery)
+    query.data = "topic:random"
+    query.from_user = mock_user
+    query.message = mock_message
+    return query
+
+
+@pytest.fixture
+def mock_callback_update(mock_user: Mock, mock_callback_query: AsyncMock) -> Mock:
+    """An update carrying a callback query."""
     update = Mock(spec=Update)
+    update.update_id = 2
     update.effective_user = mock_user
-    update.effective_chat = Mock()
-    update.effective_chat.id = 12345
     update.message = None
     update.callback_query = mock_callback_query
     return update
 
 
+# ----------------------------------------------------------------------
+# Dependency fixtures
+# ----------------------------------------------------------------------
+
+
 @pytest.fixture
-def mock_context() -> Mock:
-    """Create a mock context with bot."""
-    context = Mock()
+def mock_repository(
+    exercise: Exercise, answers: list[QuestionAnswer], topics: list[Topic]
+) -> AsyncMock:
+    """A repository whose queries succeed with the domain fixtures."""
+    repository = AsyncMock(spec=DatabaseRepository)
+    repository.list_topics.return_value = topics
+    repository.get_topic.return_value = topics[0]
+    repository.random_exercise.return_value = exercise
+    repository.get_exercise.return_value = exercise
+    repository.get_exercise_image.return_value = b"fake_image_bytes"
+    repository.list_answers.return_value = answers
+    repository.get_auth_status.return_value = None
+    repository.list_pending_users.return_value = [
+        PendingUser(telegram_id=111, full_name="Alice", telegram_username="alice"),
+        PendingUser(telegram_id=222, full_name="Bob"),
+    ]
+    return repository
+
+
+@pytest.fixture
+def mock_agents() -> AsyncMock:
+    """An agent service that grades everything correct."""
+    agents = AsyncMock(spec=AgentService)
+    agents.evaluate_answer.return_value = Mock(is_correct=True, answer_idx=[0])
+    agents.assist.return_value = Mock(answer="Here is some **help**")
+    return agents
+
+
+@pytest.fixture
+def sessions() -> SessionStore:
+    """A real session store, empty for each test."""
+    return SessionStore()
+
+
+@pytest.fixture
+def dependencies(
+    mock_repository: AsyncMock, mock_agents: AsyncMock, sessions: SessionStore
+) -> BotDependencies:
+    """Dependencies with access control switched off."""
+    return BotDependencies(
+        repository=mock_repository,
+        agents=mock_agents,
+        sessions=sessions,
+        admin_user_id=None,
+    )
+
+
+@pytest.fixture
+def mock_context(dependencies: BotDependencies) -> Mock:
+    """A handler context backed by the mock dependencies."""
+    context = Mock(spec=BotContext)
     context.bot = AsyncMock()
-    context.bot.set_my_commands = AsyncMock(return_value=None)
-    context.bot_data = {}
-    context.user_data = {}
+    context.dependencies = dependencies
+    context.repository = dependencies.repository
+    context.agents = dependencies.agents
+    context.sessions = dependencies.sessions
     return context
 
 
 @pytest.fixture
-def mock_repository() -> Mock:
-    """Create a mock DatabaseRepository with default return values."""
-    repo = Mock()
+def set_admin(mock_context: Mock) -> Callable[[int | None], None]:
+    """Return a helper that switches access control on for a given admin ID."""
 
-    repo.get_all_topics.return_value = [
-        {"id": 1, "name": "Present Tenses", "unit_count": 10},
-        {"id": 2, "name": "Past Tenses", "unit_count": 8},
-    ]
+    def _set_admin(admin_user_id: int | None) -> None:
+        mock_context.dependencies = replace(
+            mock_context.dependencies, admin_user_id=admin_user_id
+        )
 
-    repo.get_topic_by_id.return_value = {"id": 1, "name": "Present Tenses"}
-
-    repo.get_random_exercise.return_value = {
-        "id": 1,
-        "exercise_id": "1.1",
-        "exercise_number": 1,
-        "unit_id": 1,
-        "unit_number": 1,
-        "title": "Present Continuous",
-    }
-
-    repo.get_exercise_image.return_value = b"fake_image_bytes"
-
-    repo.get_exercise_with_questions.return_value = {
-        "id": 1,
-        "exercise_id": "1.1",
-        "exercise_number": 1,
-        "unit_id": 1,
-        "unit_number": 1,
-        "title": "Present Continuous",
-        "questions": [
-            {
-                "id": 1,
-                "question_id": "1",
-                "is_open_ended": False,
-                "section_letter": "A",
-                "rule": "Use present continuous for actions happening now",
-                "display_order": 0,
-                "answers": [
-                    {
-                        "short_answer": "is doing",
-                        "full_answer": "He **is doing** his homework.",
-                    },
-                ],
-            },
-            {
-                "id": 2,
-                "question_id": "2",
-                "is_open_ended": False,
-                "section_letter": "A",
-                "rule": "Use present continuous for temporary situations",
-                "display_order": 1,
-                "answers": [
-                    {
-                        "short_answer": "are going",
-                        "full_answer": "They **are going** to school.",
-                    },
-                ],
-            },
-        ],
-    }
-
-    repo.get_all_answers.return_value = [
-        Mock(short_answer="is doing", full_answer="He **is doing** his homework."),
-    ]
-
-    repo.get_rule.return_value = {
-        "section_letter": "A",
-        "rule": "Use present continuous for actions happening now",
-    }
-
-    repo.get_topic_for_question.return_value = "Present Tenses"
-
-    # Auth mocks
-    repo.get_user_auth_status = Mock(return_value=None)
-    repo.add_user = Mock(return_value=None)
-    repo.set_user_status = Mock(return_value=None)
-    repo.get_pending_users = Mock(return_value=[])
-
-    return repo
-
-
-@pytest.fixture
-def mock_agent_service() -> AsyncMock:
-    """Create a mock AgentService."""
-    service = AsyncMock()
-    service.on_new_image = Mock(return_value=None)
-    service.clear_all_history = Mock(return_value=None)
-    return service
-
-
-@pytest.fixture(autouse=True)
-def patch_repository(monkeypatch, mock_repository) -> Mock:
-    """Patch DatabaseRepository to return mock instance in all handlers."""
-    monkeypatch.setattr(
-        "english_practice.bot.handlers.DatabaseRepository",
-        lambda *a, **kw: mock_repository,
-    )
-    monkeypatch.setattr(
-        "english_practice.repositories.database.DatabaseRepository",
-        lambda *a, **kw: mock_repository,
-    )
-    return mock_repository
-
-
-@pytest.fixture(autouse=True)
-def patch_agent_service(monkeypatch, mock_agent_service) -> AsyncMock:
-    """Patch AgentService to return mock instance in all handlers."""
-    monkeypatch.setattr(
-        "english_practice.bot.handlers.AgentService",
-        lambda *a, **kw: mock_agent_service,
-    )
-    return mock_agent_service
-
-
-@pytest.fixture(autouse=True)
-def reset_state_manager() -> None:
-    """Reset state_manager between tests."""
-
-    state_manager.sessions.clear()
-
-
-@pytest.fixture(autouse=True)
-def reset_auth(monkeypatch) -> None:
-    """Reset auth to disabled by default for all tests."""
-    monkeypatch.setattr(
-        "english_practice.settings.settings.telegram.admin_user_id",
-        None,
-    )
-
-
-@pytest.fixture
-def patch_auth_enabled(monkeypatch) -> None:
-    """Enable authorization with admin_user_id matching the mock user (12345)."""
-    monkeypatch.setattr(
-        "english_practice.settings.settings.telegram.admin_user_id",
-        12345,
-    )
-
-
-@pytest.fixture
-def patch_auth_admin(monkeypatch) -> None:
-    """Set admin_user_id to an ID other than the mock user's.
-
-    Used for exercising admin-only commands as a non-admin.
-    """
-    monkeypatch.setattr(
-        "english_practice.settings.settings.telegram.admin_user_id",
-        99999,
-    )
+    return _set_admin

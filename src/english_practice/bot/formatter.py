@@ -1,9 +1,19 @@
-"""Message formatter for bot responses."""
+"""Message text for the bot, formatted with Telegram's HTML parse mode.
 
+Everything here escapes the values it interpolates. Answers and unit titles come
+from the book, and names come from Telegram, so an ampersand or a stray ``<``
+is ordinary content — under ``parse_mode="HTML"`` it would otherwise make
+Telegram reject the whole message.
+"""
+
+import html
 import random
 import re
+from collections.abc import Sequence
 
-CORRECT_PHRASES = [
+from english_practice.models.book import QuestionAnswer
+
+CORRECT_PHRASES = (
     "✅ <b>Correct!</b>",
     "✅ <b>Well done!</b>",
     "✅ <b>Perfect!</b>",
@@ -14,9 +24,9 @@ CORRECT_PHRASES = [
     "✅ <b>Brilliant!</b>",
     "✅ <b>Bullseye!</b>",
     "✅ <b>Awesome!</b>",
-]
+)
 
-WRONG_PHRASES = [
+WRONG_PHRASES = (
     "❌ <b>Not quite</b>",
     "❌ <b>Almost there</b>",
     "❌ <b>Close, but not quite</b>",
@@ -27,163 +37,166 @@ WRONG_PHRASES = [
     "❌ <b>Take another look</b>",
     "❌ <b>Good try!</b>",
     "❌ <b>You'll get it next time!</b>",
-]
+)
+
+_BULLET_PATTERNS = (
+    (re.compile(r"^- \[ \]", re.MULTILINE), "•"),
+    (re.compile(r"^\* ", re.MULTILINE), "• "),
+    (re.compile(r"^☐ ", re.MULTILINE), "• "),
+)
+_BOLD = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
+_ITALIC = re.compile(r"\*(.+?)\*", re.DOTALL)
 
 
-class MessageFormatter:
-    """Format bot messages with HTML styling."""
+def escape(text: str) -> str:
+    """Escape text for Telegram's HTML parse mode.
 
-    @staticmethod
-    def _normalize_bullets(text: str) -> str:
-        """Normalize bullet points to standard bullet character.
+    Args:
+        text: Raw text.
 
-        Args:
-            text: The text to normalize.
+    Returns:
+        The text with ``&``, ``<`` and ``>`` escaped.
+    """
+    return html.escape(text, quote=False)
 
-        Returns:
-            Text with normalized bullet points.
-        """
-        text = re.sub(r"^- \[ \]", "•", text, flags=re.MULTILINE)
-        text = re.sub(r"^\* ", "• ", text, flags=re.MULTILINE)
-        return re.sub(r"^☐ ", "• ", text, flags=re.MULTILINE)
 
-    @staticmethod
-    def _md_to_html(text: str) -> str:
-        """Convert markdown bold (**text**) and italic (*text*) to HTML."""
-        text = MessageFormatter._normalize_bullets(text)
-        text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
-        return re.sub(r"\*(.*?)\*", r"<i>\1</i>", text)
+def rich(text: str) -> str:
+    """Escape text, then render its markdown emphasis and bullets as HTML.
 
-    @staticmethod
-    def format_topic(topic_name: str) -> str:
-        """Format topic message.
+    The book's answers and the assistant's replies use ``**bold**`` and
+    ``*italic*``. Escaping first is what keeps a literal ``<`` in the source
+    text from being read as markup.
 
-        Args:
-            topic_name: The topic name.
+    Args:
+        text: Raw text, possibly using markdown emphasis.
 
-        Returns:
-            Formatted topic message.
-        """
-        return f"📚 Topic: <b>{topic_name}</b>"
+    Returns:
+        Telegram-ready HTML.
+    """
+    result = escape(text)
+    for pattern, replacement in _BULLET_PATTERNS:
+        result = pattern.sub(replacement, result)
+    result = _BOLD.sub(r"<b>\1</b>", result)
+    return _ITALIC.sub(r"<i>\1</i>", result)
 
-    @staticmethod
-    def format_question_prompt(question_number: str) -> str:
-        """Format question prompt message.
 
-        Args:
-            question_number: The question number/ID.
+def topic_line(topic_name: str) -> str:
+    """Announce the topic of the exercise being sent.
 
-        Returns:
-            Formatted question prompt message.
-        """
-        return f"Answer question <b>{question_number}</b>:"
+    Args:
+        topic_name: The topic name.
 
-    @staticmethod
-    def format_evaluation(is_correct: bool) -> str:
-        """Format evaluation result message.
+    Returns:
+        The message text.
+    """
+    return f"📚 Topic: <b>{escape(topic_name)}</b>"
 
-        Args:
-            is_correct: Whether the user's answer is correct.
 
-        Returns:
-            Formatted evaluation message.
-        """
-        if is_correct:
-            return random.choice(CORRECT_PHRASES)
-        return random.choice(WRONG_PHRASES)
+def question_prompt(question_number: str) -> str:
+    """Ask the user to answer one numbered question.
 
-    @staticmethod
-    def format_short_answers(short_answers: list[str]) -> str:
-        """Format multiple short answers joined with comma.
+    Args:
+        question_number: The question number as printed in the book.
 
-        Args:
-            short_answers: List of short answer texts.
+    Returns:
+        The message text.
+    """
+    return f"Answer question <b>{escape(question_number)}</b>:"
 
-        Returns:
-            Formatted short answer message.
-        """
-        short_text = ", ".join(short_answers)
-        converted = MessageFormatter._md_to_html(short_text)
-        return f"Correct Answer:\n<b>{converted}</b>"
 
-    @staticmethod
-    def format_short_answer(short_answer: str) -> str:
-        """Format single short answer message.
+def evaluation(is_correct: bool) -> str:
+    """Give varied feedback on an answer.
 
-        Args:
-            short_answer: The short answer text.
+    Args:
+        is_correct: Whether the answer was correct.
 
-        Returns:
-            Formatted short answer message.
-        """
-        converted = MessageFormatter._md_to_html(short_answer)
-        return f"Correct Answer:\n<b>{converted}</b>"
+    Returns:
+        The message text.
+    """
+    return random.choice(CORRECT_PHRASES if is_correct else WRONG_PHRASES)
 
-    @staticmethod
-    def format_full_answers(full_answers: list[str]) -> str:
-        """Format multiple full answers joined with newlines.
 
-        Args:
-            full_answers: List of full answer texts.
+def short_answers(answers: Sequence[QuestionAnswer]) -> str:
+    """Show the accepted short answers on one line.
 
-        Returns:
-            Formatted full answer message with code block.
-        """
-        full_text = "\n".join(full_answers)
-        converted = MessageFormatter._md_to_html(full_text)
-        return f"Full Answer:\n<pre>{converted}</pre>"
+    Args:
+        answers: The answers to show; at least one.
 
-    @staticmethod
-    def format_full_answer(full_answer: str) -> str:
-        """Format single full answer message with code block.
+    Returns:
+        The message text.
+    """
+    joined = ", ".join(answer.short_answer for answer in answers)
+    return f"Correct Answer:\n<b>{rich(joined)}</b>"
 
-        Args:
-            full_answer: The full answer sentence.
 
-        Returns:
-            Formatted full answer message with code block.
-        """
-        converted = MessageFormatter._md_to_html(full_answer)
-        return f"Full Answer:\n<pre>{converted}</pre>"
+def full_answers(answers: Sequence[QuestionAnswer]) -> str:
+    """Show the accepted full sentences as a preformatted block.
 
-    @staticmethod
-    def format_rule(unit_number: int, section_letter: str, rule: str) -> str:
-        """Format rule message with blockquote.
+    Args:
+        answers: The answers to show; at least one.
 
-        Args:
-            unit_number: The unit number.
-            section_letter: The section letter (A, B, C, etc.).
-            rule: The rule text.
+    Returns:
+        The message text.
+    """
+    joined = "\n".join(answer.full_answer for answer in answers)
+    return f"Full Answer:\n<pre>{rich(joined)}</pre>"
 
-        Returns:
-            Formatted rule message.
-        """
-        converted = MessageFormatter._md_to_html(rule)
-        rule_ref = f"{unit_number}{section_letter}"
-        return f"📋 Rule: <b>{rule_ref}</b>\n<blockquote>{converted}</blockquote>"
 
-    @staticmethod
-    def format_unit_info(unit_number: int, title: str) -> str:
-        """Format unit information message.
+def rule_block(unit_number: int, section_letter: str | None, rule: str) -> str:
+    """Quote the grammar rule behind a question.
 
-        Args:
-            unit_number: The unit number.
-            title: The unit title.
+    Args:
+        unit_number: The unit number.
+        section_letter: The section letter within the unit, when known.
+        rule: The rule text.
 
-        Returns:
-            Formatted unit info message.
-        """
-        return f"📌 Unit <b>{unit_number}</b>\n<b>{title}</b>"
+    Returns:
+        The message text.
+    """
+    reference = f"{unit_number}{escape(section_letter or '')}"
+    return f"📋 Rule: <b>{reference}</b>\n<blockquote>{rich(rule)}</blockquote>"
 
-    @staticmethod
-    def format_assistant_answer(answer: str) -> str:
-        """Format assistant answer message.
 
-        Args:
-            answer: The assistant's answer text.
+def unit_info(unit_number: int, title: str) -> str:
+    """Name the unit an exercise comes from.
 
-        Returns:
-            Formatted assistant answer message.
-        """
-        converted = MessageFormatter._md_to_html(answer)
-        return f"💬 {converted}"
+    Args:
+        unit_number: The unit number.
+        title: The unit title.
+
+    Returns:
+        The message text.
+    """
+    return f"📌 Unit <b>{unit_number}</b>\n<b>{escape(title)}</b>"
+
+
+def assistant_answer(answer: str) -> str:
+    """Present the assistant's reply to a follow-up question.
+
+    Args:
+        answer: The assistant's answer.
+
+    Returns:
+        The message text.
+    """
+    return f"💬 {rich(answer)}"
+
+
+def access_request(full_name: str, username: str | None, telegram_id: int) -> str:
+    """Tell the admin that somebody asked for access.
+
+    Args:
+        full_name: Name reported by Telegram.
+        username: Telegram @username, when the user has one.
+        telegram_id: Telegram user ID.
+
+    Returns:
+        The message text.
+    """
+    mention = f"@{escape(username)}" if username else "No username"
+    return (
+        "👤 <b>New user requested access</b>\n"
+        f"Name: {escape(full_name)}\n"
+        f"Username: {mention}\n"
+        f"ID: <code>{telegram_id}</code>"
+    )

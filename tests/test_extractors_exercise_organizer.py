@@ -3,6 +3,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import cv2
 import numpy as np
 import pytest
 
@@ -12,12 +13,19 @@ from english_practice.extractors.exercise_organizer import (
     HSVRange,
 )
 from english_practice.models.constants import (
+    BOTTOM_WHITE_MARGIN,
     EXERCISE_BOX_MAX_HEIGHT,
     EXERCISE_BOX_MAX_WIDTH,
     EXERCISE_BOX_MIN_HEIGHT,
     EXERCISE_BOX_MIN_WIDTH,
+    EXERCISE_CROP_BOTTOM,
+    EXERCISE_CROP_LEFT,
+    EXERCISE_CROP_RIGHT,
+    EXERCISE_CROP_TOP,
     EXERCISE_MIN_AREA,
+    EXERCISE_MIN_HEIGHT,
     EXERCISE_PADDING,
+    EXERCISE_SEARCH_WIDTH_RATIO,
 )
 
 
@@ -205,3 +213,153 @@ class TestExerciseOrganizer:
         assert len(results) == 1
         assert results[0].parent.exists()
         assert results[0].name == "1.1.png"
+
+
+class TestHeaderDetectionOnSyntheticPages:
+    """Detection tests against generated pages.
+
+    The real pipeline finds exercises by the teal header box printed beside
+    each one, so these build pages with those boxes rather than mocking
+    OpenCV: the geometry constants are exactly what could silently break.
+    """
+
+    # Inside the configured HSV window for the book's teal headers.
+    TEAL_HSV = (90, 200, 200)
+    HEADER_WIDTH = 125
+    HEADER_HEIGHT = 70
+    # Chosen so that, after cropping, the search strip is wider than a header.
+    PAGE_WIDTH = EXERCISE_CROP_LEFT + EXERCISE_CROP_RIGHT + 2000
+    PAGE_HEIGHT = EXERCISE_CROP_TOP + EXERCISE_CROP_BOTTOM + 1200
+
+    @classmethod
+    def _teal_bgr(cls) -> np.ndarray:
+        """Return the header colour in BGR, as OpenCV reads an image."""
+        hsv = np.array([[cls.TEAL_HSV]], dtype=np.uint8)
+        return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)[0][0]
+
+    @classmethod
+    def _page(
+        cls, header_offsets: tuple[int, ...], size: int | None = None
+    ) -> np.ndarray:
+        """Build a white page with a teal header box at each vertical offset.
+
+        Args:
+            header_offsets: Header positions, in cropped-page coordinates.
+            size: Header side length override, to make an invalid box.
+
+        Returns:
+            The page as a BGR image.
+        """
+        page = np.full((cls.PAGE_HEIGHT, cls.PAGE_WIDTH, 3), 255, dtype=np.uint8)
+        width = size or cls.HEADER_WIDTH
+        height = size or cls.HEADER_HEIGHT
+        for offset in header_offsets:
+            top = EXERCISE_CROP_TOP + offset
+            left = EXERCISE_CROP_LEFT + 5
+            page[top : top + height, left : left + width] = cls._teal_bgr()
+        return page
+
+    def test_detects_one_box_per_header_sorted_by_position(self) -> None:
+        organizer = ExerciseOrganizer()
+        page = organizer._crop_image(self._page((700, 100)))
+        search_width = int(page.shape[1] * EXERCISE_SEARCH_WIDTH_RATIO)
+
+        boxes = organizer._detect_exercise_headers(page[:, :search_width])
+
+        assert len(boxes) == 2
+        assert [box["y"] for box in boxes] == sorted(box["y"] for box in boxes)
+        assert boxes[0]["w"] == self.HEADER_WIDTH
+
+    def test_ignores_boxes_of_the_wrong_size(self) -> None:
+        organizer = ExerciseOrganizer()
+        page = organizer._crop_image(self._page((100,), size=30))
+        search_width = int(page.shape[1] * EXERCISE_SEARCH_WIDTH_RATIO)
+
+        assert organizer._detect_exercise_headers(page[:, :search_width]) == []
+
+    def test_extract_from_page_splits_at_each_header(self, tmp_path) -> None:
+        path = tmp_path / "1.png"
+        cv2.imwrite(str(path), self._page((100, 700)))
+
+        exercises = ExerciseOrganizer()._extract_from_page(path)
+
+        assert len(exercises) == 2
+        assert all(image.shape[0] >= EXERCISE_MIN_HEIGHT for image in exercises)
+
+    def test_extract_from_page_falls_back_to_the_whole_page(self, tmp_path) -> None:
+        """A page with no header is still worth keeping, uncut."""
+        path = tmp_path / "1.png"
+        cv2.imwrite(str(path), self._page(()))
+
+        exercises = ExerciseOrganizer()._extract_from_page(path)
+
+        assert len(exercises) == 1
+        assert exercises[0].shape[0] == self.PAGE_HEIGHT - (
+            EXERCISE_CROP_TOP + EXERCISE_CROP_BOTTOM
+        )
+
+    def test_extract_from_page_rejects_an_unreadable_file(self, tmp_path) -> None:
+        path = tmp_path / "not-an-image.png"
+        path.write_bytes(b"nonsense")
+
+        with pytest.raises(ValueError, match="Cannot read image"):
+            ExerciseOrganizer()._extract_from_page(path)
+
+    def test_organize_writes_one_file_per_exercise(self, tmp_path) -> None:
+        pages = tmp_path / "pages"
+        output = tmp_path / "out"
+        pages.mkdir()
+        cv2.imwrite(str(pages / "1.png"), self._page((100, 700)))
+
+        created = ExerciseOrganizer().organize(pages, output)
+
+        assert [path.name for path in created] == ["1.1.png", "1.2.png"]
+        assert all(path.exists() for path in created)
+
+
+class TestMaskMorphology:
+    """Tests for the optional morphology passes on the colour mask."""
+
+    def test_erode_without_dilate(self) -> None:
+        organizer = ExerciseOrganizer()
+        region = np.zeros((20, 20, 3), dtype=np.uint8)
+        hsv_range = organizer._create_hsv_range(0, 0, 0, 180, 255, 255)
+
+        mask = organizer._create_hsv_mask(
+            region, hsv_range, kernel_size=3, dilate_iterations=0, erode_iterations=1
+        )
+
+        assert mask.shape == (20, 20)
+
+
+class TestBottomWhiteSpace:
+    """Tests for trimming the blank space under the last exercise."""
+
+    def test_crops_when_content_ends_early(self) -> None:
+        """Only the bottom third is searched, so the content sits inside it."""
+        image = np.full((400, 200, 3), 255, dtype=np.uint8)
+        image[300:310, :] = 0  # a line of content, then white to the bottom
+
+        cropped = ExerciseOrganizer()._crop_bottom_white_space(image)
+
+        assert cropped.shape[0] == 309 + BOTTOM_WHITE_MARGIN
+
+    def test_keeps_the_image_when_content_reaches_the_bottom(self) -> None:
+        image = np.full((400, 200, 3), 255, dtype=np.uint8)
+        image[-5:, :] = 0
+
+        assert ExerciseOrganizer()._crop_bottom_white_space(image).shape[0] == 400
+
+
+class TestSplitSkipsUnusableSlices:
+    """Tests for the guard against slivers between two adjacent headers."""
+
+    def test_slice_below_the_minimum_height_is_dropped(self) -> None:
+        image = np.zeros((300, 100, 3), dtype=np.uint8)
+        boxes = [{"y": 10, "w": 1, "h": 1}, {"y": 20, "w": 1, "h": 1}]
+
+        exercises = ExerciseOrganizer()._split_into_exercises(image, boxes, 300, 100)
+
+        # The first slice spans 10 pixels and is discarded; the second runs to
+        # the bottom of the page and is kept.
+        assert len(exercises) == 1

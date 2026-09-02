@@ -1,6 +1,10 @@
 """Agent input/output models for structured LLM responses."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+ChatRole = Literal["user", "assistant"]
 
 
 class EvaluateAnswerInput(BaseModel):
@@ -85,9 +89,9 @@ class RulesContext(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    """Chat message structure."""
+    """One turn of an assistant conversation."""
 
-    role: str
+    role: ChatRole
     content: str
 
 

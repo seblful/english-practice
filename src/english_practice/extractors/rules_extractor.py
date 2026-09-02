@@ -76,14 +76,14 @@ class RulesExtractor(BaseExtractor):
         for unit in tqdm(data.get("units", []), desc="Processing units"):
             unit_id = unit["unit_id"]
             if self._is_unit_processed(output, unit_id):
-                logger.info(f"Skipping already processed unit {unit_id}")
+                logger.info("unit_already_processed", unit_id=unit_id)
                 continue
 
             unit_data = await self._process_unit_rules(unit, answers_full_map)
             self._add_unit(output, unit_data)
             self._save_output(output)
 
-        logger.info(f"Rules extracted to {self._output_path}")
+        logger.info("rules_written", output_path=str(self._output_path))
         return {"output_path": self._output_path}
 
     async def _process_unit_rules(
@@ -98,7 +98,7 @@ class RulesExtractor(BaseExtractor):
         topic_name = self._get_topic_name(unit_id)
 
         if not rules_md:
-            logger.warning(f"Grammar markdown not found for unit {unit_number}")
+            logger.warning("grammar_markdown_missing", unit_number=unit_number)
             # RulesContext requires a string; the prompt renders an empty
             # rules section rather than failing validation.
             rules_md = ""

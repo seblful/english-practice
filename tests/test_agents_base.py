@@ -7,7 +7,9 @@ import pytest
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 
-from english_practice.agents.base import BaseAgent, _get_prompt_env
+from english_practice.agents.base import BaseAgent, _prompt_env
+from english_practice.errors import AgentError, ConfigurationError
+from english_practice.settings import get_settings
 
 
 def _parts(msg: HumanMessage) -> list[dict]:
@@ -27,136 +29,106 @@ class _TestAgent(BaseAgent):
     PROMPT_TEMPLATE = "evaluate.j2"
 
 
-class TestGetPromptEnv:
-    """Tests for _get_prompt_env."""
+def _structured_llm(result: object) -> MagicMock:
+    """Return a chat model whose structured call yields ``result``."""
+    llm = MagicMock()
+    structured = MagicMock()
+    structured.ainvoke = AsyncMock(return_value=result)
+    llm.with_structured_output = MagicMock(return_value=structured)
+    return llm
 
-    def test_returns_jinja_environment(self) -> None:
-        env = _get_prompt_env()
-        assert env is not None
-        # Singleton
-        assert _get_prompt_env() is env
+
+class TestPromptEnv:
+    """Tests for the Jinja environment cache."""
+
+    def test_cached_per_directory(self) -> None:
+        prompts_dir = get_settings().paths.prompts_dir
+
+        assert _prompt_env(prompts_dir) is _prompt_env(prompts_dir)
 
 
-class TestBaseAgentRender:
-    """Tests for render method."""
+class TestRender:
+    """Tests for prompt rendering."""
 
-    def test_render_returns_string(self) -> None:
-        agent = _TestAgent()
-        result = agent.render(DummyModel(name="test"))
+    def test_renders_the_template(self) -> None:
+        result = _TestAgent().render(DummyModel(name="test"))
+
         assert isinstance(result, str)
+        assert result
 
-    def test_render_uses_template(self) -> None:
-        agent = _TestAgent()
-        result = agent.render(DummyModel(name="test"))
-        assert len(result) > 0
-
-
-class TestBaseAgentEncodeImage:
-    """Tests for _encode_image_sync."""
-
-    def test_encodes_bytes_to_base64(self) -> None:
-        agent = _TestAgent()
-        result = agent._encode_image_sync(b"hello")
-        expected = base64.b64encode(b"hello").decode("utf-8")
-        assert result == expected
-
-    def test_empty_bytes(self) -> None:
-        agent = _TestAgent()
-        result = agent._encode_image_sync(b"")
-        assert result == ""
+    def test_agent_without_a_template_is_a_configuration_error(self) -> None:
+        with pytest.raises(ConfigurationError, match="PROMPT_TEMPLATE"):
+            BaseAgent().render(DummyModel(name="test"))
 
 
-class TestBaseAgentCreateMessage:
-    """Tests for _create_message."""
+class TestBuildMessage:
+    """Tests for assembling the multimodal message."""
 
-    @pytest.mark.asyncio
-    async def test_without_image(self) -> None:
-        agent = _TestAgent()
-        msg = await agent._create_message("hello")
-        assert isinstance(msg, HumanMessage)
-        parts = _parts(msg)
-        assert parts[0]["text"] == "hello"
+    def test_without_image(self) -> None:
+        parts = _parts(_TestAgent()._build_message("hello"))
+
         assert len(parts) == 1
-
-    @pytest.mark.asyncio
-    async def test_with_image(self) -> None:
-        agent = _TestAgent()
-        msg = await agent._create_message("hello", image_data=b"fake_img")
-        assert isinstance(msg, HumanMessage)
-        parts = _parts(msg)
-        assert len(parts) == 2
         assert parts[0]["text"] == "hello"
-        assert parts[1]["type"] == "image_url"
-        assert "data:image/png;base64," in parts[1]["image_url"]["url"]
 
-    @pytest.mark.asyncio
-    async def test_with_custom_mime_type(self) -> None:
-        agent = _TestAgent()
-        msg = await agent._create_message(
+    def test_with_image(self) -> None:
+        parts = _parts(_TestAgent()._build_message("hello", image_data=b"hi"))
+
+        assert len(parts) == 2
+        encoded = base64.b64encode(b"hi").decode("utf-8")
+        assert parts[1]["image_url"]["url"] == f"data:image/png;base64,{encoded}"
+
+    def test_with_custom_mime_type(self) -> None:
+        message = _TestAgent()._build_message(
             "hello", image_data=b"img", mime_type="image/jpeg"
         )
-        assert "data:image/jpeg;base64," in _parts(msg)[1]["image_url"]["url"]
+
+        assert "data:image/jpeg;base64," in _parts(message)[1]["image_url"]["url"]
 
 
-class TestBaseAgentInvokeStructured:
-    """Tests for invoke_structured."""
+class TestInvokeStructured:
+    """Tests for the structured LLM call."""
 
-    @pytest.mark.asyncio
-    async def test_invokes_llm_and_returns_structured_output(self) -> None:
-        agent = _TestAgent()
+    async def test_returns_the_parsed_model(self) -> None:
+        agent = _TestAgent(_structured_llm(DummyModel(name="response")))
 
-        # Mock the LLM
-        mock_llm = MagicMock()
-        mock_structured = MagicMock()
-        mock_structured.ainvoke = AsyncMock(return_value=DummyModel(name="response"))
-        mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
-        agent._llm = mock_llm
+        result = await agent.invoke_structured("test", DummyModel, image_data=b"img")
 
-        result = await agent.invoke_structured(
-            prompt="test",
-            output_model=DummyModel,
-            image_data=b"img",
-        )
-
-        assert isinstance(result, DummyModel)
         assert result.name == "response"
-        mock_llm.with_structured_output.assert_called_once_with(DummyModel)
-        mock_structured.ainvoke.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_invoke_without_image(self) -> None:
-        agent = _TestAgent()
-        mock_llm = MagicMock()
-        mock_structured = MagicMock()
-        mock_structured.ainvoke = AsyncMock(return_value=DummyModel(name="no img"))
-        mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
-        agent._llm = mock_llm
+    async def test_asks_the_provider_for_the_output_model(self) -> None:
+        llm = _structured_llm(DummyModel(name="response"))
+        agent = _TestAgent(llm)
 
-        result = await agent.invoke_structured(
-            prompt="test",
-            output_model=DummyModel,
-        )
+        await agent.invoke_structured("test", DummyModel)
 
-        assert result.name == "no img"
+        llm.with_structured_output.assert_called_once_with(DummyModel)
+
+    async def test_provider_failure_becomes_an_agent_error(self) -> None:
+        """Handlers catch AgentError; a raw provider exception would escape."""
+        llm = MagicMock()
+        structured = MagicMock()
+        structured.ainvoke = AsyncMock(side_effect=RuntimeError("429 rate limited"))
+        llm.with_structured_output = MagicMock(return_value=structured)
+
+        with pytest.raises(AgentError, match="DummyModel") as exc_info:
+            await _TestAgent(llm).invoke_structured("test", DummyModel)
+
+        assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 
-class TestBaseAgentLLMProperty:
-    """Tests for llm property."""
+class TestLLMProperty:
+    """Tests for how the chat model is obtained."""
+
+    def test_injected_client_is_used(self) -> None:
+        llm = MagicMock()
+
+        assert _TestAgent(llm).llm is llm
 
     @patch("english_practice.agents.base.get_llm")
-    def test_lazy_loading(self, mock_get_llm) -> None:
+    def test_built_lazily_and_once(self, mock_get_llm: MagicMock) -> None:
         mock_get_llm.return_value = MagicMock()
         agent = _TestAgent()
         assert agent._llm is None
-        _ = agent.llm
-        assert agent._llm is not None
-        mock_get_llm.assert_called_once()
 
-    @patch("english_practice.agents.base.get_llm")
-    def test_caches_llm(self, mock_get_llm) -> None:
-        mock_get_llm.return_value = MagicMock()
-        agent = _TestAgent()
-        llm1 = agent.llm
-        llm2 = agent.llm
-        assert llm1 is llm2
+        assert agent.llm is agent.llm
         mock_get_llm.assert_called_once()

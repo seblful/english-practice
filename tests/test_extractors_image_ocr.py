@@ -104,6 +104,20 @@ class TestImageOcrExtractor:
             expected = img.parent / "test.md"
             assert result == expected
 
+    def test_ocr_dir_writes_into_the_output_dir(self, tmp_path) -> None:
+        """With an output directory, markdown lands there, not next to the image."""
+        extractor = ImageOcrExtractor(api_key="test-key")
+        images = tmp_path / "images"
+        output = tmp_path / "grammar"
+        images.mkdir()
+        output.mkdir()
+        (images / "1.png").write_bytes(b"data")
+
+        with patch.object(extractor, "ocr_and_save") as mock_ocr:
+            extractor.ocr_dir(images, "*.png", output_dir=output)
+
+            mock_ocr.assert_called_once_with(images / "1.png", output / "1.md")
+
     def test_ocr_dir_skips_existing(self, tmp_path) -> None:
         extractor = ImageOcrExtractor(api_key="test-key")
         (tmp_path / "1.png").write_bytes(b"data")

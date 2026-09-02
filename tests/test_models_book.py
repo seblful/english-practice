@@ -1,109 +1,112 @@
-"""Tests for domain Pydantic models."""
-
-from pathlib import Path
+"""Tests for the practice-content models."""
 
 import pytest
 from pydantic import ValidationError
 
+from english_practice.models.auth import PendingUser
 from english_practice.models.book import Exercise, Question, QuestionAnswer, Topic, Unit
 
 
 class TestUnit:
-    """Tests for Unit model."""
+    """Tests for the unit model."""
 
-    def test_minimal(self) -> None:
-        unit = Unit(
-            unit_number=1, title="Present Tenses", grammar_md_path="grammar/1.md"
-        )
-        assert unit.unit_number == 1
-        assert unit.title == "Present Tenses"
+    def test_valid(self) -> None:
+        unit = Unit(id=1, unit_number=3, title="Present Perfect")
 
-    def test_validates_path_from_string(self) -> None:
-        unit = Unit(unit_number=1, title="Test", grammar_md_path="grammar/1.md")
-        assert isinstance(unit.grammar_md_path, Path)
+        assert unit.topic_name is None
 
-    def test_validates_path_from_path(self) -> None:
-        unit = Unit(unit_number=1, title="Test", grammar_md_path=Path("grammar/1.md"))
-        assert isinstance(unit.grammar_md_path, Path)
-
-    def test_negative_unit_number(self) -> None:
+    def test_unit_number_must_be_positive(self) -> None:
         with pytest.raises(ValidationError):
-            Unit(unit_number=-1, title="Test", grammar_md_path="grammar/1.md")
+            Unit(id=1, unit_number=0, title="Nope")
 
-    def test_zero_unit_number(self) -> None:
+    def test_is_immutable(self) -> None:
+        unit = Unit(id=1, unit_number=1, title="Present Perfect")
+
+        # setattr, not `unit.title = ...`: the latter is a static type error,
+        # and the point here is the runtime guarantee.
         with pytest.raises(ValidationError):
-            Unit(unit_number=0, title="Test", grammar_md_path="grammar/1.md")
-
-
-class TestExercise:
-    """Tests for Exercise model."""
-
-    def test_minimal(self) -> None:
-        ex = Exercise(exercise_id="1.1", exercise_number=1)
-        assert ex.exercise_id == "1.1"
-        assert ex.exercise_number == 1
-        assert ex.image_path is None
-
-    def test_with_image_path_string(self) -> None:
-        ex = Exercise(
-            exercise_id="1.1",
-            exercise_number=1,
-            image_path="exercises/1/1.1.png",
-        )
-        assert isinstance(ex.image_path, Path)
-
-    def test_with_image_path_path(self) -> None:
-        ex = Exercise(
-            exercise_id="1.1",
-            exercise_number=1,
-            image_path=Path("exercises/1/1.1.png"),
-        )
-        assert isinstance(ex.image_path, Path)
+            setattr(unit, "title", "Changed")  # noqa: B010
 
 
 class TestQuestion:
-    """Tests for Question model."""
+    """Tests for the question model."""
 
-    def test_minimal(self) -> None:
-        q = Question(question_id="1")
-        assert q.question_id == "1"
-        assert q.is_open_ended is False
-        assert q.section_letter is None
-        assert q.rule is None
-        assert q.display_order == 0
+    def test_defaults(self) -> None:
+        question = Question(id=1, question_id="2")
 
-    def test_full(self) -> None:
-        q = Question(
-            question_id="2a",
-            is_open_ended=True,
-            section_letter="B",
-            rule="Use past tense",
-            display_order=3,
+        assert question.is_open_ended is False
+        assert question.section_letter is None
+        assert question.rule is None
+        assert question.display_order == 0
+
+    def test_coerces_sqlite_integers_to_booleans(self) -> None:
+        """SQLite stores booleans as 0/1."""
+        assert Question(id=1, question_id="2", is_open_ended=1).is_open_ended is True
+
+    def test_accepts_lettered_question_numbers(self) -> None:
+        assert Question(id=1, question_id="10 b").question_id == "10 b"
+
+
+class TestExercise:
+    """Tests for the exercise model."""
+
+    def test_carries_its_unit_and_questions(self, unit: Unit) -> None:
+        exercise = Exercise(
+            id=1,
+            exercise_id="1.1",
+            exercise_number=1,
+            unit=unit,
+            questions=(Question(id=1, question_id="1"),),
         )
-        assert q.is_open_ended is True
-        assert q.section_letter == "B"
-        assert q.display_order == 3
+
+        assert exercise.unit.unit_number == 1
+        assert len(exercise.questions) == 1
+
+    def test_questions_default_to_empty(self, unit: Unit) -> None:
+        exercise = Exercise(id=1, exercise_id="1.1", exercise_number=1, unit=unit)
+
+        assert exercise.questions == ()
+
+    def test_requires_a_unit(self) -> None:
+        with pytest.raises(ValidationError):
+            Exercise.model_validate(
+                {"id": 1, "exercise_id": "1.1", "exercise_number": 1}
+            )
 
 
 class TestQuestionAnswer:
-    """Tests for QuestionAnswer model."""
+    """Tests for the answer model."""
 
-    def test_fields(self) -> None:
-        qa = QuestionAnswer(
-            short_answer="is doing",
-            full_answer="He **is doing** his homework.",
+    def test_valid(self) -> None:
+        answer = QuestionAnswer(
+            short_answer="He's tying", full_answer="Look. **He's tying** his shoes."
         )
-        assert qa.short_answer == "is doing"
-        assert "is doing" in qa.full_answer
+
+        assert answer.short_answer == "He's tying"
+
+    def test_both_parts_are_required(self) -> None:
+        with pytest.raises(ValidationError):
+            QuestionAnswer.model_validate({"short_answer": "only"})
 
 
 class TestTopic:
-    """Tests for Topic model."""
+    """Tests for the topic model."""
 
-    def test_minimal(self) -> None:
-        t = Topic(name="Present Tenses")
-        assert t.name == "Present Tenses"
+    def test_unit_count_defaults_to_zero(self) -> None:
+        assert Topic(id=1, name="Present Tenses").unit_count == 0
 
-    def test_empty_name(self) -> None:
-        t = Topic(name="")
-        assert t.name == ""
+    def test_unit_count_cannot_be_negative(self) -> None:
+        with pytest.raises(ValidationError):
+            Topic(id=1, name="Present Tenses", unit_count=-1)
+
+
+class TestPendingUser:
+    """Tests for the access-request model."""
+
+    def test_label_includes_the_username(self) -> None:
+        user = PendingUser(telegram_id=1, full_name="Alice", telegram_username="alice")
+
+        assert user.label == "Alice (@alice)"
+
+    def test_label_without_a_username(self) -> None:
+        assert PendingUser(telegram_id=1, full_name="Alice").label == "Alice"
