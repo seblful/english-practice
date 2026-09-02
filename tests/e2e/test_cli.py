@@ -1,5 +1,6 @@
 """End-to-end tests for the CLI."""
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ from typer.testing import CliRunner
 
 from english_practice.cli import app
 from english_practice.errors import ConfigurationError
+from english_practice.packaging import BundleResult
 
 runner = CliRunner()
 
@@ -92,3 +94,59 @@ def _settings_with_problems(problems: list[str]) -> object:
             return problems
 
     return _Settings()
+
+
+def test_mobile_content_command_builds_the_bundle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`mobile-content` reports the file it wrote and how much it saved."""
+    built: dict[str, object] = {}
+
+    def fake_build(
+        source: Path,
+        target: Path,
+        schema: Path,
+        *,
+        progress: Callable[[str], None] | None = None,
+    ) -> BundleResult:
+        built.update(source=source, target=target, schema=schema)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"bundle")
+        if progress is not None:
+            progress("  units: 1 rows")
+        return BundleResult(path=target, images=3, source_bytes=1000, bundled_bytes=100)
+
+    monkeypatch.setattr("english_practice.packaging.build_mobile_content", fake_build)
+    source = tmp_path / "source.db"
+    source.write_bytes(b"")
+    output = tmp_path / "content.db"
+
+    result = runner.invoke(
+        app,
+        ["mobile-content", "--source", str(source), "--output", str(output)],
+    )
+
+    assert result.exit_code == 0
+    assert built["source"] == source
+    assert built["target"] == output
+    assert "units: 1 rows" in result.output
+    assert "3 images" in result.output
+
+
+def test_mobile_content_command_reports_a_missing_database(
+    tmp_path: Path,
+) -> None:
+    """The message has to say which command builds the source database."""
+    result = runner.invoke(
+        app,
+        [
+            "mobile-content",
+            "--source",
+            str(tmp_path / "absent.db"),
+            "--output",
+            str(tmp_path / "out.db"),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "populate.py" in result.output
