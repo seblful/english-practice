@@ -4,9 +4,12 @@
 import json
 import sqlite3
 import sys
+import traceback
 from pathlib import Path
 
 from tqdm import tqdm
+
+from english_practice.settings import get_settings
 
 
 def get_project_root() -> Path:
@@ -15,8 +18,12 @@ def get_project_root() -> Path:
 
 
 def get_db_path() -> Path:
-    """Get database file path."""
-    return get_project_root() / "data" / "development.db"
+    """Return the database file the application reads.
+
+    Taken from the settings rather than hardcoded, so that the file this
+    script builds is the one the bot opens.
+    """
+    return get_settings().paths.database_path
 
 
 def init_database(db_path: Path) -> None:
@@ -61,9 +68,8 @@ def import_units(conn: sqlite3.Connection) -> None:
             )
 
     conn.commit()
-    print(
-        f"Imported {cursor.execute('SELECT COUNT(*) FROM units').fetchone()[0]} units"
-    )
+    total_units = cursor.execute("SELECT COUNT(*) FROM units").fetchone()[0]
+    print(f"Units in database: {total_units}")
 
 
 def parse_exercise_id(exercise_id: str) -> tuple[int, int]:
@@ -144,7 +150,9 @@ def _import_answers(cursor: sqlite3.Cursor, question_db_id: int, question: dict)
             """,
             (question_db_id, answer["short_answer"], answer["full_answer"]),
         )
-        if cursor.lastrowid:
+        # An ignored INSERT leaves lastrowid pointing at the previous insert,
+        # so rowcount is the only reliable "did this row land" signal.
+        if cursor.rowcount == 1:
             added += 1
     return added
 
@@ -182,14 +190,12 @@ def _import_questions(
             ),
         )
 
-        question_db_id = cursor.lastrowid
-        if not question_db_id:
-            question_db_id = cursor.execute(
-                "SELECT id FROM questions WHERE exercise_id = ? AND question_id = ?",
-                (exercise_db_id, question_id),
-            ).fetchone()[0]
-        else:
+        if cursor.rowcount == 1:
             questions_imported += 1
+        question_db_id = cursor.execute(
+            "SELECT id FROM questions WHERE exercise_id = ? AND question_id = ?",
+            (exercise_db_id, question_id),
+        ).fetchone()[0]
 
         if not is_open_ended:
             answers_imported += _import_answers(cursor, question_db_id, question)
@@ -231,13 +237,11 @@ def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
                 (exercise_id, unit_id_db, ex_num),
             )
 
-            exercise_db_id = cursor.lastrowid
-            if not exercise_db_id:
-                exercise_db_id = cursor.execute(
-                    "SELECT id FROM exercises WHERE exercise_id = ?", (exercise_id,)
-                ).fetchone()[0]
-            else:
+            if cursor.rowcount == 1:
                 exercises_imported += 1
+            exercise_db_id = cursor.execute(
+                "SELECT id FROM exercises WHERE exercise_id = ?", (exercise_id,)
+            ).fetchone()[0]
 
             _store_exercise_image(
                 cursor, project_root, exercise_db_id, page_num, exercise_id
@@ -286,9 +290,8 @@ def import_topics(conn: sqlite3.Connection) -> None:
             )
 
     conn.commit()
-    print(
-        f"Imported {cursor.execute('SELECT COUNT(*) FROM topics').fetchone()[0]} topics"
-    )
+    total_topics = cursor.execute("SELECT COUNT(*) FROM topics").fetchone()[0]
+    print(f"Topics in database: {total_topics}")
 
 
 def main() -> int:
@@ -341,8 +344,9 @@ def main() -> int:
 
         print("=" * 50)
 
-    except Exception as e:
-        print(f"Error importing data: {e}")
+    except Exception:
+        print("Error importing data:")
+        traceback.print_exc()
         return 1
     finally:
         conn.close()

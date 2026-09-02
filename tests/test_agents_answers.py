@@ -1,12 +1,16 @@
 """Tests for AnswersAgent."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from english_practice.agents.answers import AnswersAgent
-from english_practice.models.agents import ExerciseAnswersOutput, QuestionAnswerItem
+from english_practice.models.agents import (
+    AnswersContext,
+    ExerciseAnswersOutput,
+    QuestionAnswerItem,
+)
 
 
 class TestAnswersAgent:
@@ -17,11 +21,15 @@ class TestAnswersAgent:
 
     def test_render_with_questions(self) -> None:
         agent = AnswersAgent()
-        result = agent.render(
-            MagicMock(questions=[{"question_id": "1"}], topic_name="Test")
+        context = AnswersContext(
+            questions=[{"question_id": "7", "short_answer": "has been"}],
+            topic_name="Present Perfect",
         )
-        assert isinstance(result, str)
-        assert "1" in result
+
+        result = agent.render(context)
+
+        assert "id: 7, expected_short_answer: has been" in result
+        assert "Present Perfect" in result
 
     @pytest.mark.asyncio
     async def test_extract_exercise_calls_invoke_structured(self, tmp_path) -> None:

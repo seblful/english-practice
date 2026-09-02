@@ -1,7 +1,7 @@
 """Tests for access control and the handler decorator."""
 
 from collections.abc import Callable
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 from telegram import Update
 
@@ -15,12 +15,7 @@ from english_practice.bot.handlers.access import (
 )
 from english_practice.bot.handlers.admin import pending_command
 from english_practice.bot.updates import Interaction
-from tests.conftest import ADMIN_ID, USER_ID
-
-
-def _replies(message: AsyncMock) -> list[str]:
-    """Return the text of every reply sent to a message."""
-    return [call.args[0] for call in message.reply_text.call_args_list]
+from tests.conftest import ADMIN_ID, USER_ID, replies
 
 
 class TestAccessDisabled:
@@ -29,7 +24,7 @@ class TestAccessDisabled:
     async def test_handler_runs(self, mock_update: Mock, mock_context: Mock) -> None:
         await menu.start_command(mock_update, mock_context)
 
-        assert "Welcome" in _replies(mock_update.message)[0]
+        assert "Welcome" in replies(mock_update.message)[0]
         mock_context.repository.get_auth_status.assert_not_called()
 
 
@@ -43,7 +38,7 @@ class TestAccessEnabled:
 
         await menu.start_command(mock_update, mock_context)
 
-        assert "Welcome" in _replies(mock_update.message)[0]
+        assert "Welcome" in replies(mock_update.message)[0]
         mock_context.repository.get_auth_status.assert_not_called()
 
     async def test_approved_user_is_allowed(
@@ -54,7 +49,7 @@ class TestAccessEnabled:
 
         await menu.start_command(mock_update, mock_context)
 
-        assert "Welcome" in _replies(mock_update.message)[0]
+        assert "Welcome" in replies(mock_update.message)[0]
 
     async def test_unknown_user_is_enrolled_and_admin_notified(
         self, mock_update: Mock, mock_context: Mock, set_admin: Callable[[int], None]
@@ -67,7 +62,7 @@ class TestAccessEnabled:
         mock_context.repository.register_user.assert_awaited_once_with(
             USER_ID, "Test User", "testuser"
         )
-        assert "approval" in _replies(mock_update.message)[0]
+        assert "approval" in replies(mock_update.message)[0]
         mock_context.bot.send_message.assert_awaited_once()
         assert mock_context.bot.send_message.await_args.kwargs["chat_id"] == ADMIN_ID
 
@@ -79,7 +74,7 @@ class TestAccessEnabled:
 
         await menu.start_command(mock_update, mock_context)
 
-        assert "still pending" in _replies(mock_update.message)[0]
+        assert "still pending" in replies(mock_update.message)[0]
         mock_context.repository.register_user.assert_not_called()
         mock_context.bot.send_message.assert_not_called()
 
@@ -94,7 +89,7 @@ class TestAccessEnabled:
         mock_context.repository.reset_to_pending.assert_awaited_once_with(
             USER_ID, "Test User", "testuser"
         )
-        assert "approval" in _replies(mock_update.message)[0]
+        assert "approval" in replies(mock_update.message)[0]
 
     async def test_unnamed_user_is_recorded_as_unknown(
         self, mock_update: Mock, mock_context: Mock, set_admin: Callable[[int], None]
@@ -117,7 +112,7 @@ class TestAccessEnabled:
 
         await menu.help_command(mock_update, mock_context)
 
-        assert "How this works" in _replies(mock_update.message)[0]
+        assert "How this works" in replies(mock_update.message)[0]
 
 
 class TestAdminAccess:
@@ -130,7 +125,7 @@ class TestAdminAccess:
 
         await pending_command(mock_update, mock_context)
 
-        assert _replies(mock_update.message) == [NOT_AUTHORIZED_MESSAGE]
+        assert replies(mock_update.message) == [NOT_AUTHORIZED_MESSAGE]
         mock_context.repository.list_pending_users.assert_not_called()
 
     async def test_refused_when_no_admin_is_configured(
@@ -138,7 +133,7 @@ class TestAdminAccess:
     ) -> None:
         await pending_command(mock_update, mock_context)
 
-        assert _replies(mock_update.message) == [NOT_AUTHORIZED_MESSAGE]
+        assert replies(mock_update.message) == [NOT_AUTHORIZED_MESSAGE]
 
 
 class TestDecorator:

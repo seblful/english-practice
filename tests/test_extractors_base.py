@@ -115,11 +115,6 @@ class TestBaseExtractor:
         assert extractor._is_unit_processed(output, "1") is True
         assert extractor._is_unit_processed(output, "2") is False
 
-    def test_add_unit(self, extractor) -> None:
-        output = _OutputModel()
-        extractor._add_unit(output, _UnitModel(unit_id="1"))
-        assert len(output.units) == 1
-
     @pytest.mark.asyncio
     async def test_extract_processes_all_units(self, extractor) -> None:
         data = {"units": [{"unit_id": "1"}, {"unit_id": "2"}]}

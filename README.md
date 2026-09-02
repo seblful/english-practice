@@ -103,8 +103,8 @@ that variable the bot is open to everyone.
 SQLite, with exercise images stored as BLOBs.
 
 ```bash
-uv run scripts/database/populate.py   # build data/content/english_practice.db
-uv run scripts/database/validate.py   # check integrity and referential sanity
+uv run scripts/database/populate.py   # build the configured PATHS_DATABASE_PATH
+uv run scripts/database/validate.py   # check that same database
 ```
 
 The seeded database holds 145 units, 433 exercises, 3,025 questions and 16

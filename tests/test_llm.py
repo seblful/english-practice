@@ -1,5 +1,7 @@
 """Tests for the chat-model factory."""
 
+from unittest.mock import patch
+
 import pytest
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
@@ -97,7 +99,21 @@ class TestCreateGemini:
         config = _config()
         config.gemini.proxy = "http://proxy:8080"
 
-        assert _create_gemini(config) is not None
+        with patch("english_practice.llm.ChatGoogleGenerativeAI") as chat_model:
+            _create_gemini(config)
+
+        assert chat_model.call_args.kwargs["client_args"] == {
+            "proxy": "http://proxy:8080"
+        }
+
+    def test_without_proxy_passes_no_client_args(self) -> None:
+        config = _config()
+        config.gemini.proxy = None
+
+        with patch("english_practice.llm.ChatGoogleGenerativeAI") as chat_model:
+            _create_gemini(config)
+
+        assert "client_args" not in chat_model.call_args.kwargs
 
 
 class TestCreateOpenRouter:

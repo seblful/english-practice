@@ -6,9 +6,6 @@ import pymupdf
 class PDFHandler:
     """A class to handle PDF files."""
 
-    def __init__(self) -> None:
-        """Create a PDF handler."""
-
     def cut_pdf(
         self, file_path: Path, start_page: int, end_page: int, output_path: Path
     ) -> Path:

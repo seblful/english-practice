@@ -10,7 +10,9 @@ from english_practice.settings import (
     DashscopeSettings,
     GeminiSettings,
     LangSmithSettings,
+    LLMProvider,
     LLMSettings,
+    OpenRouterSettings,
     PathSettings,
     Settings,
     TelegramSettings,
@@ -38,7 +40,6 @@ def test_settings_load_from_env_file(test_settings: Settings) -> None:
     """Nested settings are populated from the env file and defaults."""
     assert test_settings.app.environment == "test"
     assert test_settings.app.app_name == "english-practice"
-    assert test_settings.app.secret_key is None
     assert test_settings.logging.console_level == "INFO"
 
 
@@ -91,12 +92,25 @@ class TestLoadEnv:
 class TestActiveApiKey:
     """Tests for resolving the selected provider's key."""
 
-    def test_returns_selected_provider_key(self) -> None:
+    @pytest.mark.parametrize(
+        ("provider", "expected"),
+        [
+            ("dashscope", "dash-key"),
+            ("gemini", "gem-key"),
+            ("openrouter", "or-key"),
+        ],
+        ids=["dashscope", "gemini", "openrouter"],
+    )
+    def test_returns_selected_provider_key(
+        self, provider: LLMProvider, expected: str
+    ) -> None:
         config = LLMSettings(
-            provider="dashscope",
+            provider=provider,
             dashscope=DashscopeSettings(api_key=SecretStr("dash-key")),
+            gemini=GeminiSettings(api_key=SecretStr("gem-key")),
+            openrouter=OpenRouterSettings(api_key=SecretStr("or-key")),
         )
-        assert config.active_api_key == "dash-key"
+        assert config.active_api_key == expected
 
     def test_none_when_selected_provider_has_no_key(self) -> None:
         # Each group reads the process environment, so the unkeyed provider is

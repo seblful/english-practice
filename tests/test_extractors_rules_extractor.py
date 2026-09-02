@@ -123,15 +123,14 @@ class TestRulesExtractor:
             "exercise_id": "1.1",
             "questions": [{"question_id": "1"}],
         }
-        questions = extractor._prepare_questions(
-            exercise,
-            {
-                "1.1:1": {
-                    "is_open_ended": False,
-                    "answers": [{"short_answer": "yes", "full_answer": "Yes!"}],
-                }
-            },
-        )
+        extractor._answers_full_map = {
+            "1.1:1": {
+                "is_open_ended": False,
+                "answers": [{"short_answer": "yes", "full_answer": "Yes!"}],
+            }
+        }
+
+        questions = extractor._prepare_questions(exercise)
         assert len(questions) == 1
         assert questions[0]["question_id"] == "1"
         assert questions[0]["short_answers"] == ["yes"]
@@ -141,7 +140,9 @@ class TestRulesExtractor:
             "exercise_id": "1.1",
             "questions": [{"question_id": "1"}],
         }
-        questions = extractor._prepare_questions(exercise, {})
+        extractor._answers_full_map = {}
+
+        questions = extractor._prepare_questions(exercise)
         assert len(questions) == 1
         assert questions[0]["short_answers"] == []
 
@@ -151,6 +152,17 @@ class TestRulesExtractor:
         built = extractor._build_exercise_data("1.1", [{"question_id": "1"}], result)
         assert built.exercise_id == "1.1"
         assert built.questions[0].rule == "rule"
+
+    def test_question_missing_from_result_is_skipped(self, extractor) -> None:
+        """A model that returns fewer questions must not abort the whole unit."""
+        result = MagicMock()
+        result.questions = [MagicMock(question_id="1", section_letter="A", rule="rule")]
+
+        built = extractor._build_exercise_data(
+            "1.1", [{"question_id": "1"}, {"question_id": "2"}], result
+        )
+
+        assert [q.question_id for q in built.questions] == ["1"]
 
     @pytest.mark.asyncio
     async def test_process_unit(self, extractor) -> None:
@@ -162,9 +174,8 @@ class TestRulesExtractor:
             mock_proc.return_value = ExtractedExerciseRules(
                 exercise_id="1.1", questions=[]
             )
-            result = await extractor._process_unit_rules(
-                {"unit_id": "1", "exercises": [{"exercise_id": "1.1"}]},
-                {},
+            result = await extractor._process_unit(
+                {"unit_id": "1", "exercises": [{"exercise_id": "1.1"}]}
             )
             assert result.unit_id == "1"
 
@@ -183,7 +194,7 @@ class TestRulesExtractor:
                 new=AsyncMock(return_value=expected),
             ),
         ):
-            result = await extractor._process_exercise(exercise, {}, "# md", "Test")
+            result = await extractor._process_exercise(exercise, "# md", "Test")
             assert result.exercise_id == "1.1"
 
     @pytest.mark.asyncio
@@ -197,14 +208,14 @@ class TestRulesExtractor:
                 exercise_id="1.1", questions=[]
             )
 
-            result = await extractor._process_unit_rules(
-                {"unit_id": "1", "exercises": [{"exercise_id": "1.1"}]}, {}
+            result = await extractor._process_unit(
+                {"unit_id": "1", "exercises": [{"exercise_id": "1.1"}]}
             )
 
             assert result.unit_id == "1"
             call = mock_proc.await_args
             assert call is not None
-            assert call.args[2] == ""
+            assert call.args[1] == ""
 
     @pytest.mark.asyncio
     async def test_extract(self, extractor) -> None:
@@ -223,7 +234,7 @@ class TestRulesExtractor:
 
         with (
             patch.object(extractor, "_load_output", return_value=output),
-            patch.object(extractor, "_process_unit_rules", return_value=unit),
+            patch.object(extractor, "_process_unit", return_value=unit),
             patch.object(extractor, "_save_output") as mock_save,
         ):
             await extractor.extract()
@@ -238,7 +249,7 @@ class TestRulesExtractor:
 
         with (
             patch.object(extractor, "_load_output", return_value=output),
-            patch.object(extractor, "_process_unit_rules") as mock_process,
+            patch.object(extractor, "_process_unit") as mock_process,
             patch.object(extractor, "_save_output") as mock_save,
         ):
             await extractor.extract()

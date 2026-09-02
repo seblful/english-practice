@@ -1,7 +1,7 @@
 """Tests for ExerciseOrganizer."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -92,14 +92,6 @@ class TestExerciseOrganizer:
         )
         assert result is not None
 
-    @patch("cv2.boundingRect")
-    def test_extract_bounding_boxes(self, mock_rect) -> None:
-        mock_rect.side_effect = [(0, 0, 10, 10), (20, 30, 50, 40)]
-        contours = [MagicMock(), MagicMock()]
-        boxes = ExerciseOrganizer._extract_bounding_boxes(contours)
-        assert len(boxes) == 2
-        assert boxes[0] == BoundingBox(0, 0, 10, 10)
-
     def test_is_valid_exercise_header(self) -> None:
         w = (EXERCISE_BOX_MIN_WIDTH + EXERCISE_BOX_MAX_WIDTH) // 2
         h = (EXERCISE_BOX_MIN_HEIGHT + EXERCISE_BOX_MAX_HEIGHT) // 2
@@ -119,8 +111,8 @@ class TestExerciseOrganizer:
 
         img = np.zeros((500, 300, 3), dtype=np.uint8)
         boxes = [
-            {"x": 0, "y": 50, "w": 100, "h": 20},
-            {"x": 0, "y": 200, "w": 100, "h": 20},
+            BoundingBox(0, 50, 100, 20),
+            BoundingBox(0, 200, 100, 20),
         ]
         exercises = ExerciseOrganizer()._split_into_exercises(img, boxes, 500, 300)
         assert len(exercises) == 2
@@ -214,6 +206,16 @@ class TestExerciseOrganizer:
         assert results[0].parent.exists()
         assert results[0].name == "1.1.png"
 
+    def test_save_exercises_raises_when_the_write_fails(self, tmp_path) -> None:
+        """cv2.imwrite reports failure by returning False, never by raising."""
+        exercises = [np.zeros((100, 200, 3), dtype=np.uint8)]
+
+        with (
+            patch("cv2.imwrite", return_value=False),
+            pytest.raises(OSError, match="could not write exercise image"),
+        ):
+            ExerciseOrganizer._save_exercises(exercises, tmp_path, 1)
+
 
 class TestHeaderDetectionOnSyntheticPages:
     """Detection tests against generated pages.
@@ -267,8 +269,8 @@ class TestHeaderDetectionOnSyntheticPages:
         boxes = organizer._detect_exercise_headers(page[:, :search_width])
 
         assert len(boxes) == 2
-        assert [box["y"] for box in boxes] == sorted(box["y"] for box in boxes)
-        assert boxes[0]["w"] == self.HEADER_WIDTH
+        assert [box.y for box in boxes] == sorted(box.y for box in boxes)
+        assert boxes[0].w == self.HEADER_WIDTH
 
     def test_ignores_boxes_of_the_wrong_size(self) -> None:
         organizer = ExerciseOrganizer()
@@ -356,10 +358,12 @@ class TestSplitSkipsUnusableSlices:
 
     def test_slice_below_the_minimum_height_is_dropped(self) -> None:
         image = np.zeros((300, 100, 3), dtype=np.uint8)
-        boxes = [{"y": 10, "w": 1, "h": 1}, {"y": 20, "w": 1, "h": 1}]
+        boxes = [BoundingBox(0, 10, 1, 1), BoundingBox(0, 20, 1, 1)]
 
         exercises = ExerciseOrganizer()._split_into_exercises(image, boxes, 300, 100)
 
-        # The first slice spans 10 pixels and is discarded; the second runs to
-        # the bottom of the page and is kept.
+        # The first slice spans 10 pixels and is discarded; the second runs
+        # from its own header to the bottom of the page, so the survivor is
+        # identifiable by its height.
         assert len(exercises) == 1
+        assert exercises[0].shape[0] == 290

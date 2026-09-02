@@ -1,17 +1,12 @@
 """Tests for topic selection and sending exercises."""
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 from english_practice.bot.handlers import exercises
 from english_practice.bot.states import ActiveExercise
 from english_practice.bot.updates import Interaction
 from english_practice.models.book import Exercise, Question, Topic, Unit
-from tests.conftest import USER_ID
-
-
-def _replies(message: AsyncMock) -> list[str]:
-    """Return the text of every reply sent to a message."""
-    return [call.args[0] for call in message.reply_text.call_args_list]
+from tests.conftest import USER_ID, replies
 
 
 def _interaction(update: Mock) -> Interaction:
@@ -32,7 +27,7 @@ class TestTopicSelection:
         await exercises.topic_selection(mock_callback_update, mock_context)
 
         mock_context.repository.list_topics.assert_awaited_once()
-        text = _replies(mock_callback_update.callback_query.message)[0]
+        text = replies(mock_callback_update.callback_query.message)[0]
         assert "Select a topic" in text
 
     async def test_random_draws_from_every_topic(
@@ -64,7 +59,7 @@ class TestTopicSelection:
         await exercises.topic_selection(mock_callback_update, mock_context)
 
         mock_context.repository.random_exercise.assert_not_called()
-        assert exercises.NO_EXERCISES_MESSAGE in _replies(
+        assert exercises.NO_EXERCISES_MESSAGE in replies(
             mock_callback_update.callback_query.message
         )
 
@@ -110,7 +105,7 @@ class TestSendExercise:
 
         await exercises.send_exercise(who, mock_context, topic=topics[0])
 
-        texts = _replies(mock_update.message)
+        texts = replies(mock_update.message)
         assert "Present Tenses" in texts[0]
         assert "Answer question" in texts[1]
         mock_update.message.reply_photo.assert_awaited_once()
@@ -179,7 +174,7 @@ class TestSendExercise:
             _interaction(mock_update), mock_context, topic=topics[1]
         )
 
-        assert _replies(mock_update.message) == [exercises.NO_EXERCISES_MESSAGE]
+        assert replies(mock_update.message) == [exercises.NO_EXERCISES_MESSAGE]
         assert mock_context.sessions.get(USER_ID).active is None
 
     async def test_exercise_without_questions_is_reported_not_retried(
@@ -194,7 +189,7 @@ class TestSendExercise:
             _interaction(mock_update), mock_context, topic=None
         )
 
-        assert _replies(mock_update.message) == [exercises.NO_EXERCISES_MESSAGE]
+        assert replies(mock_update.message) == [exercises.NO_EXERCISES_MESSAGE]
         assert mock_context.repository.random_exercise.await_count == 1
 
     async def test_missing_image_falls_back_to_text(
@@ -206,7 +201,7 @@ class TestSendExercise:
             _interaction(mock_update), mock_context, topic=None
         )
 
-        assert exercises.NO_IMAGE_MESSAGE in _replies(mock_update.message)
+        assert exercises.NO_IMAGE_MESSAGE in replies(mock_update.message)
         mock_update.message.reply_photo.assert_not_called()
 
 
@@ -229,10 +224,10 @@ class TestExerciseAction:
 
         await exercises.exercise_action(mock_callback_update, mock_context)
 
-        text = _replies(mock_callback_update.callback_query.message)[0]
+        text = replies(mock_callback_update.callback_query.message)[0]
         assert "Unit" in text
         assert "Present Continuous" in text
-        mock_context.repository.get_exercise.assert_not_called()
+        mock_context.repository.random_exercise.assert_not_called()
 
     async def test_without_an_active_exercise(
         self, mock_callback_update: Mock, mock_context: Mock
@@ -241,7 +236,7 @@ class TestExerciseAction:
 
         await exercises.exercise_action(mock_callback_update, mock_context)
 
-        assert exercises.NO_ACTIVE_EXERCISE_MESSAGE in _replies(
+        assert exercises.NO_ACTIVE_EXERCISE_MESSAGE in replies(
             mock_callback_update.callback_query.message
         )
 

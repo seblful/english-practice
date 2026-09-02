@@ -4,7 +4,6 @@ from english_practice.extractors.exercise_organizer import ExerciseOrganizer
 from english_practice.extractors.image_ocr import ImageOcrExtractor
 from english_practice.extractors.pdf_handler import PDFHandler
 from english_practice.extractors.rules_extractor import RulesExtractor
-from english_practice.extractors.utils import load_json, save_json
 
 __all__ = [
     "AnswersExtractor",
@@ -13,6 +12,4 @@ __all__ = [
     "ImageOcrExtractor",
     "PDFHandler",
     "RulesExtractor",
-    "load_json",
-    "save_json",
 ]

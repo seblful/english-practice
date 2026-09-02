@@ -146,6 +146,44 @@ class TestAnswersExtractor:
         )
         assert built.questions[0].answers[0].full_answer == "[yes]"
 
+    def test_question_missing_from_result_is_skipped(self, extractor) -> None:
+        """A model that returns fewer questions must not abort the whole unit."""
+        result = MagicMock()
+        result.questions = [
+            MagicMock(
+                question_id="1",
+                is_open_ended=False,
+                short_answers=["yes"],
+                full_answers=["Yes!"],
+            )
+        ]
+
+        built = extractor._build_exercise_data(
+            "1.1",
+            [{"question_id": "1"}, {"question_id": "2"}],
+            result,
+        )
+
+        assert [q.question_id for q in built.questions] == ["1"]
+
+    def test_short_answer_without_a_full_answer_is_kept(self, extractor) -> None:
+        """Truncating here would silently drop an accepted answer."""
+        result = MagicMock()
+        result.questions = [
+            MagicMock(
+                question_id="1",
+                is_open_ended=False,
+                short_answers=["yes", "sure"],
+                full_answers=["Yes!"],
+            )
+        ]
+
+        built = extractor._build_exercise_data("1.1", [{"question_id": "1"}], result)
+
+        answers = built.questions[0].answers
+        assert [a.short_answer for a in answers] == ["yes", "sure"]
+        assert [a.full_answer for a in answers] == ["Yes!", "[sure]"]
+
     @pytest.mark.asyncio
     async def test_extract_calls_super(self, extractor) -> None:
         with (

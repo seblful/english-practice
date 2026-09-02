@@ -33,6 +33,14 @@ class TopicSelection(StrEnum):
     SPECIFIC = "specific"
 
 
+# SPECIFIC travels as the bare topic id, so it is not a keyword payload.
+_KEYWORD_SELECTIONS = {
+    selection.value: selection
+    for selection in TopicSelection
+    if selection is not TopicSelection.SPECIFIC
+}
+
+
 @dataclass(frozen=True, slots=True)
 class TopicChoice:
     """A topic-menu press, with the chosen topic when there is one."""
@@ -72,13 +80,9 @@ class TopicChoice:
         if prefix != TOPIC_PREFIX or not value:
             return None
 
-        for selection in (
-            TopicSelection.RANDOM,
-            TopicSelection.NEW_TOPIC,
-            TopicSelection.SAME,
-        ):
-            if value == selection.value:
-                return cls(selection)
+        keyword = _KEYWORD_SELECTIONS.get(value)
+        if keyword is not None:
+            return cls(keyword)
 
         try:
             return cls.for_topic(int(value))

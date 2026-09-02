@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
+from english_practice.logging import get_logger
 from english_practice.models.constants import (
     BOTTOM_WHITE_MARGIN,
     BOTTOM_WHITE_MIN_RATIO,
@@ -33,6 +34,8 @@ from english_practice.models.constants import (
     EXERCISE_SEARCH_WIDTH_RATIO,
     MIN_MEANINGFUL_CROP_PIXELS,
 )
+
+logger = get_logger(__name__)
 
 
 class BoundingBox(NamedTuple):
@@ -112,18 +115,6 @@ class ExerciseOrganizer:
 
         return mask
 
-    @staticmethod
-    def _extract_bounding_boxes(contours: list) -> list[BoundingBox]:
-        """Extract bounding boxes from OpenCV contours.
-
-        Args:
-            contours: List of OpenCV contours
-
-        Returns:
-            List of BoundingBox named tuples
-        """
-        return [BoundingBox(*cv2.boundingRect(cnt)) for cnt in contours]
-
     def _extract_from_page(
         self,
         image_path: Path,
@@ -149,14 +140,14 @@ class ExerciseOrganizer:
 
         return exercises if exercises else [img]
 
-    def _detect_exercise_headers(self, region: np.ndarray) -> list[dict[str, int]]:
+    def _detect_exercise_headers(self, region: np.ndarray) -> list[BoundingBox]:
         """Detect exercise header boxes using HSV color filtering and contour detection.
 
         Args:
             region: Left region of the image to search for headers
 
         Returns:
-            List of detected header boxes with x, y, w, h coordinates
+            The detected header boxes, top to bottom.
         """
         # Create HSV mask for teal/blue exercise headers
         hsv_range = self._create_hsv_range(
@@ -179,15 +170,15 @@ class ExerciseOrganizer:
         # Find and filter contours
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        boxes = []
+        boxes: list[BoundingBox] = []
         for cnt in contours:
             box = BoundingBox(*cv2.boundingRect(cnt))
             area = cv2.contourArea(cnt)
 
             if self._is_valid_exercise_header(box, area):
-                boxes.append({"x": box.x, "y": box.y, "w": box.w, "h": box.h})
+                boxes.append(box)
 
-        return sorted(boxes, key=lambda b: b["y"])
+        return sorted(boxes, key=lambda b: b.y)
 
     @staticmethod
     def _is_valid_exercise_header(box: BoundingBox, area: float) -> bool:
@@ -209,7 +200,7 @@ class ExerciseOrganizer:
     def _split_into_exercises(
         self,
         img: np.ndarray,
-        boxes: list[dict[str, int]],
+        boxes: list[BoundingBox],
         height: int,
         width: int,
     ) -> list[np.ndarray]:
@@ -227,22 +218,27 @@ class ExerciseOrganizer:
         exercises = []
 
         for i, box in enumerate(boxes):
-            start_y = max(0, box["y"] - EXERCISE_PADDING)
+            start_y = max(0, box.y - EXERCISE_PADDING)
 
             # End at next exercise or bottom of page
-            if i < len(boxes) - 1:
-                end_y = boxes[i + 1]["y"] - EXERCISE_PADDING
-            else:
-                end_y = height
+            is_last = i == len(boxes) - 1
+            end_y = height if is_last else boxes[i + 1].y - EXERCISE_PADDING
 
             exercise_img = img[start_y:end_y, 0:width]
 
-            # Skip exercises that are too small
+            # Skip exercises that are too small. A slice's position becomes its
+            # exercise number when it is saved, so dropping one silently
+            # renumbers every exercise below it on the page.
             if exercise_img.shape[0] < EXERCISE_MIN_HEIGHT:
+                logger.warning(
+                    "exercise_slice_dropped",
+                    header_index=i,
+                    height=int(exercise_img.shape[0]),
+                )
                 continue
 
             # Crop bottom white space only for the last exercise
-            if i == len(boxes) - 1:
+            if is_last:
                 exercise_img = self._crop_bottom_white_space(exercise_img)
 
             exercises.append(exercise_img)
@@ -404,6 +400,11 @@ class ExerciseOrganizer:
 
         Returns:
             List of saved file paths
+
+        Raises:
+            OSError: If a file could not be written. ``cv2.imwrite`` reports
+                failure by returning ``False``, so an unchecked call would
+                leave the caller believing an image exists.
         """
         page_dir = output_dir / str(page_num)
         page_dir.mkdir(parents=True, exist_ok=True)
@@ -411,7 +412,8 @@ class ExerciseOrganizer:
         output_paths = []
         for i, exercise_img in enumerate(exercises, start=1):
             output_path = page_dir / f"{page_num}.{i}.png"
-            cv2.imwrite(str(output_path), exercise_img)
+            if not cv2.imwrite(str(output_path), exercise_img):
+                raise OSError(f"could not write exercise image: {output_path}")
             output_paths.append(output_path)
 
         return output_paths

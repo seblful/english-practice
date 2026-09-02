@@ -1,12 +1,12 @@
 """Extract grammar rules from exercises using LLM."""
 
 import json
+from functools import cached_property
 from pathlib import Path
-
-from tqdm import tqdm
 
 from english_practice.agents import RulesAgent
 from english_practice.logging import get_logger
+from english_practice.models.agents import ExerciseRulesOutput
 from english_practice.models.extraction import (
     ExtractedExerciseRules,
     ExtractedFullRules,
@@ -67,30 +67,16 @@ class RulesExtractor(BaseExtractor):
             for q in e.get("questions", [])
         }
 
+    @cached_property
+    def _answers_full_map(self) -> dict[str, dict]:
+        """Full answers indexed by ``"<exercise_id>:<question_id>"``, read once."""
+        return self._build_answers_full_map(self._load_answers_full_data())
+
     async def extract(self) -> dict[str, Path]:
         """Extract grammar rules from all exercises."""
-        data = self._load_answers_data()
-        answers_full_map = self._build_answers_full_map(self._load_answers_full_data())
-        output = self._load_output(ExtractedFullRules)
+        return await self._extract_units(ExtractedFullRules)
 
-        for unit in tqdm(data.get("units", []), desc="Processing units"):
-            unit_id = unit["unit_id"]
-            if self._is_unit_processed(output, unit_id):
-                logger.info("unit_already_processed", unit_id=unit_id)
-                continue
-
-            unit_data = await self._process_unit_rules(unit, answers_full_map)
-            self._add_unit(output, unit_data)
-            self._save_output(output)
-
-        logger.info("rules_written", output_path=str(self._output_path))
-        return {"output_path": self._output_path}
-
-    async def _process_unit_rules(
-        self,
-        unit: dict,
-        answers_full_map: dict[str, dict],
-    ) -> ExtractedUnitRules:
+    async def _process_unit(self, unit: dict) -> ExtractedUnitRules:
         """Process all exercises in a unit."""
         unit_id = unit["unit_id"]
         unit_number = int(unit_id)
@@ -104,7 +90,7 @@ class RulesExtractor(BaseExtractor):
             rules_md = ""
 
         exercises = [
-            await self._process_exercise(ex, answers_full_map, rules_md, topic_name)
+            await self._process_exercise(ex, rules_md, topic_name)
             for ex in unit.get("exercises", [])
         ]
 
@@ -113,7 +99,6 @@ class RulesExtractor(BaseExtractor):
     async def _process_exercise(
         self,
         exercise: dict,
-        answers_full_map: dict[str, dict],
         rules_md: str,
         topic_name: str,
     ) -> ExtractedExerciseRules:
@@ -121,7 +106,7 @@ class RulesExtractor(BaseExtractor):
         exercise_id = exercise["exercise_id"]
         image_path = self._get_image_path(exercise_id)
 
-        questions_input = self._prepare_questions(exercise, answers_full_map)
+        questions_input = self._prepare_questions(exercise)
 
         result = await self._extractor_agent.extract_exercise(
             image_path=image_path,
@@ -131,18 +116,14 @@ class RulesExtractor(BaseExtractor):
         )
         return self._build_exercise_data(exercise_id, questions_input, result)
 
-    def _prepare_questions(
-        self,
-        exercise: dict,
-        answers_full_map: dict[str, dict],
-    ) -> list[dict]:
+    def _prepare_questions(self, exercise: dict) -> list[dict]:
         """Prepare questions for extraction."""
         questions = []
         for question in exercise.get("questions", []):
             question_id = question["question_id"]
 
             key = f"{exercise['exercise_id']}:{question_id}"
-            full_info = answers_full_map.get(key, {})
+            full_info = self._answers_full_map.get(key, {})
             is_open_ended = full_info.get("is_open_ended", False)
             answers = full_info.get("answers", [])
             full_answers = [a["full_answer"] for a in answers] if answers else []
@@ -162,7 +143,7 @@ class RulesExtractor(BaseExtractor):
         self,
         exercise_id: str,
         questions_input: list[dict],
-        result,
+        result: ExerciseRulesOutput,
     ) -> ExtractedExerciseRules:
         """Build exercise data from extraction result."""
         result_map = {q.question_id: q for q in result.questions}
@@ -170,7 +151,16 @@ class RulesExtractor(BaseExtractor):
         questions = []
         for q_input in questions_input:
             question_id = q_input["question_id"]
-            q_result = result_map[question_id]
+            q_result = result_map.get(question_id)
+            if q_result is None:
+                # Skipping costs one question's rule; raising would discard
+                # every already-paid call in the unit.
+                logger.warning(
+                    "question_missing_from_extraction",
+                    exercise_id=exercise_id,
+                    question_id=question_id,
+                )
+                continue
 
             questions.append(
                 ExtractedQuestionRule(

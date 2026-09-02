@@ -18,15 +18,13 @@ class TestImageOcrExtractor:
         extractor = ImageOcrExtractor(api_key="test-key")
         assert extractor._api_key == "test-key"
 
-    def test_init_from_env(self) -> None:
-        with patch("os.environ.get", return_value="env-key"):
-            extractor = ImageOcrExtractor()
-            assert extractor._api_key == "env-key"
+    def test_init_without_a_key(self) -> None:
+        assert ImageOcrExtractor()._api_key is None
 
     def test_init_no_key_raises_on_get_client(self) -> None:
         extractor = ImageOcrExtractor(api_key="some-key")
         extractor._api_key = None
-        with pytest.raises(ValueError, match="MISTRAL_API_KEY"):
+        with pytest.raises(ValueError, match="an OCR API key is required"):
             extractor._get_client()
 
     def test_get_client_creates_and_caches(self) -> None:

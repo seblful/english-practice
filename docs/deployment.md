@@ -7,7 +7,9 @@ Deploy the English Practice bot on a VPS with Docker.
 - A VPS (Ubuntu/Debian recommended, ~$5/mo is enough)
 - Docker and Docker Compose installed
 - Telegram bot token from [@BotFather](https://t.me/BotFather)
-- `data/seed.db` file (generated locally with `uv run scripts/database/populate.py`)
+- A seed database built locally with `uv run scripts/database/populate.py`, which
+  writes to `PATHS_DATABASE_PATH` (`data/development.db` under the default
+  development environment). Copy that file to `data/seed.db` before the `scp` below.
 
 ## Quick Start
 

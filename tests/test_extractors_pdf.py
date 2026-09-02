@@ -31,8 +31,9 @@ class TestPDFHandler:
             )
             mock_new_pdf.save.assert_called_once_with(output_path)
 
-    def test_separate_page_images(self, tmp_path) -> None:
-        handler = PDFHandler()
+    @staticmethod
+    def _run(tmp_path, start_page: int, end_page: int, page_count: int) -> list:
+        """Split a mocked PDF and return the path each page was saved to."""
         input_path = tmp_path / "input.pdf"
         input_path.write_text("fake")
 
@@ -43,21 +44,42 @@ class TestPDFHandler:
 
         with patch("english_practice.extractors.pdf_handler.pymupdf") as mock_pymupdf:
             mock_pdf = MagicMock()
-            mock_pdf.page_count = 4
+            mock_pdf.page_count = page_count
             mock_pymupdf.open.return_value.__enter__.return_value = mock_pdf
 
-            # Create mock pages with get_pixmap
             mock_page = MagicMock()
             mock_pixmap = MagicMock()
             mock_page.get_pixmap.return_value = mock_pixmap
             mock_pdf.load_page.return_value = mock_page
 
-            handler.separate_page_images(
-                input_path, 1, 4, grammar_dir, exercises_dir, dpi=300
+            PDFHandler().separate_page_images(
+                input_path, start_page, end_page, grammar_dir, exercises_dir, dpi=300
             )
 
-            assert mock_pdf.load_page.call_count == 4
-            # Even pages → exercises, odd pages → grammar
-            # page 0 (even) → exercises, page 1 (odd) → grammar
-            # page 2 (even) → exercises, page 3 (odd) → grammar
-            assert mock_pixmap.save.call_count == 4
+        return [call.args[0] for call in mock_pixmap.save.call_args_list]
+
+    def test_even_start_page_pairs_each_unit(self, tmp_path) -> None:
+        """The counter advances on exercise pages, so the run must start odd.
+
+        ``START_UNIT_PAGE`` is even, which makes the first iterated page odd
+        and every unit's grammar page land before its exercise page.
+        """
+        saved = self._run(tmp_path, start_page=2, end_page=5, page_count=5)
+
+        assert saved == [
+            tmp_path / "grammar" / "1.png",
+            tmp_path / "exercises" / "1.png",
+            tmp_path / "grammar" / "2.png",
+            tmp_path / "exercises" / "2.png",
+        ]
+
+    def test_odd_start_page_leaves_unit_one_without_grammar(self, tmp_path) -> None:
+        """An odd start page shifts grammar one unit ahead of its exercises."""
+        saved = self._run(tmp_path, start_page=1, end_page=4, page_count=4)
+
+        assert saved == [
+            tmp_path / "exercises" / "1.png",
+            tmp_path / "grammar" / "2.png",
+            tmp_path / "exercises" / "2.png",
+            tmp_path / "grammar" / "3.png",
+        ]

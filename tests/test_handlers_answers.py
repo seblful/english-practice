@@ -1,6 +1,6 @@
 """Tests for grading answers and answering follow-up questions."""
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
@@ -8,12 +8,7 @@ from english_practice.bot.handlers import answers as answers_handler
 from english_practice.bot.states import ActiveExercise
 from english_practice.errors import AgentError
 from english_practice.models.book import Exercise, QuestionAnswer
-from tests.conftest import USER_ID
-
-
-def _replies(message: AsyncMock) -> list[str]:
-    """Return the text of every reply sent to a message."""
-    return [call.args[0] for call in message.reply_text.call_args_list]
+from tests.conftest import USER_ID, replies
 
 
 @pytest.fixture
@@ -37,7 +32,7 @@ class TestWithoutAnExercise:
     ) -> None:
         await answers_handler.text_message(mock_update, mock_context)
 
-        assert _replies(mock_update.message) == [answers_handler.NO_EXERCISE_HINT]
+        assert replies(mock_update.message) == [answers_handler.NO_EXERCISE_HINT]
         mock_context.agents.evaluate_answer.assert_not_called()
 
 
@@ -73,7 +68,7 @@ class TestGrading:
     ) -> None:
         await answers_handler.text_message(mock_update, mock_context)
 
-        texts = _replies(mock_update.message)
+        texts = replies(mock_update.message)
         assert any("✅" in text for text in texts)
         assert any("Correct Answer" in text for text in texts)
         assert any("Full Answer" in text for text in texts)
@@ -90,7 +85,7 @@ class TestGrading:
 
         await answers_handler.text_message(mock_update, mock_context)
 
-        shown = next(t for t in _replies(mock_update.message) if "Correct Answer" in t)
+        shown = next(t for t in replies(mock_update.message) if "Correct Answer" in t)
         assert "'s doing" in shown
         assert "is doing" not in shown
 
@@ -103,7 +98,7 @@ class TestGrading:
 
         await answers_handler.text_message(mock_update, mock_context)
 
-        shown = next(t for t in _replies(mock_update.message) if "Correct Answer" in t)
+        shown = next(t for t in replies(mock_update.message) if "Correct Answer" in t)
         assert "is doing" in shown
 
     async def test_ignores_out_of_range_indexes(
@@ -116,7 +111,7 @@ class TestGrading:
 
         await answers_handler.text_message(mock_update, mock_context)
 
-        shown = next(t for t in _replies(mock_update.message) if "Correct Answer" in t)
+        shown = next(t for t in replies(mock_update.message) if "Correct Answer" in t)
         assert "is doing" in shown
 
     async def test_question_without_stored_answers(
@@ -129,7 +124,7 @@ class TestGrading:
 
         await answers_handler.text_message(mock_update, mock_context)
 
-        texts = _replies(mock_update.message)
+        texts = replies(mock_update.message)
         assert not any("Correct Answer" in text for text in texts)
         assert texts[-1] == answers_handler.NEXT_EXERCISE_PROMPT
 
@@ -150,7 +145,7 @@ class TestGrading:
         await answers_handler.text_message(mock_update, mock_context)
 
         mock_context.agents.evaluate_answer.assert_not_called()
-        assert _replies(mock_update.message) == [answers_handler.EMPTY_ANSWER_HINT]
+        assert replies(mock_update.message) == [answers_handler.EMPTY_ANSWER_HINT]
 
 
 class TestRuleDisplay:
@@ -161,7 +156,7 @@ class TestRuleDisplay:
     ) -> None:
         await answers_handler.text_message(mock_update, mock_context)
 
-        assert any("Rule" in text for text in _replies(mock_update.message))
+        assert any("Rule" in text for text in replies(mock_update.message))
 
     async def test_rule_hidden_when_toggled_off(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
@@ -170,7 +165,7 @@ class TestRuleDisplay:
 
         await answers_handler.text_message(mock_update, mock_context)
 
-        assert not any("Rule" in text for text in _replies(mock_update.message))
+        assert not any("Rule" in text for text in replies(mock_update.message))
 
     async def test_question_without_a_rule(
         self, mock_update: Mock, mock_context: Mock, exercise: Exercise
@@ -187,7 +182,7 @@ class TestRuleDisplay:
 
         await answers_handler.text_message(mock_update, mock_context)
 
-        assert not any("Rule" in text for text in _replies(mock_update.message))
+        assert not any("Rule" in text for text in replies(mock_update.message))
 
 
 class TestGradingFailure:
@@ -200,7 +195,7 @@ class TestGradingFailure:
 
         await answers_handler.text_message(mock_update, mock_context)
 
-        texts = _replies(mock_update.message)
+        texts = replies(mock_update.message)
         assert texts[0] == answers_handler.GRADING_FAILED
         assert any("Correct Answer" in text for text in texts)
         assert texts[-1] == answers_handler.NEXT_EXERCISE_PROMPT
@@ -251,4 +246,4 @@ class TestFollowUp:
 
         await answers_handler.text_message(mock_update, mock_context)
 
-        assert _replies(mock_update.message) == [answers_handler.ASSIST_FAILED]
+        assert replies(mock_update.message) == [answers_handler.ASSIST_FAILED]

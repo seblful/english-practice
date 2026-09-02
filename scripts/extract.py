@@ -67,7 +67,10 @@ def cut_pdf(
     start_page, end_page = page_ranges[section]
 
     logger.info(
-        f"Cutting PDF for section '{section.value}': Pages {start_page} to {end_page}"
+        "pdf_section_cutting",
+        section=section.value,
+        start_page=start_page,
+        end_page=end_page,
     )
 
     handler = PDFHandler()
@@ -117,7 +120,9 @@ def ocr_grammar_images() -> None:
         output_dir=settings.paths.grammar_md_dir,
     )
     logger.info(
-        f"Wrote {len(written)} markdown file(s) to {settings.paths.grammar_md_dir}"
+        "grammar_pages_ocred",
+        count=len(written),
+        output_dir=str(settings.paths.grammar_md_dir),
     )
 
 

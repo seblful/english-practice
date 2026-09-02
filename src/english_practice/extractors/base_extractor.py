@@ -90,10 +90,6 @@ class BaseExtractor:
         """Check if unit was already processed."""
         return any(u.unit_id == unit_id for u in output.units)
 
-    def _add_unit(self, output: ExtractedUnitsRoot[Any], unit: Any) -> None:
-        """Add unit to output."""
-        output.units.append(unit)
-
     async def _extract_units(self, output_model: type[RootT]) -> dict[str, Path]:
         """Extract data from all units, resuming past ones already processed.
 
@@ -113,7 +109,7 @@ class BaseExtractor:
                 continue
 
             unit_data = await self._process_unit(unit)
-            self._add_unit(output, unit_data)
+            output.units.append(unit_data)
             self._save_output(output)
 
         logger.info("extraction_written", output_path=str(self._output_path))

@@ -13,7 +13,7 @@ directory is created until that function is called.
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Literal, assert_never
 
 from dotenv import dotenv_values
 from pydantic import AliasChoices, BaseModel, Field, SecretStr
@@ -98,9 +98,6 @@ class AppSettings(BaseModel):
     app_name: str = Field(default="english-practice", description="Application name")
     environment: str = Field(
         default=_DEFAULT_ENVIRONMENT, description="Environment name"
-    )
-    secret_key: SecretStr | None = Field(
-        default=None, description="Application secret (set via APP__SECRET_KEY)"
     )
 
 
@@ -245,11 +242,15 @@ class LLMSettings(BaseSettings):
     @property
     def active_api_key(self) -> str | None:
         """Return the API key of the selected provider, if configured."""
-        provider_settings: DashscopeSettings | GeminiSettings | OpenRouterSettings = {
-            "dashscope": self.dashscope,
-            "gemini": self.gemini,
-            "openrouter": self.openrouter,
-        }[self.provider]
+        match self.provider:
+            case "dashscope":
+                provider_settings = self.dashscope
+            case "gemini":
+                provider_settings = self.gemini
+            case "openrouter":
+                provider_settings = self.openrouter
+            case unreachable:  # pragma: no cover - the Literal is validated upstream
+                assert_never(unreachable)
         return secret_value(provider_settings.api_key)
 
 
@@ -293,11 +294,6 @@ class BotSettings(BaseSettings):
         default=720,
         ge=1,
         description="Idle time after which an in-memory user session is evicted",
-    )
-    max_exercise_attempts: int = Field(
-        default=5,
-        ge=1,
-        description="Draws attempted before giving up on finding a usable exercise",
     )
 
 

@@ -1,7 +1,7 @@
 """Tests for the admin handlers."""
 
 from collections.abc import Callable
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
@@ -9,12 +9,7 @@ from english_practice.bot.handlers import admin
 from english_practice.bot.handlers.access import APPROVED_NOTICE, REJECTED_NOTICE
 from english_practice.bot.states import ActiveExercise
 from english_practice.models.book import Exercise
-from tests.conftest import USER_ID
-
-
-def _replies(message: AsyncMock) -> list[str]:
-    """Return the text of every reply sent to a message."""
-    return [call.args[0] for call in message.reply_text.call_args_list]
+from tests.conftest import USER_ID, replies
 
 
 @pytest.fixture(autouse=True)
@@ -40,7 +35,7 @@ class TestPendingCommand:
 
         await admin.pending_command(mock_update, mock_context)
 
-        assert _replies(mock_update.message) == [admin.NO_PENDING_MESSAGE]
+        assert replies(mock_update.message) == [admin.NO_PENDING_MESSAGE]
 
 
 class TestAdminAction:
@@ -81,7 +76,7 @@ class TestAdminAction:
 
         await admin.admin_action(mock_callback_update, mock_context)
 
-        texts = _replies(mock_callback_update.callback_query.message)
+        texts = replies(mock_callback_update.callback_query.message)
         assert "has been ✅ approved" in texts[0]
         assert "Remaining pending (2)" in texts[1]
 
@@ -93,7 +88,7 @@ class TestAdminAction:
 
         await admin.admin_action(mock_callback_update, mock_context)
 
-        assert len(_replies(mock_callback_update.callback_query.message)) == 1
+        assert len(replies(mock_callback_update.callback_query.message)) == 1
 
     async def test_unreachable_user_does_not_break_the_decision(
         self, mock_callback_update: Mock, mock_context: Mock

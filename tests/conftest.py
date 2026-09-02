@@ -29,7 +29,9 @@ from english_practice.settings import Settings
 USER_ID = 12345
 ADMIN_ID = 99999
 
-SCHEMA_PATH = Path("scripts/database/schema.sql")
+SCHEMA_PATH = (
+    Path(__file__).resolve().parent.parent / "scripts" / "database" / "schema.sql"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -44,6 +46,36 @@ def _quiet_logging() -> None:
         wrapper_class=structlog.make_filtering_bound_logger(logging.CRITICAL),
         logger_factory=structlog.ReturnLoggerFactory(),
     )
+
+
+# ----------------------------------------------------------------------
+# Reading replies
+# ----------------------------------------------------------------------
+
+
+def replies(message: AsyncMock) -> list[str]:
+    """Return the text of every reply sent to a message.
+
+    Args:
+        message: The mocked message the handler replied to.
+
+    Returns:
+        Each reply's text, in the order it was sent.
+    """
+    return [call.args[0] for call in message.reply_text.call_args_list]
+
+
+def last_reply(message: AsyncMock) -> tuple[str, dict]:
+    """Return the text and keyword arguments of the last reply.
+
+    Args:
+        message: The mocked message the handler replied to.
+
+    Returns:
+        The final reply's text and its keyword arguments.
+    """
+    call = message.reply_text.call_args
+    return call.args[0], call.kwargs
 
 
 # ----------------------------------------------------------------------
@@ -252,7 +284,6 @@ def mock_repository(
     repository.list_topics.return_value = topics
     repository.get_topic.return_value = topics[0]
     repository.random_exercise.return_value = exercise
-    repository.get_exercise.return_value = exercise
     repository.get_exercise_image.return_value = b"fake_image_bytes"
     repository.list_answers.return_value = answers
     repository.get_auth_status.return_value = None

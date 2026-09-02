@@ -1,7 +1,6 @@
 """Image OCR extractor using Mistral OCR API."""
 
 import base64
-import os
 from pathlib import Path
 
 from mistralai.client import Mistral
@@ -19,18 +18,21 @@ class ImageOcrExtractor:
         """Initialize the extractor.
 
         Args:
-            api_key: Mistral API key. If None, uses MISTRAL_API_KEY from environment.
+            api_key: Mistral API key. Read from ``OcrSettings`` by the caller,
+                which resolves ``OCR_API_KEY``, ``MISTRAL_API_KEY`` and the
+                legacy ``API_KEY``; reading one of those here would honour only
+                that name and mask the other two.
             model: OCR model name (e.g. from config mistral.ocr_model).
         """
-        self._api_key = api_key or os.environ.get("MISTRAL_API_KEY")
+        self._api_key = api_key
         self._model = model
         self._client: Mistral | None = None
 
     def _get_client(self) -> Mistral:
         """Return the Mistral client, creating it on first use."""
-        if self._api_key is None or self._api_key == "":
+        if not self._api_key:
             raise ValueError(
-                "MISTRAL_API_KEY must be set in environment or passed as api_key"
+                "an OCR API key is required; set OCR_API_KEY or pass api_key"
             )
         if self._client is None:
             self._client = Mistral(api_key=self._api_key)

@@ -87,7 +87,7 @@ class TestExercises:
     async def test_exercise_carries_its_unit_and_topic(
         self, repository: DatabaseRepository
     ) -> None:
-        exercise = await repository.get_exercise(1)
+        exercise = await repository.random_exercise(topic_id=1)
 
         assert exercise is not None
         assert exercise.exercise_id == "1.1"
@@ -97,7 +97,7 @@ class TestExercises:
     async def test_questions_come_back_in_display_order(
         self, repository: DatabaseRepository
     ) -> None:
-        exercise = await repository.get_exercise(1)
+        exercise = await repository.random_exercise(topic_id=1)
 
         assert exercise is not None
         assert [q.question_id for q in exercise.questions] == ["1", "2"]
@@ -105,7 +105,7 @@ class TestExercises:
     async def test_question_fields_are_typed(
         self, repository: DatabaseRepository
     ) -> None:
-        exercise = await repository.get_exercise(1)
+        exercise = await repository.random_exercise(topic_id=1)
 
         assert exercise is not None
         open_ended, closed = exercise.questions
@@ -114,14 +114,23 @@ class TestExercises:
         assert closed.is_open_ended is False
         assert closed.rule == "Use present continuous"
 
-    async def test_unknown_exercise(self, repository: DatabaseRepository) -> None:
-        assert await repository.get_exercise(404) is None
-
     async def test_exercise_image(self, repository: DatabaseRepository) -> None:
         assert await repository.get_exercise_image(1) == b"\x89PNG"
 
     async def test_missing_exercise_image(self, repository: DatabaseRepository) -> None:
         assert await repository.get_exercise_image(2) is None
+
+    async def test_zero_length_image_counts_as_absent(
+        self, repository: DatabaseRepository, db_path: Path
+    ) -> None:
+        """A broken import stores an empty blob; it must not reach Telegram."""
+        with closing(sqlite3.connect(db_path)) as conn, conn:
+            conn.execute(
+                "UPDATE exercise_images SET image_data = ? WHERE exercise_id = 1",
+                (b"",),
+            )
+
+        assert await repository.get_exercise_image(1) is None
 
 
 class TestAnswers:

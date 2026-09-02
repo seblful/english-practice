@@ -3,23 +3,42 @@
 
 import sqlite3
 import sys
+import traceback
 from pathlib import Path
 
-
-def get_project_root() -> Path:
-    """Get the project root directory."""
-    return Path(__file__).resolve().parent.parent.parent
+from english_practice.settings import get_settings
 
 
 def get_db_path() -> Path:
-    """Get database file path."""
-    return get_project_root() / "data" / "development.db"
+    """Return the database file the application reads.
+
+    Taken from the settings rather than hardcoded, so that the file this
+    script checks is the one the bot opens.
+    """
+    return get_settings().paths.database_path
 
 
 # How many offending rows to list before collapsing into a "... and N more" line.
 MAX_LISTED_DEFAULT = 3
 MAX_LISTED_IMAGES = 5
 MAX_LISTED_QUESTIONS = 10
+
+
+def _mark_status(results: dict) -> dict:
+    """Flag a check as failed when it collected any offending rows.
+
+    Deriving this from the mapping keeps a newly added check from silently
+    passing because its key was forgotten in a hand-kept list.
+
+    Args:
+        results: One check's results: issue lists keyed by name, plus ``status``.
+
+    Returns:
+        The same mapping, with ``status`` updated.
+    """
+    if any(rows for key, rows in results.items() if key != "status"):
+        results["status"] = "error"
+    return results
 
 
 class DatabaseValidator:
@@ -31,8 +50,6 @@ class DatabaseValidator:
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
-        self.errors = []
-        self.warnings = []
 
     def close(self) -> None:
         """Close database connection."""
@@ -160,18 +177,7 @@ class DatabaseValidator:
         for row in self.cursor.fetchall():
             results["duplicate_topic_names"].append(row["name"])
 
-        if any(
-            results[k]
-            for k in [
-                "duplicate_exercise_ids",
-                "duplicate_question_ids",
-                "duplicate_unit_numbers",
-                "duplicate_topic_names",
-            ]
-        ):
-            results["status"] = "error"
-
-        return results
+        return _mark_status(results)
 
     def validate_orphaned_data(self) -> dict:
         """Check for orphaned or missing data."""
@@ -242,18 +248,7 @@ class DatabaseValidator:
         for row in self.cursor.fetchall():
             results["topics_without_units"].append(row["name"])
 
-        if any(
-            results[k]
-            for k in [
-                "exercises_without_questions",
-                "questions_without_answers",
-                "units_without_exercises",
-                "topics_without_units",
-            ]
-        ):
-            results["status"] = "error"
-
-        return results
+        return _mark_status(results)
 
     def validate_referential_integrity(self) -> dict:
         """Check foreign key relationships."""
@@ -367,21 +362,7 @@ class DatabaseValidator:
                 f"Image ID {row['id']} -> Exercise ID {row['exercise_id']}"
             )
 
-        if any(
-            results[k]
-            for k in [
-                "invalid_exercise_unit_ids",
-                "invalid_question_exercise_ids",
-                "invalid_unit_topic_unit_ids",
-                "invalid_unit_topic_topic_ids",
-                "invalid_topic_parents",
-                "invalid_question_answers",
-                "invalid_exercise_images",
-            ]
-        ):
-            results["status"] = "error"
-
-        return results
+        return _mark_status(results)
 
     _REFERENTIAL_CHECKS = (
         ("invalid_exercise_unit_ids", "Invalid exercise unit_ids"),
@@ -418,7 +399,7 @@ class DatabaseValidator:
             return 0
 
         count = len(items)
-        marker = "[[WARN]]" if warn else "[FAIL]"
+        marker = "[WARN]" if warn else "[FAIL]"
         print(f"  {marker} {label}: {count}")
         for item in items[:sample]:
             print(f"    - {item}")
@@ -438,21 +419,15 @@ class DatabaseValidator:
         print(f"  [FAIL] Exercises in DB: {img['db_exercises']}")
         print(f"  [FAIL] Images in DB: {img['images_in_db']}")
 
-        errors = 0
-        for key, title, remainder in (
-            ("missing_images", "Missing Images", True),
-            ("empty_images", "Empty Images", False),
-        ):
-            items = img.get(key)
-            if not items:
-                continue
-            count = len(items)
-            print(f"\n  {title} ({count}):")
-            for item in items[:MAX_LISTED_IMAGES]:
-                print(f"    - {item}")
-            if remainder and count > MAX_LISTED_IMAGES:
-                print(f"    ... and {count - MAX_LISTED_IMAGES} more")
-            errors += count
+        errors = self._print_issue(
+            "Missing Images",
+            img["missing_images"],
+            sample=MAX_LISTED_IMAGES,
+            show_remainder=True,
+        )
+        errors += self._print_issue(
+            "Empty Images", img["empty_images"], sample=MAX_LISTED_IMAGES
+        )
         return errors
 
     def _report_duplicates(self, dup: dict) -> int:
@@ -566,8 +541,9 @@ def main() -> int:
 
         return validator.print_report(results)
 
-    except Exception as e:
-        print(f"Error during validation: {e}")
+    except Exception:
+        print("Error during validation:")
+        traceback.print_exc()
         return 1
     finally:
         validator.close()

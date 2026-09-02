@@ -16,7 +16,3 @@ class ConfigurationError(EnglishPracticeError):
 
 class AgentError(EnglishPracticeError):
     """An LLM call failed or returned something unusable."""
-
-
-class RepositoryError(EnglishPracticeError):
-    """A database operation failed."""

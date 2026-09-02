@@ -1,16 +1,10 @@
 """Tests for the command handlers."""
 
 from collections.abc import Callable
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 from english_practice.bot.handlers import menu
-from tests.conftest import ADMIN_ID, USER_ID
-
-
-def _last_reply(message: AsyncMock) -> tuple[str, dict]:
-    """Return the text and keyword arguments of the last reply."""
-    call = message.reply_text.call_args
-    return call.args[0], call.kwargs
+from tests.conftest import ADMIN_ID, USER_ID, last_reply
 
 
 class TestStartCommand:
@@ -21,7 +15,7 @@ class TestStartCommand:
     ) -> None:
         await menu.start_command(mock_update, mock_context)
 
-        text, _ = _last_reply(mock_update.message)
+        text, _ = last_reply(mock_update.message)
         assert "Welcome" in text
         assert "Test" in text
 
@@ -30,7 +24,7 @@ class TestStartCommand:
     ) -> None:
         await menu.start_command(mock_update, mock_context)
 
-        _, kwargs = _last_reply(mock_update.message)
+        _, kwargs = last_reply(mock_update.message)
         assert len(kwargs["reply_markup"].inline_keyboard) == 2
 
     async def test_offers_same_topic_to_a_returning_user(
@@ -40,7 +34,7 @@ class TestStartCommand:
 
         await menu.start_command(mock_update, mock_context)
 
-        _, kwargs = _last_reply(mock_update.message)
+        _, kwargs = last_reply(mock_update.message)
         assert len(kwargs["reply_markup"].inline_keyboard) == 3
 
 
@@ -50,7 +44,7 @@ class TestExerciseCommand:
     async def test_shows_the_menu(self, mock_update: Mock, mock_context: Mock) -> None:
         await menu.exercise_command(mock_update, mock_context)
 
-        text, kwargs = _last_reply(mock_update.message)
+        text, kwargs = last_reply(mock_update.message)
         assert text == menu.MENU_PROMPT
         assert kwargs["reply_markup"] is not None
 
@@ -62,7 +56,7 @@ class TestRuleCommand:
         await menu.rule_command(mock_update, mock_context)
 
         assert mock_context.sessions.get(USER_ID).show_rule is False
-        assert "disabled" in _last_reply(mock_update.message)[0]
+        assert "disabled" in last_reply(mock_update.message)[0]
 
     async def test_turns_rules_back_on(
         self, mock_update: Mock, mock_context: Mock
@@ -72,7 +66,7 @@ class TestRuleCommand:
         await menu.rule_command(mock_update, mock_context)
 
         assert mock_context.sessions.get(USER_ID).show_rule is True
-        assert "enabled" in _last_reply(mock_update.message)[0]
+        assert "enabled" in last_reply(mock_update.message)[0]
 
 
 class TestHelpCommand:
@@ -83,7 +77,7 @@ class TestHelpCommand:
     ) -> None:
         await menu.help_command(mock_update, mock_context)
 
-        text, kwargs = _last_reply(mock_update.message)
+        text, kwargs = last_reply(mock_update.message)
         assert "/start" in text
         assert "/rule" in text
         assert "/pending" not in text
@@ -96,7 +90,7 @@ class TestHelpCommand:
 
         await menu.help_command(mock_update, mock_context)
 
-        assert "/pending" in _last_reply(mock_update.message)[0]
+        assert "/pending" in last_reply(mock_update.message)[0]
 
     async def test_hides_admin_commands_from_others(
         self, mock_update: Mock, mock_context: Mock, set_admin: Callable[[int], None]
@@ -106,4 +100,4 @@ class TestHelpCommand:
 
         await menu.help_command(mock_update, mock_context)
 
-        assert "/pending" not in _last_reply(mock_update.message)[0]
+        assert "/pending" not in last_reply(mock_update.message)[0]

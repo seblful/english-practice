@@ -212,28 +212,6 @@ class DatabaseRepository:
             return None
         return _to_exercise(row, await self._questions_for(row["id"]))
 
-    async def get_exercise(self, exercise_id: int) -> Exercise | None:
-        """Return one exercise with its questions.
-
-        Args:
-            exercise_id: Exercise database ID.
-
-        Returns:
-            The exercise, or ``None`` when no such exercise exists.
-        """
-        row = await self._row(
-            f"""
-            SELECT {_EXERCISE_COLUMNS}
-            FROM exercises e
-            JOIN units u ON e.unit_id = u.id
-            WHERE e.id = ?
-            """,
-            (exercise_id,),
-        )
-        if row is None:
-            return None
-        return _to_exercise(row, await self._questions_for(exercise_id))
-
     async def _questions_for(self, exercise_id: int) -> list[Question]:
         """Return an exercise's questions in display order.
 
@@ -262,13 +240,19 @@ class DatabaseRepository:
             exercise_id: Exercise database ID.
 
         Returns:
-            The stored PNG bytes, or ``None`` when the exercise has no image.
+            The stored PNG bytes, or ``None`` when the exercise has no usable
+            image. A zero-length blob is a broken import rather than a
+            picture — ``scripts/database/validate.py`` reports them — so it
+            counts as absent instead of reaching Telegram as an empty photo.
         """
         row = await self._row(
             "SELECT image_data FROM exercise_images WHERE exercise_id = ?",
             (exercise_id,),
         )
-        return row["image_data"] if row else None
+        if row is None:
+            return None
+        image: bytes = row["image_data"]
+        return image or None
 
     async def list_answers(self, question_id: int) -> list[QuestionAnswer]:
         """Return every accepted answer for a question.
