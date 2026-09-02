@@ -51,6 +51,33 @@ ______________________________________________________________________
 
 ## Architecture Rules
 
+### Three projects, one domain
+
+| Project | What it is | May depend on |
+|:--|:--|:--|
+| `core/` (`practice-core`) | The shared domain: content models, the exercise queries, the grading prompt, how a verdict is read back | `pydantic`, `jinja2` — nothing else |
+| `.` (`english-practice`) | The Telegram bot and the PDF extraction pipeline | `practice-core`, `python-telegram-bot`, LangChain, OpenCV, PyMuPDF |
+| `mobile/` (`english-practice-app`) | The Flet Android app | `practice-core`, `flet`, `httpx`, `socksio` |
+
+- **Anything that decides whether an answer is correct belongs in `core/`.**
+  Both front ends grade the same book; a rule written twice is a rule that will
+  diverge, and the symptom is the same answer marked differently on the phone
+  and in the chat. The grading prompt, `answers_to_show` and `parse_evaluation`
+  are all shared for that reason.
+- **`practice-core`'s dependency list is a hard boundary.** It ships inside an
+  APK as well as a container, so it may only use what both can carry. That
+  rules out an HTTP client, an LLM SDK, `pydantic-settings` and anything with a
+  compiled extension that Flet's package index does not prebuild.
+- **Transport, settings and presentation stay per front end.** The bot reaches
+  its provider through LangChain and reads its settings from the environment;
+  the app talks HTTP directly and reads its settings from a file the user
+  edits on screen. Neither belongs in the other, and neither belongs in `core`.
+- **`mobile/` and `core/` are checked from their own directories.** They
+  resolve different dependency sets, so `uv run ty check` and `uv run pytest`
+  at the root cover the bot only — run them inside each project as well.
+
+### Inside the bot
+
 The bot is layered `app → handlers → {repository, services, states} → models`,
 and dependencies only point downwards. When adding to it:
 
@@ -64,7 +91,9 @@ and dependencies only point downwards. When adding to it:
   `Update`.
 - **Database calls are `async` and typed.** Every repository method hands its
   query to a worker thread and returns models from `models/`, never
-  `sqlite3.Row` or `dict`.
+  `sqlite3.Row` or `dict`. Content queries are inherited from
+  `practice_core.content.ContentLibrary`; `DatabaseRepository` adds only the
+  authorization tables, which are the bot's alone.
 - **Everything interpolated into a message is escaped.** Use
   `bot/formatter.py`; book text and Telegram names routinely contain `&`
   and `<`, which break `parse_mode="HTML"`.
@@ -72,9 +101,26 @@ and dependencies only point downwards. When adding to it:
   parse, and a parse of an unknown payload returns `None` — old messages stay
   clickable forever.
 - **Agents are stateless.** A class per prompt, one method, raising
-  `AgentError`; conversation state belongs to the service.
+  `AgentError`; conversation state belongs to the service. The evaluate agent
+  renders `practice_core`'s prompt rather than one of its own.
 - **Settings are read through `get_settings()`,** never a module-level
   instance, and secrets are `SecretStr`.
+
+### Inside the app
+
+- **Screens take their collaborators from `Services`,** never build them. One
+  HTTP pool, one content library, one progress store for the app.
+- **A settings change has to reach the pool.** The proxy and the timeout are
+  baked into a client when it is built, so `Services.update_config` closes the
+  old one — a kept client keeps using a proxy the user has just switched off.
+- **A screen depends on a page protocol, not on `ft.Page`.** `ui/page.py` names
+  the handful of methods a screen uses, which is what lets a test drive a
+  screen without a running app.
+- **Provider requests are built as data.** Each adapter in `llm.py` returns an
+  `HttpCall`, so what a given setting sends can be asserted without a network.
+- **Every screen has a test that builds its whole control tree.** Flet controls
+  are validating dataclasses, so that construction is the check that the
+  properties and enums the screen names actually exist.
 
 ______________________________________________________________________
 

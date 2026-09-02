@@ -1,11 +1,33 @@
-# English Practice Bot
+# English Practice
 
-A Telegram bot for practising English grammar with exercises from *English
-Grammar in Use* (Murphy). It sends you an exercise image, grades the answer you
-type with a vision LLM, shows the book's answer and the rule behind it, and
-answers follow-up questions about the exercise.
+Practise English grammar against *English Grammar in Use* (Murphy): you get an
+exercise image, you type an answer, a vision LLM grades it, and the book's
+answer and the rule behind it follow.
 
-## How it works
+Two front ends, one book:
+
+| | |
+| :-- | :-- |
+| **Telegram bot** (this project) | Sends the exercise, grades the answer, and answers follow-up questions about it. Approves users. |
+| **[Android app](mobile/README.md)** | The same loop on a phone, with the chat taken out: no message history, but a progress screen and per-provider settings. |
+
+Both grade with the same prompt and the same rules, because those live in
+**[`practice-core`](core/README.md)** — the domain both import. Nothing that
+decides whether an answer is correct is written twice.
+
+```
+core/           practice-core: models, exercise queries, the grading prompt
+  │
+  ├── src/english_practice/   the bot: Telegram, LangChain, the PDF pipeline
+  └── mobile/                 the app: Flet, httpx, progress, settings
+```
+
+`practice-core` may only use what both a container and an APK can carry, which
+is why it depends on `pydantic` and `jinja2` and nothing else. The bot's
+LangChain stack and the app's httpx client sit on either side of it and never
+meet.
+
+## How the bot works
 
 ```
 Telegram update
@@ -33,7 +55,8 @@ handlers testable without patching module globals.
 | `bot/states.py` | `SessionStore`: the active exercise per user, with idle eviction |
 | `bot/formatter.py` | Message text, with HTML escaping |
 | `bot/keyboards.py` | Inline keyboards built from domain objects |
-| `repositories/database.py` | SQLite queries, async and typed |
+| `repositories/database.py` | Who may use the bot; content queries are inherited from `practice-core` |
+| `packaging.py` | Re-encodes the exercise images for the Android bundle |
 | `services/agent_service.py` | Owns the chat-model client and the assistant transcripts |
 | `agents/` | One class per prompt: `evaluate`, `assistant`, plus the extraction agents |
 | `models/` | `book` (content), `auth`, `agents` (LLM I/O), `extraction` |
@@ -48,7 +71,9 @@ uv run english-practice bot      # run until Ctrl+C
 ```
 
 `uv run main.py` still works as a shim. The other commands are
-`english-practice info` (version, environment, provider, database path).
+`english-practice info` (version, environment, provider, database path) and
+`english-practice mobile-content` (build the compact database the Android app
+bundles — see [mobile/README.md](mobile/README.md)).
 
 ### Configuration
 
