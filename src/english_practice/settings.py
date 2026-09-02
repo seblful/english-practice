@@ -338,10 +338,15 @@ class Settings(BaseSettings):
         if secret_value(self.telegram.bot_token) is None:
             problems.append("TELEGRAM_BOT_TOKEN is not set")
 
+        if self.telegram.admin_user_id is None:
+            # Without an admin nobody can ever be approved, so the bot would
+            # start and then refuse every user who talks to it.
+            problems.append("TELEGRAM_ADMIN_USER_ID is not set")
+
         if self.llm.active_api_key is None:
             problems.append(
                 f"{self.llm.provider.upper()}_API_KEY is not set "
-                f"(LLM__PROVIDER={self.llm.provider})"
+                f"(LLM_PROVIDER={self.llm.provider})"
             )
 
         if self.langsmith.tracing and secret_value(self.langsmith.api_key) is None:

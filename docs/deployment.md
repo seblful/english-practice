@@ -69,7 +69,7 @@ micro .env
 | -------------------------- | ------------------------------------------ | -------- |
 | `TELEGRAM_BOT_TOKEN` | Token from @BotFather | Yes |
 | `TELEGRAM_ADMIN_USER_ID` | Your Telegram user ID | Yes |
-| `LLM__PROVIDER` | LLM provider (dashscope/gemini/openrouter) | Yes |
+| `LLM_PROVIDER` | LLM provider (dashscope/gemini/openrouter) | Yes |
 | `OPENROUTER_API_KEY` | OpenRouter API key | Yes\* |
 | `APP__ENVIRONMENT` | Set to `production` | Yes |
 | `PATHS_DATABASE_PATH` | Path to the SQLite database | No\*\* |

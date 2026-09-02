@@ -25,7 +25,7 @@ def _runnable_settings(tmp_path: Path) -> Settings:
     database = tmp_path / "english_practice.db"
     database.touch()
     return Settings(
-        telegram=TelegramSettings(bot_token=SecretStr("token")),
+        telegram=TelegramSettings(bot_token=SecretStr("token"), admin_user_id=1),
         llm=LLMSettings(
             provider="dashscope",
             dashscope=DashscopeSettings(api_key=SecretStr("key")),
@@ -120,6 +120,12 @@ class TestMissingRequired:
         settings.telegram.bot_token = None
 
         assert any("TELEGRAM_BOT_TOKEN" in p for p in settings.missing_required())
+
+    def test_reports_missing_admin_user_id(self, tmp_path: Path) -> None:
+        settings = _runnable_settings(tmp_path)
+        settings.telegram.admin_user_id = None
+
+        assert any("TELEGRAM_ADMIN_USER_ID" in p for p in settings.missing_required())
 
     def test_reports_missing_provider_key(self, tmp_path: Path) -> None:
         settings = _runnable_settings(tmp_path)
