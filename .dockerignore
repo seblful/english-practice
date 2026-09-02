@@ -6,14 +6,24 @@ __pycache__/
 .env.*
 data/
 logs/
-tests/
-scripts/
 docs/
+scripts/
+**/tests/
+
+# The other packages. This image is the bot: the Android app is built by
+# `flet build` and never runs here, and the content pipeline runs on a
+# workstation. Their source would only be dead weight in the layer -- the
+# pipeline's manifest is kept because uv reads every workspace member's
+# pyproject.toml to resolve the lock.
+packages/app/
+packages/extraction/src/
+packages/extraction/README.md
 
 # Local tooling / dev-only files
-.venv/
+**/.venv/
 .ruff_cache/
 .pytest_cache/
+.coverage
 .claude/
 .idea/
 .vscode/
@@ -21,6 +31,6 @@ docs/
 .pre-commit-config.yaml
 CLAUDE.md
 
-# NOTE: README.md, LICENSE and uv.lock are intentionally NOT ignored — the
-# uv-based build reads uv.lock, and pyproject.toml references both readme and
-# license-files, so hatchling fails to build the project without them.
+# NOTE: README.md, LICENSE and uv.lock are intentionally NOT ignored -- the
+# uv-based build reads uv.lock, and each package's pyproject.toml references
+# both its readme and the license, so hatchling fails to build without them.

@@ -1,0 +1,109 @@
+[project]
+name = "english-practice-app"
+description = "Android app that grades English grammar exercises from English Grammar in Use (Murphy) with a vision LLM."
+readme = "README.md"
+requires-python = ">=3.13"
+version = "0.1.0"
+
+license = "Apache-2.0"
+
+authors = [
+    { name = "Aliaksei Chymba", email = "alesha.chimba@gmail.com" }
+]
+keywords = ["android", "flet", "english", "grammar", "llm"]
+
+# `practice-core` is the domain this app shares with the Telegram bot: the
+# content models, the exercise queries and the grading prompt. It carries
+# pydantic and jinja2, both of which Flet's package index publishes Android
+# wheels for.
+#
+# What is deliberately absent is a provider SDK. LangChain's tree does not fit
+# in an APK, and the useful part of it here is five HTTP calls, so this app
+# talks to the providers over httpx directly (see `practice/llm.py`).
+dependencies = [
+    "practice-core",
+    "flet>=0.86.5",
+    "httpx>=0.28.1",
+    "socksio>=1.0.0",
+]
+
+[tool.uv.sources]
+practice-core = { path = "../core" }
+
+[dependency-groups]
+dev = [
+    "flet-cli>=0.86.5",
+    "flet-desktop>=0.86.5",
+    "pytest>=9.0.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.4.0",
+    "ty>=0.0.28",
+    "pillow>=12.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=src/practice_app --cov-report=term-missing --cov-fail-under=95"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["src", "."]
+
+[tool.coverage.run]
+source = ["src/practice_app"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+exclude_also = [
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    '@(abc\.)?abstractmethod',
+]
+
+# Inherit the repository's lint rules so every package reads the same.
+[tool.ruff]
+extend = "../../pyproject.toml"
+src = ["src"]
+
+[tool.ruff.lint.isort]
+# Only this package is first-party here. The others are dependencies, and read
+# more clearly grouped with the libraries than with the code that imports them.
+known-first-party = ["practice_app"]
+
+[tool.ruff.lint.per-file-ignores]
+# Repeated from the root because a child table replaces its parent's, and this
+# package has one more directory to exempt than the others.
+"**/tests/**" = ["D", "S101", "PLR2004", "ARG"]
+"tools/**" = ["D103"]
+
+[tool.ty.environment]
+# The app package, and the repository root so `tests.conftest` resolves.
+root = ["./src", "."]
+
+[tool.flet]
+org = "com.seblful"
+product = "English Practice"
+company = "Aliaksei Chymba"
+copyright = "Copyright (C) 2026 by Aliaksei Chymba"
+# `practice-core` lives in this repository rather than on PyPI, so the build
+# installs it from source into the bundle.
+dev_packages = { practice-core = "../core" }
+
+[tool.flet.app]
+path = "src"
+# `.flet/` is the per-project development storage `flet run` creates inside the
+# app directory. It holds a local settings file, so it must not travel into a
+# bundle and hand every install the developer's API key.
+exclude = [".flet"]
+
+[tool.flet.android]
+# The bundled content database is opened by sqlite3, which needs a real file.
+# Shipping the package extracted saves the first launch from unpacking it out
+# of the app zip; `practice/storage.py` copes either way.
+extract_packages = ["practice_app"]
+
+[tool.flet.splash]
+color = "#fafafc"
+dark_color = "#121418"

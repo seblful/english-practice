@@ -1,0 +1,93 @@
+"""The pipeline's settings: the shared groups, plus the book and the OCR.
+
+Everything about where the data lives, how to log and which LLM to call is
+:class:`~practice_runtime.settings.BaseAppSettings`, shared with the bot. This
+adds what only the pipeline has — which PDF to read, at what resolution, and
+with whose OCR key — which is exactly why the bot no longer needs an OCR key to
+start.
+"""
+
+from functools import lru_cache
+
+from practice_runtime.settings import BaseAppSettings, load_settings, secret_value
+from pydantic import AliasChoices, Field, SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+__all__ = [
+    "BookSettings",
+    "ImageSettings",
+    "OcrSettings",
+    "Settings",
+    "get_settings",
+]
+
+
+class BookSettings(BaseSettings):
+    """Source book location."""
+
+    model_config = SettingsConfigDict(env_prefix="BOOK_", case_sensitive=False)
+
+    filename: str = "murphy.pdf"
+
+
+class ImageSettings(BaseSettings):
+    """Page rendering options for the extraction pipeline."""
+
+    model_config = SettingsConfigDict(env_prefix="IMAGES_", case_sensitive=False)
+
+    pages_dpi: int = 300
+
+
+class OcrSettings(BaseSettings):
+    """Mistral OCR settings for the extraction pipeline."""
+
+    # API_KEY is accepted as a legacy alias: this group was unprefixed before.
+    model_config = SettingsConfigDict(
+        env_prefix="OCR_", case_sensitive=False, populate_by_name=True
+    )
+
+    api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OCR_API_KEY", "MISTRAL_API_KEY", "API_KEY"),
+    )
+    model: str = "mistral-ocr-latest"
+
+
+class Settings(BaseAppSettings):
+    """Everything the pipeline needs to run."""
+
+    book: BookSettings = Field(default_factory=BookSettings)
+    images: ImageSettings = Field(default_factory=ImageSettings)
+    ocr: OcrSettings = Field(default_factory=OcrSettings)
+
+    def missing_required(self) -> list[str]:
+        """Return human-readable reasons a full pipeline run cannot finish.
+
+        Every stage is resumable and most need only some of this, so the
+        commands do not refuse to start on these; the ``check`` command
+        reports them.
+
+        Returns:
+            One message per misconfiguration; empty when a whole run is
+            possible.
+        """
+        problems = super().missing_required()
+
+        if secret_value(self.ocr.api_key) is None:
+            problems.append("OCR_API_KEY is not set (needed by ocr-grammar-images)")
+
+        source = self.paths.source_dir / self.book.filename
+        if not source.exists():
+            problems.append(f"the source book is not at {source}")
+
+        return problems
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Return the process-wide settings, loading env files on first use.
+
+    Returns:
+        The cached settings instance.
+    """
+    return load_settings(Settings)

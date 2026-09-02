@@ -1,0 +1,81 @@
+-- The practice content, as every front end reads it.
+--
+-- These are the tables `practice_core.content` queries, so they ship with the
+-- package that queries them: the pipeline builds a database from this file, the
+-- bot opens it read-write, the app opens a re-encoded copy read-only, and the
+-- tests build a scratch copy from the same text. A column renamed here breaks
+-- all four at once, which is the point.
+--
+-- Whoever *writes* to a database owns its other tables: the bot's
+-- `authorized_users` lives in `practice_bot/schema/auth.sql`.
+
+PRAGMA foreign_keys = ON;
+
+-- Grammar units, one per unit of the book.
+CREATE TABLE IF NOT EXISTS units (
+    id INTEGER PRIMARY KEY,
+    unit_number INTEGER NOT NULL UNIQUE,
+    title TEXT NOT NULL
+);
+
+-- Individual exercises.
+CREATE TABLE IF NOT EXISTS exercises (
+    id INTEGER PRIMARY KEY,
+    exercise_id TEXT NOT NULL UNIQUE,  -- e.g., "1.1", "2.3"
+    unit_id INTEGER NOT NULL,
+    exercise_number INTEGER NOT NULL,
+    FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE
+);
+
+-- The exercise as the student sees it: a crop of the printed page.
+CREATE TABLE IF NOT EXISTS exercise_images (
+    id INTEGER PRIMARY KEY,
+    exercise_id INTEGER NOT NULL UNIQUE,
+    image_data BLOB NOT NULL,
+    FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE
+);
+
+-- Questions within exercises.
+CREATE TABLE IF NOT EXISTS questions (
+    id INTEGER PRIMARY KEY,
+    exercise_id INTEGER NOT NULL,
+    question_id TEXT NOT NULL,  -- e.g., "2", "2a", "10 a", "2–5" (can contain letters/ranges)
+    is_open_ended BOOLEAN DEFAULT 0,
+    section_letter TEXT,
+    rule TEXT,
+    display_order INTEGER DEFAULT 0,  -- For sorting in UI
+    FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE,
+    UNIQUE(exercise_id, question_id)
+);
+
+-- Accepted answers, several per question, each with the whole sentence.
+CREATE TABLE IF NOT EXISTS question_answers (
+    id INTEGER PRIMARY KEY,
+    question_id INTEGER NOT NULL,
+    short_answer TEXT NOT NULL,
+    full_answer TEXT NOT NULL,
+    FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
+    UNIQUE(question_id, short_answer)
+);
+
+-- Topics, for choosing what to practise.
+CREATE TABLE IF NOT EXISTS topics (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    parent_topic_id INTEGER,
+    FOREIGN KEY (parent_topic_id) REFERENCES topics(id)
+);
+
+-- Link units to topics (many-to-many).
+CREATE TABLE IF NOT EXISTS unit_topics (
+    unit_id INTEGER NOT NULL,
+    topic_id INTEGER NOT NULL,
+    PRIMARY KEY (unit_id, topic_id),
+    FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE,
+    FOREIGN KEY (topic_id) REFERENCES topics(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_exercises_unit ON exercises(unit_id);
+CREATE INDEX IF NOT EXISTS idx_exercise_images_exercise ON exercise_images(exercise_id);
+CREATE INDEX IF NOT EXISTS idx_questions_exercise ON questions(exercise_id);
+CREATE INDEX IF NOT EXISTS idx_question_answers_question ON question_answers(question_id);

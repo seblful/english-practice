@@ -1,0 +1,82 @@
+[project]
+name = "english-practice-extraction"
+description = "Offline pipeline that turns the printed book into the exercise database both front ends read."
+readme = "README.md"
+requires-python = ">=3.13"
+version = "0.1.0"
+
+license = "Apache-2.0"
+
+authors = [
+    { name = "Aliaksei Chymba", email = "alesha.chimba@gmail.com" }
+]
+keywords = ["pdf", "ocr", "opencv", "sqlite", "llm"]
+
+# This is a build tool, not part of anything that serves a user: it runs on a
+# workstation, reads a PDF, and writes a database. That is why the heavy
+# dependencies live here — OpenCV to find the exercises on a page, PyMuPDF to
+# render it, Mistral to read the grammar, Pillow to re-encode the crops — and
+# why the bot's container no longer installs any of them.
+dependencies = [
+    "practice-core",
+    "practice-runtime",
+    "opencv-python>=4.13.0.92",
+    "pymupdf>=1.26.7",
+    "mistralai>=1.2.0",
+    "pillow>=12.1.0",
+    "tqdm>=4.66.0",
+    "typer>=0.21.1",
+]
+
+[project.scripts]
+practice-content = "practice_extraction.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/practice_extraction"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.4.0",
+    "ty>=0.0.28",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=src/practice_extraction --cov-report=term-missing --cov-fail-under=95"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["src/practice_extraction"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+exclude_also = [
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    '@(abc\.)?abstractmethod',
+]
+
+# Inherit the repository's lint rules so every package reads the same.
+[tool.ruff]
+extend = "../../pyproject.toml"
+src = ["src"]
+
+[tool.ruff.lint.isort]
+# Only this package is first-party here. The others are dependencies, and read
+# more clearly grouped with the libraries than with the code that imports them.
+known-first-party = ["practice_extraction"]
+
+[tool.ty.environment]
+# The package, and this directory so the tests' own `tests.conftest`
+# resolves the way pytest resolves it.
+root = ["./src", "."]

@@ -22,15 +22,46 @@ repos:
     rev: 0.9.7
     hooks:
       - id: uv-lock
+      - id: uv-lock
+        name: uv-lock (app)
+        args: [--project, packages/app]
+        files: ^packages/app/(pyproject\.toml|uv\.lock)$
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.28.0
     hooks:
       - id: gitleaks
+  # One type check per package. They resolve different dependency sets -- the
+  # app's Flet stack is not in the workspace environment at all -- so each is
+  # checked from its own directory against its own environment.
   - repo: local
     hooks:
-      - id: ty
-        name: ty type check
-        entry: uv run ty check
+      - id: ty-core
+        name: ty type check (core)
+        entry: uv run --directory packages/core ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: ty-runtime
+        name: ty type check (runtime)
+        entry: uv run --directory packages/runtime ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: ty-bot
+        name: ty type check (bot)
+        entry: uv run --directory packages/bot ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: ty-extraction
+        name: ty type check (extraction)
+        entry: uv run --directory packages/extraction ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: ty-app
+        name: ty type check (app)
+        entry: uv run --directory packages/app ty check
         language: system
         types: [python]
         pass_filenames: false
