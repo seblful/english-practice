@@ -1,7 +1,5 @@
 """Agent input/output models for structured LLM responses."""
 
-from pathlib import Path
-
 from pydantic import BaseModel, Field
 
 
@@ -25,7 +23,10 @@ class EvaluateAnswerOutput(BaseModel):
     )
     answer_idx: list[int] = Field(
         default_factory=list,
-        description="List of indexes of matched answers in short_answers/full_answers arrays. Empty list for open-ended or no match.",
+        description=(
+            "List of indexes of matched answers in short_answers/full_answers "
+            "arrays. Empty list for open-ended or no match."
+        ),
     )
 
 

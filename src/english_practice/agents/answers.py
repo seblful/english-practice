@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from src.english_practice.agents.base import BaseAgent
-from src.english_practice.models.agents import AnswersContext, ExerciseAnswersOutput
+from english_practice.agents.base import BaseAgent
+from english_practice.models.agents import AnswersContext, ExerciseAnswersOutput
 
 
 class AnswersAgent(BaseAgent):

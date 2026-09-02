@@ -1,12 +1,16 @@
 """Tests for AssistantAgent."""
 
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.english_practice.agents.assistant import AssistantAgent
-from src.english_practice.models.agents import AssistantContext, AssistantOutput, ChatMessage
-from src.english_practice.services.chat_history import ChatHistoryManager
+from english_practice.agents.assistant import AssistantAgent
+from english_practice.models.agents import (
+    AssistantContext,
+    AssistantOutput,
+    ChatMessage,
+)
+from english_practice.services.chat_history import ChatHistoryManager
 
 
 class TestAssistantAgent:
@@ -47,7 +51,9 @@ class TestAssistantAgent:
         expected_output = AssistantOutput(answer="Here is help")
         chat_history = ChatHistoryManager()
 
-        with patch.object(agent, "invoke_structured", return_value=expected_output) as mock_invoke:
+        with patch.object(
+            agent, "invoke_structured", return_value=expected_output
+        ) as mock_invoke:
             result = await agent.assist(
                 user_id=1,
                 image_data=b"img",

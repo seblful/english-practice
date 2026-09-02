@@ -14,7 +14,9 @@ def get_admin_user_keyboard(user_id: int) -> InlineKeyboardMarkup:
     """
     keyboard = [
         [
-            InlineKeyboardButton("✅ Approve", callback_data=f"admin:approve:{user_id}"),
+            InlineKeyboardButton(
+                "✅ Approve", callback_data=f"admin:approve:{user_id}"
+            ),
             InlineKeyboardButton("❌ Reject", callback_data=f"admin:reject:{user_id}"),
         ]
     ]
@@ -25,7 +27,8 @@ def get_admin_pending_keyboard(pending_users: list[dict]) -> InlineKeyboardMarku
     """Create admin keyboard for pending user approvals.
 
     Args:
-        pending_users: List of pending user dicts with telegram_id, full_name, telegram_username.
+        pending_users: List of pending user dicts with telegram_id,
+            full_name and telegram_username.
 
     Returns:
         Inline keyboard markup.
@@ -35,10 +38,16 @@ def get_admin_pending_keyboard(pending_users: list[dict]) -> InlineKeyboardMarku
         label = user["full_name"]
         if user["telegram_username"]:
             label += f" (@{user['telegram_username']})"
-        keyboard.append([
-            InlineKeyboardButton(f"✅ {label}", callback_data=f"admin:approve:{user['telegram_id']}"),
-            InlineKeyboardButton("❌ Reject", callback_data=f"admin:reject:{user['telegram_id']}"),
-        ])
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"✅ {label}", callback_data=f"admin:approve:{user['telegram_id']}"
+                ),
+                InlineKeyboardButton(
+                    "❌ Reject", callback_data=f"admin:reject:{user['telegram_id']}"
+                ),
+            ]
+        )
     return InlineKeyboardMarkup(keyboard)
 
 

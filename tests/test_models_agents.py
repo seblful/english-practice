@@ -1,6 +1,6 @@
 """Tests for agent I/O Pydantic models."""
 
-from src.english_practice.models.agents import (
+from english_practice.models.agents import (
     AnswersContext,
     AssistantContext,
     AssistantOutput,
@@ -127,7 +127,9 @@ class TestRulesContext:
     """Tests for RulesContext."""
 
     def test_fields(self) -> None:
-        ctx = RulesContext(questions=[{"id": "1"}], rules_md="# Rules", topic_name="Tenses")
+        ctx = RulesContext(
+            questions=[{"id": "1"}], rules_md="# Rules", topic_name="Tenses"
+        )
         assert ctx.rules_md == "# Rules"
 
 

@@ -23,7 +23,7 @@ def init_database(db_path: Path) -> None:
     """Create database and tables from schema."""
     schema_path = Path(__file__).parent / "schema.sql"
 
-    with open(schema_path, "r", encoding="utf-8") as f:
+    with schema_path.open(encoding="utf-8") as f:
         schema = f.read()
 
     conn = sqlite3.connect(db_path)
@@ -38,11 +38,10 @@ def import_units(conn: sqlite3.Connection) -> None:
     project_root = get_project_root()
 
     # Load unit titles
-    with open(
-        project_root / "data" / "content" / "metadata" / "unit_to_title.json",
-        "r",
-        encoding="utf-8",
-    ) as f:
+    unit_titles_path = (
+        project_root / "data" / "content" / "metadata" / "unit_to_title.json"
+    )
+    with unit_titles_path.open(encoding="utf-8") as f:
         units_data = json.load(f)
 
     # Check which grammar files exist
@@ -92,10 +91,10 @@ def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
             f"rules.json not found at {rules_path}. Run extraction first."
         )
 
-    with open(answers_full_path, "r", encoding="utf-8") as f:
+    with answers_full_path.open(encoding="utf-8") as f:
         answers_data = json.load(f)
 
-    with open(rules_path, "r", encoding="utf-8") as f:
+    with rules_path.open(encoding="utf-8") as f:
         rules_data = json.load(f)
 
     rules_map: dict[str, dict] = {}
@@ -166,7 +165,8 @@ def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
                 cursor.execute(
                     """
                     INSERT OR IGNORE INTO questions
-                    (exercise_id, question_id, is_open_ended, section_letter, rule, display_order)
+                    (exercise_id, question_id, is_open_ended,
+                     section_letter, rule, display_order)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -182,7 +182,8 @@ def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
                 question_db_id = cursor.lastrowid
                 if not question_db_id:
                     question_db_id = cursor.execute(
-                        "SELECT id FROM questions WHERE exercise_id = ? AND question_id = ?",
+                        "SELECT id FROM questions "
+                        "WHERE exercise_id = ? AND question_id = ?",
                         (exercise_db_id, question_id),
                     ).fetchone()[0]
                 else:
@@ -207,7 +208,8 @@ def import_exercises_and_questions(conn: sqlite3.Connection) -> None:
 
     conn.commit()
     print(
-        f"Imported {exercises_imported} exercises, {questions_imported} questions, {answers_imported} answers"
+        f"Imported {exercises_imported} exercises, "
+        f"{questions_imported} questions, {answers_imported} answers"
     )
 
 
@@ -215,11 +217,8 @@ def import_topics(conn: sqlite3.Connection) -> None:
     """Import topics from topic_to_unit.json."""
     project_root = get_project_root()
 
-    with open(
-        project_root / "data" / "content" / "metadata" / "topic_to_unit.json",
-        "r",
-        encoding="utf-8",
-    ) as f:
+    topics_path = project_root / "data" / "content" / "metadata" / "topic_to_unit.json"
+    with topics_path.open(encoding="utf-8") as f:
         topics_data = json.load(f)
 
     cursor = conn.cursor()
@@ -280,7 +279,14 @@ def main() -> int:
         print("DATABASE IMPORT SUMMARY")
         print("=" * 50)
 
-        tables = ["units", "exercises", "exercise_images", "questions", "question_answers", "topics"]
+        tables = [
+            "units",
+            "exercises",
+            "exercise_images",
+            "questions",
+            "question_answers",
+            "topics",
+        ]
         for table in tables:
             count = cursor.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             print(f"{table:20s}: {count:5d} rows")

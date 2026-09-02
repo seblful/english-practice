@@ -2,13 +2,16 @@
 
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.english_practice.extractors.rules_extractor import RulesExtractor
-from src.english_practice.models.agents import ExerciseRulesOutput, QuestionRuleItem
-from src.english_practice.models.extraction import ExtractedFullRules
+from english_practice.extractors.rules_extractor import RulesExtractor
+from english_practice.models.agents import ExerciseRulesOutput, QuestionRuleItem
+from english_practice.models.extraction import (
+    ExtractedExerciseRules,
+    ExtractedFullRules,
+)
 
 
 @pytest.fixture
@@ -24,30 +27,52 @@ def extractor(tmp_path) -> RulesExtractor:
     grammar_md_dir.mkdir(parents=True)
 
     # Write source answers data
-    answers_path.write_text(json.dumps({
-        "units": [{
-            "unit_id": "1",
-            "exercises": [{
-                "exercise_id": "1.1",
-                "questions": [{"question_id": "1"}],
-            }],
-        }],
-    }))
+    answers_path.write_text(
+        json.dumps(
+            {
+                "units": [
+                    {
+                        "unit_id": "1",
+                        "exercises": [
+                            {
+                                "exercise_id": "1.1",
+                                "questions": [{"question_id": "1"}],
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+    )
 
     # Write answers_full
-    answers_full_path.write_text(json.dumps({
-        "units": [{
-            "unit_id": "1",
-            "exercises": [{
-                "exercise_id": "1.1",
-                "questions": [{"question_id": "1", "is_open_ended": False}],
-            }],
-        }],
-    }))
+    answers_full_path.write_text(
+        json.dumps(
+            {
+                "units": [
+                    {
+                        "unit_id": "1",
+                        "exercises": [
+                            {
+                                "exercise_id": "1.1",
+                                "questions": [
+                                    {"question_id": "1", "is_open_ended": False}
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+    )
 
     return RulesExtractor(
-        output_path, answers_path, exercises_dir, content_dir,
-        answers_full_path, grammar_md_dir,
+        output_path,
+        answers_path,
+        exercises_dir,
+        content_dir,
+        answers_full_path,
+        grammar_md_dir,
     )
 
 
@@ -78,12 +103,16 @@ class TestRulesExtractor:
 
     def test_build_answers_full_map(self, extractor) -> None:
         data = {
-            "units": [{
-                "exercises": [{
-                    "exercise_id": "1.1",
-                    "questions": [{"question_id": "1", "is_open_ended": False}],
-                }],
-            }],
+            "units": [
+                {
+                    "exercises": [
+                        {
+                            "exercise_id": "1.1",
+                            "questions": [{"question_id": "1", "is_open_ended": False}],
+                        }
+                    ],
+                }
+            ],
         }
         result = extractor._build_answers_full_map(data)
         assert "1.1:1" in result
@@ -93,7 +122,15 @@ class TestRulesExtractor:
             "exercise_id": "1.1",
             "questions": [{"question_id": "1"}],
         }
-        questions = extractor._prepare_questions(exercise, {"1.1:1": {"is_open_ended": False, "answers": [{"short_answer": "yes", "full_answer": "Yes!"}]}})
+        questions = extractor._prepare_questions(
+            exercise,
+            {
+                "1.1:1": {
+                    "is_open_ended": False,
+                    "answers": [{"short_answer": "yes", "full_answer": "Yes!"}],
+                }
+            },
+        )
         assert len(questions) == 1
         assert questions[0]["question_id"] == "1"
         assert questions[0]["short_answers"] == ["yes"]
@@ -116,32 +153,44 @@ class TestRulesExtractor:
 
     @pytest.mark.asyncio
     async def test_process_unit(self, extractor) -> None:
-        from english_practice.models.extraction import ExtractedExerciseRules
-        with patch.object(extractor, "_get_grammar_md", return_value="# Grammar"):
-            with patch.object(extractor, "_process_exercise") as mock_proc:
-                mock_proc.return_value = ExtractedExerciseRules(
-                    exercise_id="1.1", questions=[]
-                )
-                result = await extractor._process_unit(
-                    {"unit_id": "1", "exercises": [{"exercise_id": "1.1"}]},
-                    {},
-                )
-                assert result.unit_id == "1"
+
+        with (
+            patch.object(extractor, "_get_grammar_md", return_value="# Grammar"),
+            patch.object(extractor, "_process_exercise") as mock_proc,
+        ):
+            mock_proc.return_value = ExtractedExerciseRules(
+                exercise_id="1.1", questions=[]
+            )
+            result = await extractor._process_unit(
+                {"unit_id": "1", "exercises": [{"exercise_id": "1.1"}]},
+                {},
+            )
+            assert result.unit_id == "1"
 
     @pytest.mark.asyncio
     async def test_process_exercise(self, extractor) -> None:
         exercise = {"exercise_id": "1.1", "questions": [{"question_id": "1"}]}
         expected = ExerciseRulesOutput(questions=[QuestionRuleItem(question_id="1")])
 
-        with patch.object(extractor, "_get_image_path", return_value=Path("/fake/1.1.png")):
-            with patch.object(extractor._extractor_agent, "extract_exercise", new=AsyncMock(return_value=expected)):
-                result = await extractor._process_exercise(exercise, {}, "# md", "Test")
-                assert result.exercise_id == "1.1"
+        with (
+            patch.object(
+                extractor, "_get_image_path", return_value=Path("/fake/1.1.png")
+            ),
+            patch.object(
+                extractor._extractor_agent,
+                "extract_exercise",
+                new=AsyncMock(return_value=expected),
+            ),
+        ):
+            result = await extractor._process_exercise(exercise, {}, "# md", "Test")
+            assert result.exercise_id == "1.1"
 
     @pytest.mark.asyncio
     async def test_extract(self, extractor) -> None:
-        with patch.object(extractor, "_load_answers_data", return_value={"units": []}):
-            with patch.object(extractor, "_load_output", return_value=ExtractedFullRules()):
-                with patch.object(extractor, "_save_output"):
-                    result = await extractor.extract()
-                    assert "output_path" in result
+        with (
+            patch.object(extractor, "_load_answers_data", return_value={"units": []}),
+            patch.object(extractor, "_load_output", return_value=ExtractedFullRules()),
+            patch.object(extractor, "_save_output"),
+        ):
+            result = await extractor.extract()
+            assert "output_path" in result

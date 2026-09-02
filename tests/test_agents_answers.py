@@ -1,12 +1,12 @@
 """Tests for AnswersAgent."""
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.english_practice.agents.answers import AnswersAgent
-from src.english_practice.models.agents import ExerciseAnswersOutput, QuestionAnswerItem
+from english_practice.agents.answers import AnswersAgent
+from english_practice.models.agents import ExerciseAnswersOutput, QuestionAnswerItem
 
 
 class TestAnswersAgent:
@@ -33,7 +33,9 @@ class TestAnswersAgent:
             questions=[QuestionAnswerItem(question_id="1", is_open_ended=False)]
         )
 
-        with patch.object(agent, "invoke_structured", return_value=expected) as mock_invoke:
+        with patch.object(
+            agent, "invoke_structured", return_value=expected
+        ) as mock_invoke:
             result = await agent.extract_exercise(
                 image_path=img_path,
                 questions=[{"question_id": "1", "short_answer": "yes"}],
@@ -52,7 +54,9 @@ class TestAnswersAgent:
 
         expected = ExerciseAnswersOutput(questions=[])
 
-        with patch.object(agent, "invoke_structured", return_value=expected) as mock_invoke:
+        with patch.object(
+            agent, "invoke_structured", return_value=expected
+        ) as mock_invoke:
             result = await agent.extract_exercise(
                 image_path=missing_path,
                 questions=[],

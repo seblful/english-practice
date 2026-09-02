@@ -3,7 +3,6 @@
 import random
 import re
 
-
 CORRECT_PHRASES = [
     "✅ <b>Correct!</b>",
     "✅ <b>Well done!</b>",
@@ -46,16 +45,14 @@ class MessageFormatter:
         """
         text = re.sub(r"^- \[ \]", "•", text, flags=re.MULTILINE)
         text = re.sub(r"^\* ", "• ", text, flags=re.MULTILINE)
-        text = re.sub(r"^☐ ", "• ", text, flags=re.MULTILINE)
-        return text
+        return re.sub(r"^☐ ", "• ", text, flags=re.MULTILINE)
 
     @staticmethod
     def _md_to_html(text: str) -> str:
         """Convert markdown bold (**text**) and italic (*text*) to HTML."""
         text = MessageFormatter._normalize_bullets(text)
         text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
-        text = re.sub(r"\*(.*?)\*", r"<i>\1</i>", text)
-        return text
+        return re.sub(r"\*(.*?)\*", r"<i>\1</i>", text)
 
     @staticmethod
     def format_topic(topic_name: str) -> str:
@@ -166,13 +163,12 @@ class MessageFormatter:
         return f"📋 Rule: <b>{rule_ref}</b>\n<blockquote>{converted}</blockquote>"
 
     @staticmethod
-    def format_unit_info(unit_number: int, title: str, exercise_id: str) -> str:
+    def format_unit_info(unit_number: int, title: str) -> str:
         """Format unit information message.
 
         Args:
             unit_number: The unit number.
             title: The unit title.
-            exercise_id: The exercise ID.
 
         Returns:
             Formatted unit info message.

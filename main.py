@@ -1,15 +1,13 @@
 """Main entry point for Telegram English Practice Bot."""
 
-import os
 import logging
+import os
 import sys
 
 from telegram import MenuButtonCommands
 from telegram.ext import Application
 
-from config.logging import setup_logging
-from config.settings import settings
-from src.english_practice.bot.handlers import (
+from english_practice.bot.handlers import (
     admin_action_handler,
     exercise_action_handler,
     exercise_handler,
@@ -19,11 +17,12 @@ from src.english_practice.bot.handlers import (
     start_handler,
     topic_handler,
 )
+from english_practice.logging import setup_logging
+from english_practice.settings import settings
 
 
 def setup_langsmith() -> None:
     """Setup LangSmith environment variables."""
-
     if settings.langsmith.api_key:
         os.environ["LANGSMITH_API_KEY"] = settings.langsmith.api_key
         os.environ["LANGSMITH_PROJECT"] = settings.langsmith.project

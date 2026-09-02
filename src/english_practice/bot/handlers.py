@@ -13,18 +13,18 @@ from telegram.ext import (
     filters,
 )
 
-from config.settings import settings
-from src.english_practice.bot.formatter import MessageFormatter
-from src.english_practice.bot.keyboards import (
+from english_practice.bot.formatter import MessageFormatter
+from english_practice.bot.keyboards import (
     get_admin_pending_keyboard,
     get_admin_user_keyboard,
     get_exercise_keyboard,
     get_start_menu_keyboard,
     get_topic_keyboard,
 )
-from src.english_practice.bot.states import state_manager
-from src.english_practice.repositories.database import DatabaseRepository
-from src.english_practice.services.agent_service import AgentService
+from english_practice.bot.states import state_manager
+from english_practice.repositories.database import DatabaseRepository
+from english_practice.services.agent_service import AgentService
+from english_practice.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,9 @@ async def _check_authorization(
         if status is None:
             repository.add_user(user.id, user.full_name or "Unknown", user.username)
         else:
-            repository.reset_user_to_pending(user.id, user.full_name or "Unknown", user.username)
+            repository.reset_user_to_pending(
+                user.id, user.full_name or "Unknown", user.username
+            )
         await target.reply_text(
             "⏳ Your request has been sent to the admin for approval."
         )
@@ -290,12 +292,11 @@ async def handle_exercise_action(
     _, action = query.data.split(":")
 
     if action == "show_unit":
-        await show_unit_info(update, context, user_id)
+        await show_unit_info(update, user_id)
 
 
 async def show_unit_info(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
     user_id: int,
 ) -> None:
     """Show unit information."""
@@ -315,7 +316,6 @@ async def show_unit_info(
     text = MessageFormatter.format_unit_info(
         unit_number=exercise["unit_number"],
         title=exercise["title"],
-        exercise_id=exercise["exercise_id"],
     )
 
     await update.callback_query.message.reply_text(text, parse_mode="HTML")
@@ -399,8 +399,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         matched_indexes = evaluation.answer_idx
 
         if matched_indexes:
-            matched_short = [short_answers[i] for i in matched_indexes if i < len(short_answers)]
-            matched_full = [full_answers[i] for i in matched_indexes if i < len(full_answers)]
+            matched_short = [
+                short_answers[i] for i in matched_indexes if i < len(short_answers)
+            ]
+            matched_full = [
+                full_answers[i] for i in matched_indexes if i < len(full_answers)
+            ]
             await update.message.reply_text(
                 MessageFormatter.format_short_answers(matched_short),
                 parse_mode="HTML",
@@ -464,12 +468,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
 
 
-async def pending_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def pending_command(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /pending command — show pending users for admin approval."""
     user = update.effective_user
 
-    if settings.telegram.admin_user_id is None or user.id != settings.telegram.admin_user_id:
-        await update.message.reply_text("[X] You are not authorized to use this command.")
+    if (
+        settings.telegram.admin_user_id is None
+        or user.id != settings.telegram.admin_user_id
+    ):
+        await update.message.reply_text(
+            "[X] You are not authorized to use this command."
+        )
         return
 
     repository = DatabaseRepository()
@@ -495,8 +504,13 @@ async def handle_admin_action(
 
     user = update.effective_user
 
-    if settings.telegram.admin_user_id is None or user.id != settings.telegram.admin_user_id:
-        await query.message.reply_text("[X] You are not authorized to perform this action.")
+    if (
+        settings.telegram.admin_user_id is None
+        or user.id != settings.telegram.admin_user_id
+    ):
+        await query.message.reply_text(
+            "[X] You are not authorized to perform this action."
+        )
         return
 
     _, action, target_id = query.data.split(":")
@@ -505,21 +519,19 @@ async def handle_admin_action(
 
     if action == "approve":
         repository.set_user_status(target_id, "approved", user.id)
-        await query.message.reply_text(
-            f"✅ User {target_id} has been approved."
-        )
+        await query.message.reply_text(f"✅ User {target_id} has been approved.")
         try:
             await context.bot.send_message(
                 chat_id=target_id,
-                text="✅ Your access has been approved! Use /start to begin practicing.",
+                text=(
+                    "✅ Your access has been approved! Use /start to begin practicing."
+                ),
             )
         except Exception:
             logger.warning(f"Could not notify approved user {target_id}")
     elif action == "reject":
         repository.set_user_status(target_id, "rejected", user.id)
-        await query.message.reply_text(
-            f"❌ User {target_id} has been rejected."
-        )
+        await query.message.reply_text(f"❌ User {target_id} has been rejected.")
         try:
             await context.bot.send_message(
                 chat_id=target_id,

@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from src.english_practice.agents.base import BaseAgent
-from src.english_practice.models.agents import ExerciseRulesOutput, RulesContext
+from english_practice.agents.base import BaseAgent
+from english_practice.models.agents import ExerciseRulesOutput, RulesContext
 
 
 class RulesAgent(BaseAgent):

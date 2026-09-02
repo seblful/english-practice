@@ -1,26 +1,59 @@
+"""Application settings configuration using Pydantic."""
+
 import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
-from pydantic import Field, field_validator
+from pydantic import BaseModel, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from telegram import Update
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+# Environment is chosen by an OS variable (set in the shell, Dockerfile, or CI).
+# Missing env files are silently ignored, so .env.<environment> is optional.
+_ENVIRONMENT = os.getenv("APP__ENVIRONMENT", "development")
 
 
 def _load_env() -> None:
-    """Load environment variables from .env and .env.{environment}."""
+    """Load environment variables from .env and .env.{environment}.
+
+    The prefixed settings groups below are each ``BaseSettings`` in their own
+    right and resolve flat variables such as ``TELEGRAM_BOT_TOKEN`` from the
+    process environment, so the env files have to be materialised there before
+    any group is constructed.
+    """
     env_file = BASE_DIR / ".env"
     if env_file.exists():
         load_dotenv(env_file, override=True)
 
-    environment = os.environ.get("ENVIRONMENT", "development")
-    env_specific = BASE_DIR / f".env.{environment}"
+    env_specific = BASE_DIR / f".env.{_ENVIRONMENT}"
     if env_specific.exists():
         load_dotenv(env_specific, override=True)
+
+
+class AppSettings(BaseModel):
+    """Application settings group."""
+
+    app_name: str = Field(default="english-practice", description="Application name")
+    environment: str = Field(default="development", description="Environment name")
+    # Example secret (set via APP__SECRET_KEY). SecretStr keeps it out of logs/repr;
+    # read the value with secret_key.get_secret_value().
+    secret_key: SecretStr | None = Field(
+        default=None, description="Example secret value"
+    )
+
+
+class LoggingSettings(BaseModel):
+    """Logging settings group."""
+
+    file_level: LogLevel = Field(default="INFO", description="File log level")
+    console_level: LogLevel = Field(default="INFO", description="Console log level")
+    log_file: Path = Field(default=Path("logs/app.log"), description="Log file path")
 
 
 class PathSettings(BaseSettings):
@@ -43,7 +76,7 @@ class PathSettings(BaseSettings):
 
     def create_directories(self) -> None:
         """Create all necessary directories."""
-        for name, path in self.model_dump().items():
+        for path in self.model_dump().values():
             if (
                 path is not None
                 and isinstance(path, Path)
@@ -159,20 +192,12 @@ class TelegramSettings(BaseSettings):
 
 
 class Settings(BaseSettings):
-    """Main application settings."""
+    """Application settings with __-delimited nested groups."""
 
-    model_config = SettingsConfigDict(
-        env_nested_delimiter="__",
-        case_sensitive=False,
-        extra="ignore",
-    )
+    app: AppSettings = Field(default_factory=AppSettings)
+    logging: LoggingSettings = Field(default_factory=LoggingSettings)
 
-    # Application
-    app_name: str = "English Practice"
-    version: str = "0.1.0"
-    debug: bool = False
-
-    # Nested configs
+    # Project-specific groups.
     paths: PathSettings = Field(default_factory=PathSettings)
     book: BookSettings = Field(default_factory=BookSettings)
     images: ImageSettings = Field(default_factory=ImageSettings)
@@ -181,19 +206,21 @@ class Settings(BaseSettings):
     ocr: OcrSettings = Field(default_factory=OcrSettings)
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)
 
-    # Logging
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
-    log_file: str | None = "logs/app.log"
-
-    @field_validator("log_level")
-    @classmethod
-    def validate_log_level(cls, v: str) -> str:
-        return v.upper()
+    # `extra="ignore"` rather than the template's "forbid": the env files also
+    # carry the flat, prefixed variables consumed by the groups above, which are
+    # not fields of this model.
+    model_config = SettingsConfigDict(
+        env_file=(".env", f".env.{_ENVIRONMENT}"),
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_nested_delimiter="__",
+    )
 
 
 @lru_cache
 def get_settings() -> Settings:
-    """Get cached settings."""
+    """Return the cached application settings, loaded on first use."""
     settings = Settings()
     settings.paths.create_directories()
     return settings

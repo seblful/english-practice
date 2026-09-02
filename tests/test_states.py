@@ -1,6 +1,6 @@
 """Tests for StateManager and UserSession."""
 
-from src.english_practice.bot.states import StateManager, UserSession, state_manager
+from english_practice.bot.states import StateManager, UserSession, state_manager
 
 
 class TestUserSession:

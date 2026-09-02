@@ -15,6 +15,7 @@ class Unit(BaseModel):
     @field_validator("grammar_md_path", mode="before")
     @classmethod
     def validate_path(cls, v: str | Path) -> Path:
+        """Coerce a string path into a ``Path``."""
         return Path(v) if isinstance(v, str) else v
 
 
@@ -30,6 +31,7 @@ class Exercise(BaseModel):
     @field_validator("image_path", mode="before")
     @classmethod
     def validate_path(cls, v: str | Path | None) -> Path | None:
+        """Coerce a string path into a ``Path``, passing ``None`` through."""
         if v is None:
             return None
         return Path(v) if isinstance(v, str) else v
@@ -56,7 +58,10 @@ class QuestionAnswer(BaseModel):
 
     short_answer: str = Field(description="The short answer text (e.g., 'He's tying')")
     full_answer: str = Field(
-        description="The full sentence with answer (e.g., 'Look at the boy. **He's tying** his shoes.')"
+        description=(
+            "The full sentence with answer "
+            "(e.g., 'Look at the boy. **He's tying** his shoes.')"
+        )
     )
 
 

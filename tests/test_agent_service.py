@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from src.english_practice.services.agent_service import AgentService
+from english_practice.services.agent_service import AgentService
 
 
 class TestAgentService:
@@ -13,8 +13,14 @@ class TestAgentService:
     @pytest.fixture(autouse=True)
     def mock_agents(self) -> None:
         """Mock the underlying agents to avoid LLM calls."""
-        with patch("src.english_practice.services.agent_service.EvaluateAnswerAgent") as mock_eval, \
-             patch("src.english_practice.services.agent_service.AssistantAgent") as mock_asst:
+        with (
+            patch(
+                "english_practice.services.agent_service.EvaluateAnswerAgent"
+            ) as mock_eval,
+            patch(
+                "english_practice.services.agent_service.AssistantAgent"
+            ) as mock_asst,
+        ):
             self.mock_eval_instance = AsyncMock()
             self.mock_asst_instance = Mock()
             self.mock_asst_instance.assist = AsyncMock()
@@ -103,16 +109,14 @@ class TestAgentService:
         )
         assert result.answer == "helpful response"
         self.mock_asst_instance.assist.assert_called_once()
-        args, kwargs = self.mock_asst_instance.assist.call_args
+        _args, kwargs = self.mock_asst_instance.assist.call_args
         assert kwargs["user_id"] == 1
         assert kwargs["exercise_id"] == 5
         assert kwargs["image_data"] == b"test"
 
     @pytest.mark.asyncio
     async def test_assist_without_exercise_id(self) -> None:
-        self.mock_asst_instance.assist = AsyncMock(
-            return_value=Mock(answer="response")
-        )
+        self.mock_asst_instance.assist = AsyncMock(return_value=Mock(answer="response"))
         service = AgentService()
         result = await service.assist(
             user_id=1,

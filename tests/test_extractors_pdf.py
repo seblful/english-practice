@@ -1,11 +1,8 @@
 """Tests for PDFHandler."""
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from src.english_practice.extractors.pdf_handler import PDFHandler
+from english_practice.extractors.pdf_handler import PDFHandler
 
 
 class TestPDFHandler:
@@ -17,7 +14,7 @@ class TestPDFHandler:
         input_path.write_text("fake pdf content")
         output_path = tmp_path / "output.pdf"
 
-        with patch("src.english_practice.extractors.pdf_handler.pymupdf") as mock_pymupdf:
+        with patch("english_practice.extractors.pdf_handler.pymupdf") as mock_pymupdf:
             mock_pdf = MagicMock()
             mock_new_pdf = MagicMock()
             mock_pymupdf.open.return_value.__enter__.side_effect = [
@@ -44,7 +41,7 @@ class TestPDFHandler:
         grammar_dir.mkdir()
         exercises_dir.mkdir()
 
-        with patch("src.english_practice.extractors.pdf_handler.pymupdf") as mock_pymupdf:
+        with patch("english_practice.extractors.pdf_handler.pymupdf") as mock_pymupdf:
             mock_pdf = MagicMock()
             mock_pdf.page_count = 4
             mock_pymupdf.open.return_value.__enter__.return_value = mock_pdf

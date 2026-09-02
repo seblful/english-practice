@@ -1,21 +1,22 @@
 FROM python:3.13-slim
 
+# uv installs the project and its dependencies straight from uv.lock, so the
+# image can never drift from pyproject.toml the way a hand-written pip list did.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 WORKDIR /app
 
-RUN pip install --no-cache-dir \
-    python-telegram-bot>=21.0 \
-    pydantic>=2.12.5 \
-    pydantic-settings>=2.12.0 \
-    python-dotenv>=1.0.0 \
-    langchain>=0.3.0 \
-    langchain-google-genai>=2.0.0 \
-    langchain-openai>=0.2.0 \
-    langsmith>=0.1.0 \
-    jinja2>=3.1.2
+# Dependency layer: only the files that affect resolution, so source edits
+# don't invalidate the (slow) dependency install.
+COPY pyproject.toml uv.lock README.md LICENSE ./
+COPY src/ ./src/
+RUN uv sync --frozen --no-dev
 
 COPY . .
 
-ENV PYTHONPATH=/app
+# The project is installed into /app/.venv, which puts `english_practice` on the
+# path as a real distribution — importlib.metadata.version() needs that.
+ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 
 CMD ["python", "main.py"]

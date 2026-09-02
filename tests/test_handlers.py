@@ -4,7 +4,18 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from src.english_practice.bot.states import state_manager
+from english_practice.bot.handlers import (
+    exercise_command,
+    handle_admin_action,
+    handle_exercise_action,
+    handle_message,
+    handle_topic_selection,
+    pending_command,
+    rule_command,
+    send_new_exercise,
+    start_command,
+)
+from english_practice.bot.states import state_manager
 
 
 class TestStartCommand:
@@ -12,7 +23,7 @@ class TestStartCommand:
 
     @pytest.mark.asyncio
     async def test_welcome_message_sent(self, mock_update, mock_context) -> None:
-        from src.english_practice.bot.handlers import start_command
+
         await start_command(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
         text = mock_update.message.reply_text.call_args[0][0]
@@ -20,7 +31,7 @@ class TestStartCommand:
 
     @pytest.mark.asyncio
     async def test_sets_bot_commands(self, mock_update, mock_context) -> None:
-        from src.english_practice.bot.handlers import start_command
+
         await start_command(mock_update, mock_context)
         mock_context.bot.set_my_commands.assert_called_once()
         commands = mock_context.bot.set_my_commands.call_args[0][0]
@@ -30,7 +41,7 @@ class TestStartCommand:
     async def test_keyboard_has_two_buttons_for_new_users(
         self, mock_update, mock_context
     ) -> None:
-        from src.english_practice.bot.handlers import start_command
+
         await start_command(mock_update, mock_context)
         kwargs = mock_update.message.reply_text.call_args[1]
         markup = kwargs["reply_markup"]
@@ -41,7 +52,7 @@ class TestStartCommand:
         self, mock_update, mock_context
     ) -> None:
         state_manager.get_session(12345).current_topic_id = 1
-        from src.english_practice.bot.handlers import start_command
+
         await start_command(mock_update, mock_context)
         kwargs = mock_update.message.reply_text.call_args[1]
         markup = kwargs["reply_markup"]
@@ -53,7 +64,7 @@ class TestExerciseCommand:
 
     @pytest.mark.asyncio
     async def test_shows_menu(self, mock_update, mock_context) -> None:
-        from src.english_practice.bot.handlers import exercise_command
+
         await exercise_command(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
         text = mock_update.message.reply_text.call_args[0][0]
@@ -68,7 +79,7 @@ class TestRuleCommand:
         self, mock_update, mock_context
     ) -> None:
         state_manager.get_session(12345).show_rule = True
-        from src.english_practice.bot.handlers import rule_command
+
         await rule_command(mock_update, mock_context)
         assert state_manager.get_session(12345).show_rule is False
         mock_update.message.reply_text.assert_called_once()
@@ -79,7 +90,7 @@ class TestRuleCommand:
         self, mock_update, mock_context
     ) -> None:
         state_manager.get_session(12345).show_rule = False
-        from src.english_practice.bot.handlers import rule_command
+
         await rule_command(mock_update, mock_context)
         assert state_manager.get_session(12345).show_rule is True
         assert "enabled" in mock_update.message.reply_text.call_args[0][0]
@@ -93,7 +104,7 @@ class TestHandleTopicSelection:
         self, mock_callback_update, mock_context, mock_repository
     ) -> None:
         mock_callback_update.callback_query.data = "topic:new_topic"
-        from src.english_practice.bot.handlers import handle_topic_selection
+
         await handle_topic_selection(mock_callback_update, mock_context)
         mock_callback_update.callback_query.answer.assert_called_once()
         mock_callback_update.callback_query.message.reply_text.assert_called_once()
@@ -106,7 +117,7 @@ class TestHandleTopicSelection:
         self, mock_callback_update, mock_context, mock_repository
     ) -> None:
         mock_callback_update.callback_query.data = "topic:random"
-        from src.english_practice.bot.handlers import handle_topic_selection
+
         await handle_topic_selection(mock_callback_update, mock_context)
         mock_callback_update.callback_query.message.reply_text.assert_called()
 
@@ -116,7 +127,7 @@ class TestHandleTopicSelection:
     ) -> None:
         state_manager.get_session(12345).current_topic_id = 1
         mock_callback_update.callback_query.data = "topic:same"
-        from src.english_practice.bot.handlers import handle_topic_selection
+
         await handle_topic_selection(mock_callback_update, mock_context)
         mock_repository.get_topic_by_id.assert_called_once_with(1)
 
@@ -126,7 +137,7 @@ class TestHandleTopicSelection:
     ) -> None:
         state_manager.get_session(12345).current_topic_id = None
         mock_callback_update.callback_query.data = "topic:same"
-        from src.english_practice.bot.handlers import handle_topic_selection
+
         await handle_topic_selection(mock_callback_update, mock_context)
         mock_callback_update.callback_query.message.reply_text.assert_called()
 
@@ -135,7 +146,7 @@ class TestHandleTopicSelection:
         self, mock_callback_update, mock_context, mock_repository
     ) -> None:
         mock_callback_update.callback_query.data = "topic:2"
-        from src.english_practice.bot.handlers import handle_topic_selection
+
         await handle_topic_selection(mock_callback_update, mock_context)
         mock_repository.get_topic_by_id.assert_called_once_with(2)
 
@@ -147,9 +158,13 @@ class TestSendNewExercise:
     async def test_sends_topic_and_question_and_photo(
         self, mock_update, mock_context, mock_repository
     ) -> None:
-        from src.english_practice.bot.handlers import send_new_exercise
+
         await send_new_exercise(
-            mock_update, mock_context, user_id=12345, topic_id=1, topic_name="Present Tenses"
+            mock_update,
+            mock_context,
+            user_id=12345,
+            topic_id=1,
+            topic_name="Present Tenses",
         )
         # Should reply 3 times: topic, question prompt, photo
         assert mock_update.message.reply_text.call_count == 2
@@ -159,9 +174,13 @@ class TestSendNewExercise:
     async def test_sets_exercise_in_state(
         self, mock_update, mock_context, mock_repository
     ) -> None:
-        from src.english_practice.bot.handlers import send_new_exercise
+
         await send_new_exercise(
-            mock_update, mock_context, user_id=12345, topic_id=1, topic_name="Present Tenses"
+            mock_update,
+            mock_context,
+            user_id=12345,
+            topic_id=1,
+            topic_name="Present Tenses",
         )
         session = state_manager.get_session(12345)
         assert session.current_exercise_id == 1
@@ -173,7 +192,7 @@ class TestSendNewExercise:
         self, mock_update, mock_context, mock_repository
     ) -> None:
         mock_repository.get_random_exercise.return_value = None
-        from src.english_practice.bot.handlers import send_new_exercise
+
         await send_new_exercise(
             mock_update, mock_context, user_id=12345, topic_id=999, topic_name="Unknown"
         )
@@ -186,6 +205,7 @@ class TestSendNewExercise:
     ) -> None:
         # Return empty questions once, then return valid data for the recursive call
         calls = 0
+
         def get_exercise_side_effect(ex_id):
             nonlocal calls
             calls += 1
@@ -218,8 +238,11 @@ class TestSendNewExercise:
                     }
                 ],
             }
-        mock_repository.get_exercise_with_questions.side_effect = get_exercise_side_effect
-        from src.english_practice.bot.handlers import send_new_exercise
+
+        mock_repository.get_exercise_with_questions.side_effect = (
+            get_exercise_side_effect
+        )
+
         await send_new_exercise(
             mock_update, mock_context, user_id=12345, topic_id=1, topic_name="Test"
         )
@@ -231,7 +254,7 @@ class TestSendNewExercise:
         self, mock_update, mock_context, mock_repository
     ) -> None:
         mock_repository.get_exercise_image.return_value = None
-        from src.english_practice.bot.handlers import send_new_exercise
+
         await send_new_exercise(
             mock_update, mock_context, user_id=12345, topic_id=1, topic_name="Test"
         )
@@ -244,7 +267,7 @@ class TestSendNewExercise:
     async def test_calls_on_new_image_on_agent_service(
         self, mock_update, mock_context, mock_repository, mock_agent_service
     ) -> None:
-        from src.english_practice.bot.handlers import send_new_exercise
+
         await send_new_exercise(
             mock_update, mock_context, user_id=12345, topic_id=1, topic_name="Test"
         )
@@ -255,10 +278,8 @@ class TestHandleMessage:
     """Tests for handle_message handler."""
 
     @pytest.mark.asyncio
-    async def test_no_active_exercise(
-        self, mock_update, mock_context
-    ) -> None:
-        from src.english_practice.bot.handlers import handle_message
+    async def test_no_active_exercise(self, mock_update, mock_context) -> None:
+
         await handle_message(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
         assert "Welcome" in mock_update.message.reply_text.call_args[0][0]
@@ -280,7 +301,7 @@ class TestHandleMessage:
         mock_agent_service.evaluate_answer = AsyncMock(
             return_value=Mock(is_correct=True, answer_idx=[0])
         )
-        from src.english_practice.bot.handlers import handle_message
+
         await handle_message(mock_update, mock_context)
         mock_agent_service.evaluate_answer.assert_called_once()
 
@@ -301,7 +322,7 @@ class TestHandleMessage:
         mock_agent_service.evaluate_answer = AsyncMock(
             return_value=Mock(is_correct=True, answer_idx=[0])
         )
-        from src.english_practice.bot.handlers import handle_message
+
         await handle_message(mock_update, mock_context)
         replies = mock_update.message.reply_text.call_args_list
         texts = [c[0][0] for c in replies]
@@ -309,7 +330,9 @@ class TestHandleMessage:
         assert any("Correct Answer" in t or "correct" in t.lower() for t in texts)
 
     @pytest.mark.asyncio
-    async def test_marks_answered(self, mock_update, mock_context, mock_agent_service, mock_repository) -> None:
+    async def test_marks_answered(
+        self, mock_update, mock_context, mock_agent_service, mock_repository
+    ) -> None:
         state_manager.set_exercise(
             user_id=12345,
             exercise_id=1,
@@ -323,7 +346,7 @@ class TestHandleMessage:
         mock_agent_service.evaluate_answer = AsyncMock(
             return_value=Mock(is_correct=True, answer_idx=[0])
         )
-        from src.english_practice.bot.handlers import handle_message
+
         await handle_message(mock_update, mock_context)
         assert state_manager.get_session(12345).answered is True
 
@@ -345,7 +368,7 @@ class TestHandleMessage:
         mock_agent_service.assist = AsyncMock(
             return_value=Mock(answer="Here is some help")
         )
-        from src.english_practice.bot.handlers import handle_message
+
         await handle_message(mock_update, mock_context)
         mock_agent_service.assist.assert_called_once()
         mock_update.message.reply_text.assert_called_once()
@@ -368,7 +391,7 @@ class TestHandleMessage:
         mock_agent_service.evaluate_answer = AsyncMock(
             side_effect=Exception("LLM error")
         )
-        from src.english_practice.bot.handlers import handle_message
+
         await handle_message(mock_update, mock_context)
         texts = [c[0][0] for c in mock_update.message.reply_text.call_args_list]
         assert any("Sorry" in t for t in texts)
@@ -392,16 +415,14 @@ class TestHandleMessage:
         mock_agent_service.evaluate_answer = AsyncMock(
             return_value=Mock(is_correct=True, answer_idx=[0])
         )
-        from src.english_practice.bot.handlers import handle_message
+
         await handle_message(mock_update, mock_context)
         texts_and_kwargs = [
             (c[0][0], c[1]) for c in mock_update.message.reply_text.call_args_list
         ]
         # The last call should have the "Choose next exercise" keyboard
         assert any("next exercise" in t[0] for t in texts_and_kwargs)
-        last_with_keyboard = [
-            t for t in texts_and_kwargs if "reply_markup" in t[1]
-        ]
+        last_with_keyboard = [t for t in texts_and_kwargs if "reply_markup" in t[1]]
         assert len(last_with_keyboard) >= 1
 
 
@@ -409,14 +430,15 @@ class TestHandleExerciseAction:
     """Tests for handle_exercise_action callback handler."""
 
     @pytest.mark.asyncio
-    async def test_no_active_exercise(
-        self, mock_callback_update, mock_context
-    ) -> None:
+    async def test_no_active_exercise(self, mock_callback_update, mock_context) -> None:
         mock_callback_update.callback_query.data = "action:show_unit"
-        from src.english_practice.bot.handlers import handle_exercise_action
+
         await handle_exercise_action(mock_callback_update, mock_context)
         mock_callback_update.callback_query.message.reply_text.assert_called_once()
-        assert "No active exercise" in mock_callback_update.callback_query.message.reply_text.call_args[0][0]
+        assert (
+            "No active exercise"
+            in mock_callback_update.callback_query.message.reply_text.call_args[0][0]
+        )
 
     @pytest.mark.asyncio
     async def test_show_unit_with_active_exercise(
@@ -433,7 +455,7 @@ class TestHandleExerciseAction:
             available_questions=["1"],
         )
         mock_callback_update.callback_query.data = "action:show_unit"
-        from src.english_practice.bot.handlers import handle_exercise_action
+
         await handle_exercise_action(mock_callback_update, mock_context)
         mock_callback_update.callback_query.message.reply_text.assert_called_once()
         text = mock_callback_update.callback_query.message.reply_text.call_args[0][0]
@@ -445,11 +467,9 @@ class TestAuthorization:
     """Tests for authorization checks."""
 
     @pytest.mark.asyncio
-    async def test_auth_disabled_allows_all(
-        self, mock_update, mock_context
-    ) -> None:
+    async def test_auth_disabled_allows_all(self, mock_update, mock_context) -> None:
         """When no admin_id is set, all users are allowed."""
-        from src.english_practice.bot.handlers import start_command
+
         await start_command(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
         assert "Welcome" in mock_update.message.reply_text.call_args[0][0]
@@ -459,7 +479,7 @@ class TestAuthorization:
         self, mock_update, mock_context, patch_auth_enabled
     ) -> None:
         """Admin user is always allowed."""
-        from src.english_practice.bot.handlers import start_command
+
         await start_command(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
         assert "Welcome" in mock_update.message.reply_text.call_args[0][0]
@@ -470,7 +490,7 @@ class TestAuthorization:
     ) -> None:
         """Approved user is allowed."""
         mock_repository.get_user_auth_status.return_value = "approved"
-        from src.english_practice.bot.handlers import start_command
+
         await start_command(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
         assert "Welcome" in mock_update.message.reply_text.call_args[0][0]
@@ -481,7 +501,7 @@ class TestAuthorization:
     ) -> None:
         """Pending user is blocked with waiting message."""
         mock_repository.get_user_auth_status.return_value = "pending"
-        from src.english_practice.bot.handlers import start_command
+
         await start_command(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
         assert "pending" in mock_update.message.reply_text.call_args[0][0].lower()
@@ -492,7 +512,7 @@ class TestAuthorization:
     ) -> None:
         """Rejected user is blocked with denial message."""
         mock_repository.get_user_auth_status.return_value = "rejected"
-        from src.english_practice.bot.handlers import start_command
+
         await start_command(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
         assert "denied" in mock_update.message.reply_text.call_args[0][0].lower()
@@ -503,7 +523,7 @@ class TestAuthorization:
     ) -> None:
         """New user (not in DB) is added as pending and blocked."""
         mock_repository.get_user_auth_status.return_value = None
-        from src.english_practice.bot.handlers import start_command
+
         await start_command(mock_update, mock_context)
         mock_repository.add_user.assert_called_once_with(12345, "Test", "testuser")
         mock_update.message.reply_text.assert_called_once()
@@ -514,10 +534,12 @@ class TestAuthorization:
         self, mock_update, mock_context, patch_auth_admin
     ) -> None:
         """Non-admin users cannot access /pending."""
-        from src.english_practice.bot.handlers import pending_command
+
         await pending_command(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
-        assert "not authorized" in mock_update.message.reply_text.call_args[0][0].lower()
+        assert (
+            "not authorized" in mock_update.message.reply_text.call_args[0][0].lower()
+        )
 
     @pytest.mark.asyncio
     async def test_pending_command_shows_empty(
@@ -525,7 +547,7 @@ class TestAuthorization:
     ) -> None:
         """Admin sees 'no pending users' when list is empty."""
         mock_repository.get_pending_users.return_value = []
-        from src.english_practice.bot.handlers import pending_command
+
         await pending_command(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
         assert "no pending" in mock_update.message.reply_text.call_args[0][0].lower()
@@ -536,10 +558,20 @@ class TestAuthorization:
     ) -> None:
         """Admin sees pending users list."""
         mock_repository.get_pending_users.return_value = [
-            {"telegram_id": 111, "full_name": "Alice", "telegram_username": "alice", "created_at": "2024-01-01"},
-            {"telegram_id": 222, "full_name": "Bob", "telegram_username": None, "created_at": "2024-01-02"},
+            {
+                "telegram_id": 111,
+                "full_name": "Alice",
+                "telegram_username": "alice",
+                "created_at": "2024-01-01",
+            },
+            {
+                "telegram_id": 222,
+                "full_name": "Bob",
+                "telegram_username": None,
+                "created_at": "2024-01-02",
+            },
         ]
-        from src.english_practice.bot.handlers import pending_command
+
         await pending_command(mock_update, mock_context)
         mock_update.message.reply_text.assert_called_once()
         assert "Pending" in mock_update.message.reply_text.call_args[0][0]
@@ -550,7 +582,7 @@ class TestAuthorization:
     ) -> None:
         """Admin can approve a user via callback."""
         mock_callback_update.callback_query.data = "admin:approve:111"
-        from src.english_practice.bot.handlers import handle_admin_action
+
         await handle_admin_action(mock_callback_update, mock_context)
         mock_repository.set_user_status.assert_called_once_with(111, "approved", 12345)
         mock_callback_update.callback_query.message.reply_text.assert_called()
@@ -561,7 +593,7 @@ class TestAuthorization:
     ) -> None:
         """Admin can reject a user via callback."""
         mock_callback_update.callback_query.data = "admin:reject:111"
-        from src.english_practice.bot.handlers import handle_admin_action
+
         await handle_admin_action(mock_callback_update, mock_context)
         mock_repository.set_user_status.assert_called_once_with(111, "rejected", 12345)
         mock_callback_update.callback_query.message.reply_text.assert_called()
@@ -572,7 +604,12 @@ class TestAuthorization:
     ) -> None:
         """Non-admin user cannot approve/reject."""
         mock_callback_update.callback_query.data = "admin:approve:111"
-        from src.english_practice.bot.handlers import handle_admin_action
+
         await handle_admin_action(mock_callback_update, mock_context)
         mock_callback_update.callback_query.message.reply_text.assert_called_once()
-        assert "not authorized" in mock_callback_update.callback_query.message.reply_text.call_args[0][0].lower()
+        assert (
+            "not authorized"
+            in mock_callback_update.callback_query.message.reply_text.call_args[0][
+                0
+            ].lower()
+        )

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Validate database integrity and consistency."""
 
+import sqlite3
 import sys
 from pathlib import Path
-import sqlite3
 
 
 def get_project_root() -> Path:
@@ -16,10 +16,17 @@ def get_db_path() -> Path:
     return get_project_root() / "data" / "development.db"
 
 
+# How many offending rows to list before collapsing into a "... and N more" line.
+MAX_LISTED_IMAGES = 5
+MAX_LISTED_EXERCISES = 3
+MAX_LISTED_QUESTIONS = 10
+
+
 class DatabaseValidator:
     """Validator for database integrity and consistency."""
 
     def __init__(self, db_path: Path):
+        """Open a connection to the database at ``db_path``."""
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
@@ -328,7 +335,8 @@ class DatabaseValidator:
         )
         for row in self.cursor.fetchall():
             results["invalid_topic_parents"].append(
-                f"Topic '{row['name']}' (ID {row['id']}) -> Parent ID {row['parent_topic_id']}"
+                f"Topic '{row['name']}' (ID {row['id']}) "
+                f"-> Parent ID {row['parent_topic_id']}"
             )
 
         # question_answers with invalid question_id
@@ -396,10 +404,11 @@ class DatabaseValidator:
             print(f"  [FAIL] Images in DB: {img['images_in_db']}")
             if img["missing_images"]:
                 print(f"\n  Missing Images ({len(img['missing_images'])}):")
-                for item in img["missing_images"][:5]:
+                for item in img["missing_images"][:MAX_LISTED_IMAGES]:
                     print(f"    - {item}")
-                if len(img["missing_images"]) > 5:
-                    print(f"    ... and {len(img['missing_images']) - 5} more")
+                if len(img["missing_images"]) > MAX_LISTED_IMAGES:
+                    extra = len(img["missing_images"]) - MAX_LISTED_IMAGES
+                    print(f"    ... and {extra} more")
                 total_errors += len(img["missing_images"])
             if img["empty_images"]:
                 print(f"\n  Empty Images ({len(img['empty_images'])}):")
@@ -415,24 +424,28 @@ class DatabaseValidator:
         else:
             if dup["duplicate_exercise_ids"]:
                 print(
-                    f"  [FAIL] Duplicate exercise_ids: {len(dup['duplicate_exercise_ids'])}"
+                    "  [FAIL] Duplicate exercise_ids: "
+                    f"{len(dup['duplicate_exercise_ids'])}"
                 )
                 total_errors += len(dup["duplicate_exercise_ids"])
             if dup["duplicate_question_ids"]:
                 print(
-                    f"  [FAIL] Duplicate question_ids: {len(dup['duplicate_question_ids'])}"
+                    "  [FAIL] Duplicate question_ids: "
+                    f"{len(dup['duplicate_question_ids'])}"
                 )
                 for item in dup["duplicate_question_ids"][:3]:
                     print(f"    - {item}")
                 total_errors += len(dup["duplicate_question_ids"])
             if dup["duplicate_unit_numbers"]:
                 print(
-                    f"  [FAIL] Duplicate unit_numbers: {len(dup['duplicate_unit_numbers'])}"
+                    "  [FAIL] Duplicate unit_numbers: "
+                    f"{len(dup['duplicate_unit_numbers'])}"
                 )
                 total_errors += len(dup["duplicate_unit_numbers"])
             if dup["duplicate_topic_names"]:
                 print(
-                    f"  [FAIL] Duplicate topic names: {len(dup['duplicate_topic_names'])}"
+                    "  [FAIL] Duplicate topic names: "
+                    f"{len(dup['duplicate_topic_names'])}"
                 )
                 total_errors += len(dup["duplicate_topic_names"])
 
@@ -444,36 +457,45 @@ class DatabaseValidator:
         else:
             if orphan["exercises_without_questions"]:
                 print(
-                    f"  [FAIL] Exercises without questions: {len(orphan['exercises_without_questions'])}"
+                    "  [FAIL] Exercises without questions: "
+                    f"{len(orphan['exercises_without_questions'])}"
                 )
-                for item in orphan["exercises_without_questions"][:3]:
+                for item in orphan["exercises_without_questions"][
+                    :MAX_LISTED_EXERCISES
+                ]:
                     print(f"    - {item}")
-                if len(orphan["exercises_without_questions"]) > 3:
-                    print(
-                        f"    ... and {len(orphan['exercises_without_questions']) - 3} more"
+                if len(orphan["exercises_without_questions"]) > MAX_LISTED_EXERCISES:
+                    extra = (
+                        len(orphan["exercises_without_questions"])
+                        - MAX_LISTED_EXERCISES
                     )
+                    print(f"    ... and {extra} more")
                 total_errors += len(orphan["exercises_without_questions"])
             if orphan["questions_without_answers"]:
                 print(
-                    f"  [FAIL] Questions without answers: {len(orphan['questions_without_answers'])}"
+                    "  [FAIL] Questions without answers: "
+                    f"{len(orphan['questions_without_answers'])}"
                 )
-                for item in orphan["questions_without_answers"][:10]:
+                for item in orphan["questions_without_answers"][:MAX_LISTED_QUESTIONS]:
                     print(f"    - {item}")
-                if len(orphan["questions_without_answers"]) > 10:
-                    print(
-                        f"    ... and {len(orphan['questions_without_answers']) - 10} more"
+                if len(orphan["questions_without_answers"]) > MAX_LISTED_QUESTIONS:
+                    extra = (
+                        len(orphan["questions_without_answers"]) - MAX_LISTED_QUESTIONS
                     )
+                    print(f"    ... and {extra} more")
                 total_errors += len(orphan["questions_without_answers"])
             if orphan["units_without_exercises"]:
                 print(
-                    f"  [[WARN]] Units without exercises: {len(orphan['units_without_exercises'])}"
+                    "  [[WARN]] Units without exercises: "
+                    f"{len(orphan['units_without_exercises'])}"
                 )
                 for item in orphan["units_without_exercises"][:3]:
                     print(f"    - {item}")
                 total_warnings += len(orphan["units_without_exercises"])
             if orphan["topics_without_units"]:
                 print(
-                    f"  [[WARN]] Topics without units: {len(orphan['topics_without_units'])}"
+                    "  [[WARN]] Topics without units: "
+                    f"{len(orphan['topics_without_units'])}"
                 )
                 total_warnings += len(orphan["topics_without_units"])
 
@@ -485,37 +507,44 @@ class DatabaseValidator:
         else:
             if ref["invalid_exercise_unit_ids"]:
                 print(
-                    f"  [FAIL] Invalid exercise unit_ids: {len(ref['invalid_exercise_unit_ids'])}"
+                    "  [FAIL] Invalid exercise unit_ids: "
+                    f"{len(ref['invalid_exercise_unit_ids'])}"
                 )
                 total_errors += len(ref["invalid_exercise_unit_ids"])
             if ref["invalid_question_exercise_ids"]:
                 print(
-                    f"  [FAIL] Invalid question exercise_ids: {len(ref['invalid_question_exercise_ids'])}"
+                    "  [FAIL] Invalid question exercise_ids: "
+                    f"{len(ref['invalid_question_exercise_ids'])}"
                 )
                 total_errors += len(ref["invalid_question_exercise_ids"])
             if ref["invalid_unit_topic_unit_ids"]:
                 print(
-                    f"  [FAIL] Invalid unit_topic unit_ids: {len(ref['invalid_unit_topic_unit_ids'])}"
+                    "  [FAIL] Invalid unit_topic unit_ids: "
+                    f"{len(ref['invalid_unit_topic_unit_ids'])}"
                 )
                 total_errors += len(ref["invalid_unit_topic_unit_ids"])
             if ref["invalid_unit_topic_topic_ids"]:
                 print(
-                    f"  [FAIL] Invalid unit_topic topic_ids: {len(ref['invalid_unit_topic_topic_ids'])}"
+                    "  [FAIL] Invalid unit_topic topic_ids: "
+                    f"{len(ref['invalid_unit_topic_topic_ids'])}"
                 )
                 total_errors += len(ref["invalid_unit_topic_topic_ids"])
             if ref["invalid_topic_parents"]:
                 print(
-                    f"  [FAIL] Invalid topic parents: {len(ref['invalid_topic_parents'])}"
+                    "  [FAIL] Invalid topic parents: "
+                    f"{len(ref['invalid_topic_parents'])}"
                 )
                 total_errors += len(ref["invalid_topic_parents"])
             if ref.get("invalid_question_answers"):
                 print(
-                    f"  [FAIL] Invalid question_answers: {len(ref['invalid_question_answers'])}"
+                    "  [FAIL] Invalid question_answers: "
+                    f"{len(ref['invalid_question_answers'])}"
                 )
                 total_errors += len(ref["invalid_question_answers"])
             if ref.get("invalid_exercise_images"):
                 print(
-                    f"  [FAIL] Invalid exercise_images: {len(ref['invalid_exercise_images'])}"
+                    "  [FAIL] Invalid exercise_images: "
+                    f"{len(ref['invalid_exercise_images'])}"
                 )
                 total_errors += len(ref["invalid_exercise_images"])
 
@@ -552,8 +581,7 @@ def main() -> int:
             "referential": validator.validate_referential_integrity(),
         }
 
-        exit_code = validator.print_report(results)
-        return exit_code
+        return validator.print_report(results)
 
     except Exception as e:
         print(f"Error during validation: {e}")

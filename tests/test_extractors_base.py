@@ -1,13 +1,12 @@
 """Tests for BaseExtractor."""
 
+import asyncio
 import json
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import BaseModel
 
-from src.english_practice.extractors.base_extractor import BaseExtractor
+from english_practice.extractors.base_extractor import BaseExtractor
 
 
 class _UnitModel(BaseModel):
@@ -139,7 +138,7 @@ class TestBaseExtractor:
         assert result == {"output_path": extractor._output_path}
 
     def test_process_unit_raises_not_implemented(self, tmp_path) -> None:
-        from src.english_practice.extractors.base_extractor import BaseExtractor
+
         ext = BaseExtractor(
             tmp_path / "out.json",
             tmp_path / "answers.json",
@@ -147,5 +146,4 @@ class TestBaseExtractor:
             tmp_path / "content",
         )
         with pytest.raises(NotImplementedError):
-            import asyncio
             asyncio.run(ext._process_unit({"unit_id": "1"}))

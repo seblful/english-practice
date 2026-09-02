@@ -2,8 +2,8 @@
 
 from langsmith import traceable
 
-from src.english_practice.agents.base import BaseAgent
-from src.english_practice.models.agents import EvaluateAnswerInput, EvaluateAnswerOutput
+from english_practice.agents.base import BaseAgent
+from english_practice.models.agents import EvaluateAnswerInput, EvaluateAnswerOutput
 
 
 class EvaluateAnswerAgent(BaseAgent):

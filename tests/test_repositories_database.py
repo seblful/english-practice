@@ -5,8 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.english_practice.repositories.database import DatabaseRepository
-
+from english_practice.repositories.database import DatabaseRepository
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -76,23 +75,46 @@ def _build_db(db_path: Path) -> None:
     conn = sqlite3.connect(str(db_path))
     conn.executescript(SCHEMA)
 
-    conn.execute("INSERT INTO units (unit_number, title, grammar_md_path) VALUES (1, 'Present Continuous', 'grammar/1.md')")
-    conn.execute("INSERT INTO units (unit_number, title, grammar_md_path) VALUES (2, 'Present Simple', 'grammar/2.md')")
-    conn.execute("INSERT INTO exercises (exercise_id, unit_id, exercise_number) VALUES ('1.1', 1, 1)")
-    conn.execute("INSERT INTO exercises (exercise_id, unit_id, exercise_number) VALUES ('1.2', 1, 2)")
-    conn.execute("INSERT INTO exercises (exercise_id, unit_id, exercise_number) VALUES ('2.1', 2, 1)")
-    conn.execute("INSERT INTO exercise_images (exercise_id, image_data) VALUES (1, X'010203')")
-    conn.execute("""INSERT INTO questions (exercise_id, question_id, is_open_ended, section_letter, rule, display_order)
+    conn.execute(
+        "INSERT INTO units (unit_number, title, grammar_md_path) "
+        "VALUES (1, 'Present Continuous', 'grammar/1.md')"
+    )
+    conn.execute(
+        "INSERT INTO units (unit_number, title, grammar_md_path) "
+        "VALUES (2, 'Present Simple', 'grammar/2.md')"
+    )
+    conn.execute(
+        "INSERT INTO exercises (exercise_id, unit_id, exercise_number) "
+        "VALUES ('1.1', 1, 1)"
+    )
+    conn.execute(
+        "INSERT INTO exercises (exercise_id, unit_id, exercise_number) "
+        "VALUES ('1.2', 1, 2)"
+    )
+    conn.execute(
+        "INSERT INTO exercises (exercise_id, unit_id, exercise_number) "
+        "VALUES ('2.1', 2, 1)"
+    )
+    conn.execute(
+        "INSERT INTO exercise_images (exercise_id, image_data) VALUES (1, X'010203')"
+    )
+    conn.execute("""INSERT INTO questions (exercise_id, question_id, is_open_ended,
+                                           section_letter, rule, display_order)
                     VALUES (1, '1', 0, 'A', 'Use for now', 0)""")
-    conn.execute("""INSERT INTO questions (exercise_id, question_id, is_open_ended, section_letter, rule, display_order)
+    conn.execute("""INSERT INTO questions (exercise_id, question_id, is_open_ended,
+                                           section_letter, rule, display_order)
                     VALUES (1, '2', 0, 'A', 'Use for temp', 1)""")
-    conn.execute("""INSERT INTO questions (exercise_id, question_id, is_open_ended, section_letter, rule, display_order)
+    conn.execute("""INSERT INTO questions (exercise_id, question_id, is_open_ended,
+                                           section_letter, rule, display_order)
                     VALUES (2, '1', 1, NULL, NULL, 0)""")
-    conn.execute("""INSERT INTO question_answers (question_id, short_answer, full_answer)
+    conn.execute("""INSERT INTO question_answers
+                          (question_id, short_answer, full_answer)
                     VALUES (1, 'is doing', 'He **is doing** his homework.')""")
-    conn.execute("""INSERT INTO question_answers (question_id, short_answer, full_answer)
+    conn.execute("""INSERT INTO question_answers
+                          (question_id, short_answer, full_answer)
                     VALUES (1, 'is making', 'He **is making** dinner.')""")
-    conn.execute("""INSERT INTO question_answers (question_id, short_answer, full_answer)
+    conn.execute("""INSERT INTO question_answers
+                          (question_id, short_answer, full_answer)
                     VALUES (2, 'are going', 'They **are going** to school.')""")
     conn.execute("INSERT INTO topics (name) VALUES ('Present Tenses')")
     conn.execute("INSERT INTO topics (name) VALUES ('Past Tenses')")

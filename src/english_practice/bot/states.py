@@ -64,6 +64,7 @@ class StateManager:
 
     def set_exercise(
         self,
+        *,
         user_id: int,
         exercise_id: int,
         question_id: str,

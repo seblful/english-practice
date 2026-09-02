@@ -1,8 +1,6 @@
 """Tests for MessageFormatter."""
 
-import re
-
-from src.english_practice.bot.formatter import (
+from english_practice.bot.formatter import (
     CORRECT_PHRASES,
     WRONG_PHRASES,
     MessageFormatter,
@@ -160,7 +158,7 @@ class TestFormatUnitInfo:
     """Tests for format_unit_info."""
 
     def test_basic(self) -> None:
-        result = MessageFormatter.format_unit_info(1, "Present Continuous", "1.1")
+        result = MessageFormatter.format_unit_info(1, "Present Continuous")
         assert "📌 Unit <b>1</b>" in result
         assert "<b>Present Continuous</b>" in result
 

@@ -1,7 +1,6 @@
 """Tests for ImageOcrExtractor."""
 
 import os
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,7 +8,7 @@ import pytest
 # Set OTEL_PROPAGATORS to avoid opentelemetry import chain failure
 os.environ.setdefault("OTEL_PROPAGATORS", "tracecontext,baggage")
 
-from src.english_practice.extractors.image_ocr import ImageOcrExtractor
+from english_practice.extractors.image_ocr import ImageOcrExtractor
 
 
 class TestImageOcrExtractor:
@@ -111,7 +110,9 @@ class TestImageOcrExtractor:
         (tmp_path / "1.md").write_text("# exists", encoding="utf-8")
         (tmp_path / "2.png").write_bytes(b"data")
 
-        with patch.object(extractor, "ocr_and_save", return_value=tmp_path / "2.md") as mock_ocr:
+        with patch.object(
+            extractor, "ocr_and_save", return_value=tmp_path / "2.md"
+        ) as mock_ocr:
             result = extractor.ocr_dir(tmp_path, "*.png")
             assert len(result) == 1
             mock_ocr.assert_called_once_with(tmp_path / "2.png", tmp_path / "2.md")

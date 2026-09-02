@@ -6,10 +6,18 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from src.english_practice.extractors.exercise_organizer import (
+from english_practice.extractors.exercise_organizer import (
     BoundingBox,
     ExerciseOrganizer,
     HSVRange,
+)
+from english_practice.models.constants import (
+    EXERCISE_BOX_MAX_HEIGHT,
+    EXERCISE_BOX_MAX_WIDTH,
+    EXERCISE_BOX_MIN_HEIGHT,
+    EXERCISE_BOX_MIN_WIDTH,
+    EXERCISE_MIN_AREA,
+    EXERCISE_PADDING,
 )
 
 
@@ -53,10 +61,8 @@ class TestExerciseOrganizer:
         mock_cvt.return_value = np.zeros((10, 10, 3), dtype=np.uint8)
         mock_inrange.return_value = np.zeros((10, 10), dtype=np.uint8)
 
-        hsv_range = HSVRange(
-            np.array([0, 0, 0]), np.array([180, 255, 255])
-        )
-        result = ExerciseOrganizer._create_hsv_mask(
+        hsv_range = HSVRange(np.array([0, 0, 0]), np.array([180, 255, 255]))
+        ExerciseOrganizer._create_hsv_mask(
             np.zeros((10, 10, 3), dtype=np.uint8),
             hsv_range,
             kernel_size=5,
@@ -71,9 +77,7 @@ class TestExerciseOrganizer:
         mock_cvt.return_value = np.zeros((10, 10, 3), dtype=np.uint8)
         mock_inrange.return_value = np.zeros((10, 10), dtype=np.uint8)
 
-        hsv_range = HSVRange(
-            np.array([0, 0, 0]), np.array([180, 255, 255])
-        )
+        hsv_range = HSVRange(np.array([0, 0, 0]), np.array([180, 255, 255]))
         result = ExerciseOrganizer._create_hsv_mask(
             np.zeros((10, 10, 3), dtype=np.uint8),
             hsv_range,
@@ -89,11 +93,6 @@ class TestExerciseOrganizer:
         assert boxes[0] == BoundingBox(0, 0, 10, 10)
 
     def test_is_valid_exercise_header(self) -> None:
-        from src.english_practice.models.constants import (
-            EXERCISE_BOX_MIN_WIDTH, EXERCISE_BOX_MAX_WIDTH,
-            EXERCISE_BOX_MIN_HEIGHT, EXERCISE_BOX_MAX_HEIGHT,
-            EXERCISE_MIN_AREA,
-        )
         w = (EXERCISE_BOX_MIN_WIDTH + EXERCISE_BOX_MAX_WIDTH) // 2
         h = (EXERCISE_BOX_MIN_HEIGHT + EXERCISE_BOX_MAX_HEIGHT) // 2
         area = max(EXERCISE_MIN_AREA + 1, w * h)
@@ -109,9 +108,12 @@ class TestExerciseOrganizer:
         assert not ExerciseOrganizer._is_valid_exercise_header(large, area=100000)
 
     def test_split_into_exercises(self) -> None:
-        from src.english_practice.models.constants import EXERCISE_PADDING
+
         img = np.zeros((500, 300, 3), dtype=np.uint8)
-        boxes = [{"x": 0, "y": 50, "w": 100, "h": 20}, {"x": 0, "y": 200, "w": 100, "h": 20}]
+        boxes = [
+            {"x": 0, "y": 50, "w": 100, "h": 20},
+            {"x": 0, "y": 200, "w": 100, "h": 20},
+        ]
         exercises = ExerciseOrganizer()._split_into_exercises(img, boxes, 500, 300)
         assert len(exercises) == 2
         start_y = max(0, 50 - EXERCISE_PADDING)
@@ -124,28 +126,39 @@ class TestExerciseOrganizer:
         assert result.shape[0] == 100
 
     def test_crop_image_no_crop(self) -> None:
-        with patch(
-            "src.english_practice.extractors.exercise_organizer.EXERCISE_CROP_TOP", 0
-        ), patch(
-            "src.english_practice.extractors.exercise_organizer.EXERCISE_CROP_BOTTOM", 0
-        ), patch(
-            "src.english_practice.extractors.exercise_organizer.EXERCISE_CROP_LEFT", 0
-        ), patch(
-            "src.english_practice.extractors.exercise_organizer.EXERCISE_CROP_RIGHT", 0
+        with (
+            patch(
+                "english_practice.extractors.exercise_organizer.EXERCISE_CROP_TOP", 0
+            ),
+            patch(
+                "english_practice.extractors.exercise_organizer.EXERCISE_CROP_BOTTOM", 0
+            ),
+            patch(
+                "english_practice.extractors.exercise_organizer.EXERCISE_CROP_LEFT", 0
+            ),
+            patch(
+                "english_practice.extractors.exercise_organizer.EXERCISE_CROP_RIGHT", 0
+            ),
         ):
             img = np.zeros((100, 100, 3), dtype=np.uint8)
             result = ExerciseOrganizer()._crop_image(img)
             assert result.shape == (100, 100, 3)
 
     def test_crop_image_with_crops(self) -> None:
-        with patch(
-            "src.english_practice.extractors.exercise_organizer.EXERCISE_CROP_TOP", 10
-        ), patch(
-            "src.english_practice.extractors.exercise_organizer.EXERCISE_CROP_BOTTOM", 20
-        ), patch(
-            "src.english_practice.extractors.exercise_organizer.EXERCISE_CROP_LEFT", 5
-        ), patch(
-            "src.english_practice.extractors.exercise_organizer.EXERCISE_CROP_RIGHT", 5
+        with (
+            patch(
+                "english_practice.extractors.exercise_organizer.EXERCISE_CROP_TOP", 10
+            ),
+            patch(
+                "english_practice.extractors.exercise_organizer.EXERCISE_CROP_BOTTOM",
+                20,
+            ),
+            patch(
+                "english_practice.extractors.exercise_organizer.EXERCISE_CROP_LEFT", 5
+            ),
+            patch(
+                "english_practice.extractors.exercise_organizer.EXERCISE_CROP_RIGHT", 5
+            ),
         ):
             img = np.zeros((100, 100, 3), dtype=np.uint8)
             result = ExerciseOrganizer()._crop_image(img)
@@ -173,12 +186,18 @@ class TestExerciseOrganizer:
         (src_dir / "1.png").write_bytes(b"data")
 
         organizer = ExerciseOrganizer()
-        with patch.object(organizer, "_extract_from_page", return_value=[
-            np.zeros((100, 200, 3), dtype=np.uint8)
-        ]):
-            with patch.object(organizer, "_save_exercises", return_value=[out_dir / "1" / "1.1.png"]):
-                results = organizer.organize(src_dir, out_dir)
-                assert len(results) == 1
+        with (
+            patch.object(
+                organizer,
+                "_extract_from_page",
+                return_value=[np.zeros((100, 200, 3), dtype=np.uint8)],
+            ),
+            patch.object(
+                organizer, "_save_exercises", return_value=[out_dir / "1" / "1.1.png"]
+            ),
+        ):
+            results = organizer.organize(src_dir, out_dir)
+            assert len(results) == 1
 
     def test_save_exercises(self, tmp_path) -> None:
         exercises = [np.zeros((100, 200, 3), dtype=np.uint8)]

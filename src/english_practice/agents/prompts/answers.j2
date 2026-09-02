@@ -13,11 +13,11 @@ id: {{ q.question_id }}, expected_short_answer: {{ q.short_answer }}
 </ExerciseQuestions>
 
 <Instructions>
-Analyze the exercise image and the expected short answers provided. 
+Analyze the exercise image and the expected short answers provided.
 For each question, reconstruct the EXACT full sentence as it should appear when correctly answered by a student.
 
 Strictly follow these extraction rules based on the exercise type:
-1. **Identify Question Type**: 
+1. **Identify Question Type**:
    - **Closed (Fill-in-the-blank/Rewrite/Match)**: Has a specific correct answer. Process these fully.
    - **Open-ended (Personalized)**: Asks about the student's own life (e.g., "Write true sentences about yourself"). Set `is_open_ended` to true and leave arrays empty.
 
@@ -29,7 +29,7 @@ Strictly follow these extraction rules based on the exercise type:
    - **Punctuation**: Include the ending punctuation (period, question mark).
 
 3. **Handling Short Answer Variations (Slashes & Brackets)**:
-   - The expected short answer might contain variations (e.g., "have gone / 've gone"). 
+   - The expected short answer might contain variations (e.g., "have gone / 've gone").
    - Split these by the slash "/" and output multiple `short_answers`.
    - Output corresponding multiple `full_answers` for each variation.
    - Words in brackets (e.g., "(that)") are optional. Include them in the full sentence without the brackets.

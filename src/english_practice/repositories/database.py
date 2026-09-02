@@ -4,8 +4,8 @@ import random
 import sqlite3
 from pathlib import Path
 
-from config.settings import settings
-from src.english_practice.models.book import QuestionAnswer
+from english_practice.models.book import QuestionAnswer
+from english_practice.settings import settings
 
 
 class DatabaseRepository:
@@ -17,7 +17,11 @@ class DatabaseRepository:
         Args:
             db_path: Path to SQLite database. Uses default if not provided.
         """
-        self.db_path = db_path or settings.paths.database_path or settings.paths.data_dir / "development.db"
+        self.db_path = (
+            db_path
+            or settings.paths.database_path
+            or settings.paths.data_dir / "development.db"
+        )
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get database connection."""
@@ -141,7 +145,8 @@ class DatabaseRepository:
 
             questions_rows = conn.execute(
                 """
-                SELECT id, question_id, is_open_ended, section_letter, rule, display_order
+                SELECT id, question_id, is_open_ended,
+                       section_letter, rule, display_order
                 FROM questions
                 WHERE exercise_id = ?
                 ORDER BY display_order, question_id
@@ -294,7 +299,8 @@ class DatabaseRepository:
         with self._get_connection() as conn:
             conn.execute(
                 """
-                INSERT OR IGNORE INTO authorized_users (telegram_id, full_name, telegram_username)
+                INSERT OR IGNORE INTO authorized_users
+                (telegram_id, full_name, telegram_username)
                 VALUES (?, ?, ?)
                 """,
                 (telegram_id, full_name, telegram_username),
@@ -351,7 +357,8 @@ class DatabaseRepository:
         """Get all users with pending authorization status.
 
         Returns:
-            List of pending user dicts with telegram_id, full_name, telegram_username, created_at.
+            List of pending user dicts with telegram_id, full_name,
+            telegram_username and created_at.
         """
         with self._get_connection() as conn:
             cursor = conn.execute(

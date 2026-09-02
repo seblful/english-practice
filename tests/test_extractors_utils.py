@@ -1,11 +1,10 @@
 """Tests for extractor utility functions."""
 
 import json
-from pathlib import Path
 
 import pytest
 
-from src.english_practice.extractors.utils import get_image_path, load_json, save_json
+from english_practice.extractors.utils import get_image_path, load_json, save_json
 
 
 class TestLoadJson:

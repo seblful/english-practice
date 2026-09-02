@@ -65,14 +65,14 @@ micro .env
 
 ### Required Environment Variables
 
-| Variable                 | Description                                | Required |
+| Variable | Description | Required |
 | ------------------------ | ------------------------------------------ | -------- |
-| `TELEGRAM_BOT_TOKEN`     | Token from @BotFather                      | Yes      |
-| `TELEGRAM_ADMIN_USER_ID` | Your Telegram user ID                      | Yes      |
-| `LLM__PROVIDER`          | LLM provider (dashscope/gemini/openrouter) | Yes      |
-| `OPENROUTER_API_KEY`     | OpenRouter API key                         | Yes\*    |
-| `ENVIRONMENT`            | Set to `production`                        | Yes      |
-| `DATABASE_PATH`          | Path to SQLite database                    | Yes      |
+| `TELEGRAM_BOT_TOKEN` | Token from @BotFather | Yes |
+| `TELEGRAM_ADMIN_USER_ID` | Your Telegram user ID | Yes |
+| `LLM__PROVIDER` | LLM provider (dashscope/gemini/openrouter) | Yes |
+| `OPENROUTER_API_KEY` | OpenRouter API key | Yes\* |
+| `APP__ENVIRONMENT` | Set to `production` | Yes |
+| `DATABASE_PATH` | Path to SQLite database | Yes |
 
 _\*Required for your chosen provider — use `DASHSCOPE_API_KEY` or `GEMINI_API_KEY` instead if using those providers._
 

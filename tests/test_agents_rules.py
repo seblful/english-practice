@@ -1,12 +1,16 @@
 """Tests for RulesAgent."""
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from src.english_practice.agents.rules import RulesAgent
-from src.english_practice.models.agents import ExerciseRulesOutput, QuestionRuleItem
+from english_practice.agents.rules import RulesAgent
+from english_practice.models.agents import (
+    ExerciseRulesOutput,
+    QuestionRuleItem,
+    RulesContext,
+)
 
 
 class TestRulesAgent:
@@ -16,7 +20,7 @@ class TestRulesAgent:
         assert RulesAgent.PROMPT_TEMPLATE == "rules.j2"
 
     def test_render_with_questions(self) -> None:
-        from src.english_practice.models.agents import RulesContext
+
         agent = RulesAgent()
         context = RulesContext(
             questions=[{"question_id": "1"}],
@@ -34,10 +38,14 @@ class TestRulesAgent:
         img_path.write_bytes(b"fake_png_data")
 
         expected = ExerciseRulesOutput(
-            questions=[QuestionRuleItem(question_id="1", section_letter="A", rule="rule")]
+            questions=[
+                QuestionRuleItem(question_id="1", section_letter="A", rule="rule")
+            ]
         )
 
-        with patch.object(agent, "invoke_structured", return_value=expected) as mock_invoke:
+        with patch.object(
+            agent, "invoke_structured", return_value=expected
+        ) as mock_invoke:
             result = await agent.extract_exercise(
                 image_path=img_path,
                 questions=[{"question_id": "1"}],
@@ -57,7 +65,9 @@ class TestRulesAgent:
 
         expected = ExerciseRulesOutput(questions=[])
 
-        with patch.object(agent, "invoke_structured", return_value=expected) as mock_invoke:
+        with patch.object(
+            agent, "invoke_structured", return_value=expected
+        ) as mock_invoke:
             result = await agent.extract_exercise(
                 image_path=missing_path,
                 questions=[],

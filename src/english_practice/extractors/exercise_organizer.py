@@ -5,8 +5,11 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-
 from english_practice.models.constants import (
+    BOTTOM_WHITE_MARGIN,
+    BOTTOM_WHITE_MIN_RATIO,
+    BOTTOM_WHITE_SEARCH_HEIGHT_RATIO,
+    BOTTOM_WHITE_THRESHOLD,
     EXERCISE_BOX_MAX_HEIGHT,
     EXERCISE_BOX_MAX_WIDTH,
     EXERCISE_BOX_MIN_HEIGHT,
@@ -28,10 +31,7 @@ from english_practice.models.constants import (
     EXERCISE_MIN_HEIGHT,
     EXERCISE_PADDING,
     EXERCISE_SEARCH_WIDTH_RATIO,
-    BOTTOM_WHITE_SEARCH_HEIGHT_RATIO,
-    BOTTOM_WHITE_THRESHOLD,
-    BOTTOM_WHITE_MIN_RATIO,
-    BOTTOM_WHITE_MARGIN,
+    MIN_MEANINGFUL_CROP_PIXELS,
 )
 
 
@@ -63,12 +63,15 @@ class ExerciseOrganizer:
         upper_s: int,
         upper_v: int,
     ) -> HSVRange:
-        """
-        Create HSV range arrays for color filtering.
+        """Create HSV range arrays for color filtering.
 
         Args:
-            lower_h, lower_s, lower_v: Lower bounds for hue, saturation, value
-            upper_h, upper_s, upper_v: Upper bounds for hue, saturation, value
+            lower_h: Lower bound for hue.
+            lower_s: Lower bound for saturation.
+            lower_v: Lower bound for value.
+            upper_h: Upper bound for hue.
+            upper_s: Upper bound for saturation.
+            upper_v: Upper bound for value.
 
         Returns:
             HSVRange with lower and upper numpy arrays
@@ -85,8 +88,7 @@ class ExerciseOrganizer:
         dilate_iterations: int = 0,
         erode_iterations: int = 0,
     ) -> np.ndarray:
-        """
-        Create an HSV-based binary mask for color detection.
+        """Create an HSV-based binary mask for color detection.
 
         Args:
             region: BGR image region to process
@@ -112,8 +114,7 @@ class ExerciseOrganizer:
 
     @staticmethod
     def _extract_bounding_boxes(contours: list) -> list[BoundingBox]:
-        """
-        Extract bounding boxes from OpenCV contours.
+        """Extract bounding boxes from OpenCV contours.
 
         Args:
             contours: List of OpenCV contours
@@ -149,8 +150,7 @@ class ExerciseOrganizer:
         return exercises if exercises else [img]
 
     def _detect_exercise_headers(self, region: np.ndarray) -> list[dict[str, int]]:
-        """
-        Detect exercise header boxes using HSV color filtering and contour detection.
+        """Detect exercise header boxes using HSV color filtering and contour detection.
 
         Args:
             region: Left region of the image to search for headers
@@ -191,8 +191,7 @@ class ExerciseOrganizer:
 
     @staticmethod
     def _is_valid_exercise_header(box: BoundingBox, area: float) -> bool:
-        """
-        Check if a bounding box matches the expected exercise header dimensions.
+        """Check if a bounding box matches the expected exercise header dimensions.
 
         Args:
             box: Bounding box to validate
@@ -214,8 +213,7 @@ class ExerciseOrganizer:
         height: int,
         width: int,
     ) -> list[np.ndarray]:
-        """
-        Split page image into individual exercises based on header positions.
+        """Split page image into individual exercises based on header positions.
 
         Args:
             img: Full page image
@@ -252,8 +250,7 @@ class ExerciseOrganizer:
         return exercises
 
     def _crop_bottom_white_space(self, img: np.ndarray) -> np.ndarray:
-        """
-        Detect and crop white space from the bottom of the image.
+        """Detect and crop white space from the bottom of the image.
 
         This removes empty white space that may appear after the last exercise content,
         keeping any text (including cyan reference text and page numbers).
@@ -297,7 +294,7 @@ class ExerciseOrganizer:
 
             # Make sure we're actually removing something meaningful
             removed_pixels = height - crop_y
-            if removed_pixels > 20:  # Only crop if removing at least 20 pixels
+            if removed_pixels > MIN_MEANINGFUL_CROP_PIXELS:
                 return img[:crop_y, :]
 
         # No significant white space found
@@ -335,8 +332,7 @@ class ExerciseOrganizer:
         file_path: Path,
         output_dir: Path,
     ) -> list[Path]:
-        """
-        Extract and organize exercises from page images.
+        """Extract and organize exercises from page images.
 
         Args:
             file_path: Directory containing page images (1.png, 2.png...)
@@ -371,8 +367,7 @@ class ExerciseOrganizer:
         page_files: list[Path],
         output_dir: Path,
     ) -> list[Path]:
-        """
-        Process all page files and save organized exercises.
+        """Process all page files and save organized exercises.
 
         Args:
             page_files: List of page image paths
@@ -401,8 +396,7 @@ class ExerciseOrganizer:
         output_dir: Path,
         page_num: int,
     ) -> list[Path]:
-        """
-        Save exercises to disk.
+        """Save exercises to disk.
 
         Args:
             exercises: List of exercise images

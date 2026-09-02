@@ -79,7 +79,7 @@ class AnswersExtractor(BaseExtractor):
         questions = []
         for q_input in questions_input:
             question_id = q_input["question_id"]
-            short_answer = q_input["short_answer"]
+            q_input["short_answer"]
             q_result = result_map[question_id]
 
             if q_result.is_open_ended:
@@ -92,7 +92,9 @@ class AnswersExtractor(BaseExtractor):
                 )
             else:
                 answers = []
-                for sa, fa in zip(q_result.short_answers, q_result.full_answers):
+                for sa, fa in zip(
+                    q_result.short_answers, q_result.full_answers, strict=False
+                ):
                     answers.append(
                         ExtractedAnswer(
                             short_answer=sa,

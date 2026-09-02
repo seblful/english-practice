@@ -3,6 +3,9 @@
 import json
 from pathlib import Path
 
+# Exercise ids are "<unit>.<number>", so they split into exactly two parts.
+_EXERCISE_ID_PARTS = 2
+
 
 def load_json(path: Path) -> dict:
     """Load JSON from file."""
@@ -22,7 +25,7 @@ def get_image_path(
 ) -> Path | None:
     """Get the image path for an exercise."""
     parts = exercise_id.split(".")
-    if len(parts) != 2:
+    if len(parts) != _EXERCISE_ID_PARTS:
         return None
 
     page_num = parts[0]

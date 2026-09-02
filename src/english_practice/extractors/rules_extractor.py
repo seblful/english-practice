@@ -3,19 +3,18 @@
 import json
 from pathlib import Path
 
+from tqdm import tqdm
+
 from english_practice.agents import RulesAgent
+from english_practice.logging import get_logger
 from english_practice.models.extraction import (
     ExtractedExerciseRules,
     ExtractedFullRules,
     ExtractedQuestionRule,
     ExtractedUnitRules,
 )
-from tqdm import tqdm
 
 from .base_extractor import BaseExtractor
-
-from config.logging import get_logger
-
 
 logger = get_logger(__name__)
 

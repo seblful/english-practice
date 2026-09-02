@@ -6,7 +6,10 @@ from pathlib import Path
 from pydantic import BaseModel
 from tqdm import tqdm
 
-from config.logging import get_logger
+from english_practice.logging import get_logger
+
+# Exercise ids are "<unit>.<number>", so they split into exactly two parts.
+_EXERCISE_ID_PARTS = 2
 
 logger = get_logger(__name__)
 
@@ -48,7 +51,7 @@ class BaseExtractor:
     def _get_image_path(self, exercise_id: str) -> Path | None:
         """Get the image path for an exercise."""
         parts = exercise_id.split(".")
-        if len(parts) != 2:
+        if len(parts) != _EXERCISE_ID_PARTS:
             return None
 
         page_num = parts[0]

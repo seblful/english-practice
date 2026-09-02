@@ -1,9 +1,31 @@
 """Shared fixtures for bot tests."""
 
+import os
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from telegram import Update, User, Message, CallbackQuery
+from telegram import CallbackQuery, Message, Update, User
+
+from english_practice.bot.states import state_manager
+from english_practice.settings import Settings
+
+
+@pytest.fixture
+def tmp_env_file(tmp_path: Path) -> Path:
+    """Create a temporary .env file."""
+    env_file = tmp_path / ".env"
+    env_file.write_text("APP__ENVIRONMENT=test\n")
+    return env_file
+
+
+@pytest.fixture
+def test_settings(tmp_env_file: Path, monkeypatch: pytest.MonkeyPatch) -> Settings:
+    """Settings isolated from the host environment."""
+    for key in list(os.environ):
+        if key.startswith(("APP__", "LOGGING__")):
+            monkeypatch.delenv(key, raising=False)
+    return Settings(_env_file=tmp_env_file)
 
 
 @pytest.fixture
@@ -113,7 +135,10 @@ def mock_repository() -> Mock:
                 "rule": "Use present continuous for actions happening now",
                 "display_order": 0,
                 "answers": [
-                    {"short_answer": "is doing", "full_answer": "He **is doing** his homework."},
+                    {
+                        "short_answer": "is doing",
+                        "full_answer": "He **is doing** his homework.",
+                    },
                 ],
             },
             {
@@ -124,7 +149,10 @@ def mock_repository() -> Mock:
                 "rule": "Use present continuous for temporary situations",
                 "display_order": 1,
                 "answers": [
-                    {"short_answer": "are going", "full_answer": "They **are going** to school."},
+                    {
+                        "short_answer": "are going",
+                        "full_answer": "They **are going** to school.",
+                    },
                 ],
             },
         ],
@@ -163,11 +191,11 @@ def mock_agent_service() -> AsyncMock:
 def patch_repository(monkeypatch, mock_repository) -> Mock:
     """Patch DatabaseRepository to return mock instance in all handlers."""
     monkeypatch.setattr(
-        "src.english_practice.bot.handlers.DatabaseRepository",
+        "english_practice.bot.handlers.DatabaseRepository",
         lambda *a, **kw: mock_repository,
     )
     monkeypatch.setattr(
-        "src.english_practice.repositories.database.DatabaseRepository",
+        "english_practice.repositories.database.DatabaseRepository",
         lambda *a, **kw: mock_repository,
     )
     return mock_repository
@@ -177,7 +205,7 @@ def patch_repository(monkeypatch, mock_repository) -> Mock:
 def patch_agent_service(monkeypatch, mock_agent_service) -> AsyncMock:
     """Patch AgentService to return mock instance in all handlers."""
     monkeypatch.setattr(
-        "src.english_practice.bot.handlers.AgentService",
+        "english_practice.bot.handlers.AgentService",
         lambda *a, **kw: mock_agent_service,
     )
     return mock_agent_service
@@ -186,7 +214,7 @@ def patch_agent_service(monkeypatch, mock_agent_service) -> AsyncMock:
 @pytest.fixture(autouse=True)
 def reset_state_manager() -> None:
     """Reset state_manager between tests."""
-    from src.english_practice.bot.states import state_manager
+
     state_manager.sessions.clear()
 
 
@@ -194,7 +222,7 @@ def reset_state_manager() -> None:
 def reset_auth(monkeypatch) -> None:
     """Reset auth to disabled by default for all tests."""
     monkeypatch.setattr(
-        "config.settings.settings.telegram.admin_user_id",
+        "english_practice.settings.settings.telegram.admin_user_id",
         None,
     )
 
@@ -203,15 +231,18 @@ def reset_auth(monkeypatch) -> None:
 def patch_auth_enabled(monkeypatch) -> None:
     """Enable authorization with admin_user_id matching the mock user (12345)."""
     monkeypatch.setattr(
-        "config.settings.settings.telegram.admin_user_id",
+        "english_practice.settings.settings.telegram.admin_user_id",
         12345,
     )
 
 
 @pytest.fixture
 def patch_auth_admin(monkeypatch) -> None:
-    """Set admin_user_id to a different ID (not the mock user's) for testing admin-only commands."""
+    """Set admin_user_id to an ID other than the mock user's.
+
+    Used for exercising admin-only commands as a non-admin.
+    """
     monkeypatch.setattr(
-        "config.settings.settings.telegram.admin_user_id",
+        "english_practice.settings.settings.telegram.admin_user_id",
         99999,
     )

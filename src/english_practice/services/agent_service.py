@@ -2,13 +2,13 @@
 
 import logging
 
-from src.english_practice.agents.evaluate import EvaluateAnswerAgent
-from src.english_practice.agents.assistant import AssistantAgent
-from src.english_practice.models.agents import (
+from english_practice.agents.assistant import AssistantAgent
+from english_practice.agents.evaluate import EvaluateAnswerAgent
+from english_practice.models.agents import (
     AssistantOutput,
     EvaluateAnswerOutput,
 )
-from src.english_practice.services.chat_history import ChatHistoryManager
+from english_practice.services.chat_history import ChatHistoryManager
 
 logger = logging.getLogger(__name__)
 

@@ -4,6 +4,7 @@ import base64
 import os
 from pathlib import Path
 
+from mistralai.client import Mistral
 from tqdm import tqdm
 
 
@@ -25,10 +26,8 @@ class ImageOcrExtractor:
         self._model = model
         self._client: Mistral | None = None
 
-    def _get_client(self) -> "Mistral":
+    def _get_client(self) -> Mistral:
         """Return the Mistral client, creating it on first use."""
-        from mistralai.client import Mistral
-
         if self._api_key is None or self._api_key == "":
             raise ValueError(
                 "MISTRAL_API_KEY must be set in environment or passed as api_key"
@@ -79,9 +78,7 @@ class ImageOcrExtractor:
             return res.pages[0].markdown or ""
         return ""
 
-    def ocr_and_save(
-        self, image_path: Path, output_path: Path | None = None
-    ) -> Path:
+    def ocr_and_save(self, image_path: Path, output_path: Path | None = None) -> Path:
         """Extract text from an image and save to a markdown file.
 
         Args:
@@ -120,7 +117,9 @@ class ImageOcrExtractor:
         """
         image_paths = sorted(
             images_dir.glob(pattern),
-            key=lambda p: (int(p.stem),) if p.stem.isdigit() else (float("inf"), p.stem),
+            key=lambda p: (
+                (int(p.stem),) if p.stem.isdigit() else (float("inf"), p.stem)
+            ),
         )
         remaining: list[tuple[Path, Path]] = []
         for img_path in image_paths:

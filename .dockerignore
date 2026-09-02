@@ -8,7 +8,19 @@ data/
 logs/
 tests/
 scripts/
-README.md
-AGENTS.md
-LICENSE
-uv.lock
+docs/
+
+# Local tooling / dev-only files
+.venv/
+.ruff_cache/
+.pytest_cache/
+.claude/
+.idea/
+.vscode/
+.ignore
+.pre-commit-config.yaml
+CLAUDE.md
+
+# NOTE: README.md, LICENSE and uv.lock are intentionally NOT ignored — the
+# uv-based build reads uv.lock, and pyproject.toml references both readme and
+# license-files, so hatchling fails to build the project without them.

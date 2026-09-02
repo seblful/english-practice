@@ -36,3 +36,6 @@ BOTTOM_WHITE_SEARCH_HEIGHT_RATIO = 0.3
 BOTTOM_WHITE_THRESHOLD = 250
 BOTTOM_WHITE_MIN_RATIO = 0.98
 BOTTOM_WHITE_MARGIN = 15
+
+# Smallest crop worth applying when trimming an exercise image, in pixels.
+MIN_MEANINGFUL_CROP_PIXELS = 20

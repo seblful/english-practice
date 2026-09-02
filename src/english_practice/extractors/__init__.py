@@ -11,8 +11,8 @@ __all__ = [
     "BaseExtractor",
     "ExerciseOrganizer",
     "ImageOcrExtractor",
-    "load_json",
     "PDFHandler",
     "RulesExtractor",
+    "load_json",
     "save_json",
 ]

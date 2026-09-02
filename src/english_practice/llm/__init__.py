@@ -7,7 +7,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
-from config.settings import settings
+from english_practice.settings import settings
 
 __all__ = ["get_llm"]
 

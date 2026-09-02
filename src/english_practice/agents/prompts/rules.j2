@@ -35,13 +35,13 @@ Step-by-Step Process:
 1. **Analyze the grammar mechanism** happening in each `full_answer` (e.g., is it an unfinished action? A comparison? A state verb?).
 2. **Scan the <TextbookRulesReference>** for the specific Section (usually A, B, C, D, etc.) that teaches this exact mechanism.
 3. **Extract the Section Letter**. If the markdown doesn't have letters, leave it null.
-4. **Draft the Rule**: Do NOT just copy the section header. Extract the specific, actionable bullet point or sentence from that section that explains the answer. 
+4. **Draft the Rule**: Do NOT just copy the section header. Extract the specific, actionable bullet point or sentence from that section that explains the answer.
    - *Bad:* "Present simple for habits."
    - *Good:* "Use the present simple (I do) for things that happen repeatedly or habits."
 5. **No answers provided**: If a question has no `short_answers` or `full_answers`, generate a common rule for that exercise based on the most relevant section from `<TextbookRulesReference>` that applies to the exercise topic.
 
 <Constraints>
-- **Strict Grounding**: The rule MUST be derived entirely from the provided `<TextbookRulesReference>`. Do not invent outside grammar rules. 
+- **Strict Grounding**: The rule MUST be derived entirely from the provided `<TextbookRulesReference>`. Do not invent outside grammar rules.
 - Format grammar structures in the rule with markdown bold (e.g., **have done**).
 - Keep the rule to 1-2 concise, clear sentences.
 - If the question tests a vocabulary exception specifically listed in the text (e.g., a specific verb that doesn't take -ing), mention that verb in the rule.

@@ -1,0 +1,16 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: v0.7.8
+_src_path: gh:seblful/template-project
+author_email: alesha.chimba@gmail.com
+author_name: Aliaksei Chymba
+code_assistant: claude
+environments:
+- development
+- production
+license: Apache
+package_name: english_practice
+project_description: A VLLM-based English grammar practice application with exercises
+    from English Grammar in Use by Murphy.
+project_slug: english-practice
+python_version: '3.13'
+

@@ -1,0 +1,41 @@
+{
+  "env": {
+    "CLAUDE_ISSUES_REPO": "seblful/seblful-claude-plugins"
+  },
+  "permissions": {
+    "defaultMode": "auto",
+    "allow": [
+      "Bash(uv *)",
+      "Bash(uvx *)",
+      "Bash(git *)",
+      "Bash(ruff *)",
+      "Bash(pre-commit *)",
+      "Bash(ty *)",
+      "Bash(pytest *)",
+      "Bash(mdformat *)",
+      "Bash(mkdocs *)",
+      "Bash(python *)",
+      "Bash(python3 *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)",
+      "Bash(uv publish *)",
+      "Read(.env)",
+      "Read(.env.*)"
+    ]
+  },
+  "extraKnownMarketplaces": {
+    "seblful-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "seblful/seblful-claude-plugins"
+      },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "python-plugin@seblful-claude-plugins": true
+  }
+}

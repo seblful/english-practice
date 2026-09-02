@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
-from src.english_practice.agents.evaluate import EvaluateAnswerAgent
-from src.english_practice.models.agents import EvaluateAnswerInput, EvaluateAnswerOutput
+from english_practice.agents.evaluate import EvaluateAnswerAgent
+from english_practice.models.agents import EvaluateAnswerInput, EvaluateAnswerOutput
 
 
 class TestEvaluateAnswerAgent:
@@ -49,7 +49,9 @@ class TestEvaluateAnswerAgent:
         agent = EvaluateAnswerAgent()
         expected = EvaluateAnswerOutput(is_correct=True, answer_idx=[0])
 
-        with patch.object(agent, "invoke_structured", return_value=expected) as mock_invoke:
+        with patch.object(
+            agent, "invoke_structured", return_value=expected
+        ) as mock_invoke:
             result = await agent.evaluate(
                 image_data=b"img",
                 question_number="1",

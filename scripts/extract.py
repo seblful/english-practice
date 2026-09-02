@@ -1,13 +1,12 @@
+import asyncio
 import sys
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import typer
 
-from config.logging import get_logger
-from config.settings import settings
 from english_practice.extractors import (
     AnswersExtractor,
     ExerciseOrganizer,
@@ -15,6 +14,7 @@ from english_practice.extractors import (
     PDFHandler,
     RulesExtractor,
 )
+from english_practice.logging import get_logger
 from english_practice.models.constants import (
     END_ANSWER_PAGE,
     END_CONTENT_PAGE,
@@ -23,13 +23,16 @@ from english_practice.models.constants import (
     START_CONTENT_PAGE,
     START_UNIT_PAGE,
 )
+from english_practice.settings import settings
 
 logger = get_logger(__name__)
 
 app = typer.Typer()
 
 
-class SectionType(str, Enum):
+class SectionType(StrEnum):
+    """A cuttable section of the source book."""
+
     contents = "contents"
     units = "units"
     answers = "answers"
@@ -44,7 +47,7 @@ def cut_pdf(
         ..., help="The section of the book to cut (contents, units, answers)."
     ),
 ) -> None:
-
+    """Cut the given section out of the source PDF."""
     page_ranges = {
         SectionType.contents: (START_CONTENT_PAGE, END_CONTENT_PAGE),
         SectionType.units: (START_UNIT_PAGE, END_UNIT_PAGE),
@@ -73,6 +76,7 @@ def cut_pdf(
     help="Separate pages from a PDF file into grammar pages and exercise pages.",
 )
 def separate_page_images() -> None:
+    """Split unit pages into grammar and exercise images."""
     handler = PDFHandler()
     handler.separate_page_images(
         file_path=settings.paths.source_dir / settings.book.filename,
@@ -86,7 +90,10 @@ def separate_page_images() -> None:
 
 @app.command(
     name="ocr-grammar-images",
-    help="Extract text from grammar page images via OCR and save to data/grammar (resumable).",
+    help=(
+        "Extract text from grammar page images via OCR "
+        "and save to data/grammar (resumable)."
+    ),
 )
 def ocr_grammar_images() -> None:
     """Run OCR on grammar page images; save .md to data/grammar. Skips existing."""
@@ -128,8 +135,6 @@ def extract_answers() -> None:
     Processes all questions per exercise in a single LLM call.
     Outputs to answers_full.json. Resumes from last stopped unit.
     """
-    import asyncio
-
     extractor = AnswersExtractor(
         output_path=settings.paths.metadata_dir / "answers_full.json",
         answers_path=settings.paths.metadata_dir / "answers.json",
@@ -150,8 +155,6 @@ def extract_rules() -> None:
     Processes all questions per exercise in a single LLM call.
     Outputs to rules.json. Resumes from last stopped unit.
     """
-    import asyncio
-
     extractor = RulesExtractor(
         output_path=settings.paths.metadata_dir / "rules.json",
         answers_path=settings.paths.metadata_dir / "answers.json",

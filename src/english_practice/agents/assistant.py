@@ -4,15 +4,15 @@ from typing import TYPE_CHECKING
 
 from langsmith import traceable
 
-from src.english_practice.agents.base import BaseAgent
-from src.english_practice.models.agents import (
+from english_practice.agents.base import BaseAgent
+from english_practice.models.agents import (
     AssistantContext,
     AssistantOutput,
     ChatMessage,
 )
 
 if TYPE_CHECKING:
-    from src.english_practice.services.chat_history import ChatHistoryManager
+    from english_practice.services.chat_history import ChatHistoryManager
 
 
 class AssistantAgent(BaseAgent):

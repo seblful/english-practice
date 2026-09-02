@@ -2,37 +2,32 @@
 
 import base64
 import logging
-import mimetypes
-from pathlib import Path
+from functools import lru_cache
 from typing import Any, ClassVar, TypeVar
 
 from jinja2 import Environment, FileSystemLoader
-from langchain_core.messages import HumanMessage
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import HumanMessage
 from langsmith import traceable
 from pydantic import BaseModel
 
-from config.settings import settings
-from src.english_practice.llm import get_llm
+from english_practice.llm import get_llm
+from english_practice.settings import settings
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
-_prompt_env: Environment | None = None
 
-
+@lru_cache(maxsize=1)
 def _get_prompt_env() -> Environment:
     """Get or create singleton Jinja environment."""
-    global _prompt_env
-    if _prompt_env is None:
-        _prompt_env = Environment(
-            loader=FileSystemLoader(settings.paths.prompts_dir),
-            autoescape=False,
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
-    return _prompt_env
+    return Environment(
+        loader=FileSystemLoader(settings.paths.prompts_dir),
+        autoescape=False,
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
 
 
 class BaseAgent:
@@ -99,9 +94,7 @@ class BaseAgent:
             content.append(
                 {
                     "type": "image_url",
-                    "image_url": {
-                        "url": f"data:{mime_type};base64,{base64_image}"
-                    },
+                    "image_url": {"url": f"data:{mime_type};base64,{base64_image}"},
                 }
             )
 
@@ -130,5 +123,4 @@ class BaseAgent:
 
         structured_llm = self.llm.with_structured_output(output_model)
 
-        response = await structured_llm.ainvoke([message])
-        return response
+        return await structured_llm.ainvoke([message])

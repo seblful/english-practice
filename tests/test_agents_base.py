@@ -7,7 +7,7 @@ import pytest
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 
-from src.english_practice.agents.base import BaseAgent, _get_prompt_env
+from english_practice.agents.base import BaseAgent, _get_prompt_env
 
 
 class DummyModel(BaseModel):
@@ -16,6 +16,7 @@ class DummyModel(BaseModel):
 
 class _TestAgent(BaseAgent):
     """Concrete agent for testing (not collected by pytest)."""
+
     PROMPT_TEMPLATE = "evaluate.j2"
 
 
@@ -82,7 +83,9 @@ class TestBaseAgentCreateMessage:
     @pytest.mark.asyncio
     async def test_with_custom_mime_type(self) -> None:
         agent = _TestAgent()
-        msg = await agent._create_message("hello", image_data=b"img", mime_type="image/jpeg")
+        msg = await agent._create_message(
+            "hello", image_data=b"img", mime_type="image/jpeg"
+        )
         assert "data:image/jpeg;base64," in msg.content[1]["image_url"]["url"]
 
 
@@ -96,9 +99,7 @@ class TestBaseAgentInvokeStructured:
         # Mock the LLM
         mock_llm = MagicMock()
         mock_structured = MagicMock()
-        mock_structured.ainvoke = AsyncMock(
-            return_value=DummyModel(name="response")
-        )
+        mock_structured.ainvoke = AsyncMock(return_value=DummyModel(name="response"))
         mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
         agent._llm = mock_llm
 
@@ -133,7 +134,7 @@ class TestBaseAgentInvokeStructured:
 class TestBaseAgentLLMProperty:
     """Tests for llm property."""
 
-    @patch("src.english_practice.agents.base.get_llm")
+    @patch("english_practice.agents.base.get_llm")
     def test_lazy_loading(self, mock_get_llm) -> None:
         mock_get_llm.return_value = MagicMock()
         agent = _TestAgent()
@@ -142,7 +143,7 @@ class TestBaseAgentLLMProperty:
         assert agent._llm is not None
         mock_get_llm.assert_called_once()
 
-    @patch("src.english_practice.agents.base.get_llm")
+    @patch("english_practice.agents.base.get_llm")
     def test_caches_llm(self, mock_get_llm) -> None:
         mock_get_llm.return_value = MagicMock()
         agent = _TestAgent()

@@ -14,6 +14,7 @@ uv run scripts/database/populate.py
 ```
 
 This creates `data/content/english_practice.db` with:
+
 - **145 units** - Grammar lessons
 - **433 exercises** - Exercise images
 - **3,025 questions** - Questions with answers
@@ -27,6 +28,7 @@ uv run scripts/database/validate.py
 ```
 
 Validates:
+
 - Image files exist for all exercises
 - No duplicate entries
 - No orphaned data
@@ -50,6 +52,12 @@ Validates:
 uv run main.py
 ```
 
+The project also exposes a CLI entry point:
+
+```bash
+uv run english-practice info
+```
+
 ### Configuration
 
 Create a `.env` file in the project root (see `.env.example`):
@@ -63,6 +71,9 @@ LANGSMITH_TRACING=false
 ```
 
 The bot validates required settings on startup and will show which ones are missing.
+
+Set `APP__ENVIRONMENT` to select which `.env.<environment>` file is loaded alongside
+`.env` (missing files are ignored). It defaults to `development`.
 
 ### Bot Commands
 
@@ -105,6 +116,16 @@ uv run scripts/extract.py organize-exercises
 uv sync
 ```
 
+### Checks
+
+```bash
+uv run pytest                       # run tests
+uv run ruff check .                 # lint
+uv run ruff format .                # format
+uv run ty check src/ tests/         # type check
+uv run pre-commit run --all-files   # run all hooks
+```
+
 ### Docker (Local Testing)
 
 ```bash
@@ -125,7 +146,7 @@ Note: `.env` files cannot have inline comments — values like `KEY=value  # com
 - Use `pathlib.Path` for file operations
 - Use Google-style docstrings
 
-See `AGENTS.md` for detailed guidelines.
+See `CLAUDE.md` for detailed guidelines.
 
 ## Data Sources
 

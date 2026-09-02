@@ -1,6 +1,6 @@
 """Tests for ChatHistoryManager."""
 
-from src.english_practice.services.chat_history import ChatHistoryManager
+from english_practice.services.chat_history import ChatHistoryManager
 
 
 class TestChatHistoryManager:

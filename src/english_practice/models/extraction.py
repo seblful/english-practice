@@ -1,6 +1,6 @@
 """Extraction output models for structured data."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class ExtractedAnswer(BaseModel):

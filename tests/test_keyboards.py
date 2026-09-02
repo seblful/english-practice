@@ -1,8 +1,8 @@
 """Tests for keyboard builders."""
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardMarkup
 
-from src.english_practice.bot.keyboards import (
+from english_practice.bot.keyboards import (
     get_exercise_keyboard,
     get_start_menu_keyboard,
     get_topic_keyboard,

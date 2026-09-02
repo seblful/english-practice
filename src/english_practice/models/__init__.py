@@ -1,4 +1,4 @@
-from src.english_practice.models.agents import (
+from english_practice.models.agents import (
     AssistantOutput,
     EvaluateAnswerOutput,
     ExerciseAnswersOutput,
@@ -6,14 +6,14 @@ from src.english_practice.models.agents import (
     QuestionAnswerItem,
     QuestionRuleItem,
 )
-from src.english_practice.models.book import (
+from english_practice.models.book import (
     Exercise,
     Question,
     QuestionAnswer,
     Topic,
     Unit,
 )
-from src.english_practice.models.extraction import (
+from english_practice.models.extraction import (
     ExtractedAnswer,
     ExtractedExerciseAnswers,
     ExtractedExerciseRules,

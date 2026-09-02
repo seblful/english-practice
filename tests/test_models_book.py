@@ -5,14 +5,16 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from src.english_practice.models.book import Exercise, Question, QuestionAnswer, Topic, Unit
+from english_practice.models.book import Exercise, Question, QuestionAnswer, Topic, Unit
 
 
 class TestUnit:
     """Tests for Unit model."""
 
     def test_minimal(self) -> None:
-        unit = Unit(unit_number=1, title="Present Tenses", grammar_md_path="grammar/1.md")
+        unit = Unit(
+            unit_number=1, title="Present Tenses", grammar_md_path="grammar/1.md"
+        )
         assert unit.unit_number == 1
         assert unit.title == "Present Tenses"
 
