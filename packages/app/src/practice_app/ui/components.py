@@ -41,10 +41,10 @@ __all__ = [
     "STRETCH",
     "action_bar",
     "banner",
-    "choice_chips",
     "collapsible",
     "confirm_dialog",
     "dialog",
+    "dropdown",
     "field_label",
     "filter_chip",
     "hint",
@@ -260,16 +260,23 @@ def pill(
     text: str,
     *,
     icon: ft.IconData | None = None,
+    trailing: ft.IconData | None = None,
     color: str | None = None,
     bgcolor: str | None = None,
+    on_click: ClickHandler | None = None,
+    tooltip: str | None = None,
 ) -> ft.Container:
     """Return a compact rounded label, used for topics, units and badges.
 
     Args:
         text: The label.
         icon: Optional leading icon.
+        trailing: Optional icon after the label, which is what a pill that
+            folds something open uses to say so.
         color: Foreground colour.
         bgcolor: Background colour.
+        on_click: Makes the pill tappable, with the ink to prove it.
+        tooltip: What tapping it does.
 
     Returns:
         The pill.
@@ -281,12 +288,17 @@ def pill(
     children.append(
         ft.Text(text, size=12, weight=ft.FontWeight.W_500, color=foreground)
     )
+    if trailing is not None:
+        children.append(ft.Icon(trailing, size=16, color=foreground))
 
     return ft.Container(
         content=ft.Row(controls=children, spacing=6, tight=True),
         padding=ft.Padding.symmetric(horizontal=10, vertical=5),
         bgcolor=bgcolor or ft.Colors.SECONDARY_CONTAINER,
         border_radius=RADIUS_SMALL,
+        ink=on_click is not None,
+        on_click=on_click,
+        tooltip=tooltip,
     )
 
 
@@ -355,6 +367,22 @@ def text_field(**props: Any) -> ft.TextField:
     return ft.TextField(**_field_style(props))
 
 
+def dropdown(**props: Any) -> ft.Control:
+    """Return a list of choices in the same style as :func:`text_field`.
+
+    Material sizes a dropdown to its longest entry rather than to its parent,
+    which left one sitting two thirds the width of every field above it. The
+    row is what fixes that here, once, so a caller cannot forget it.
+
+    Args:
+        **props: Anything :class:`ft.Dropdown` takes.
+
+    Returns:
+        The dropdown, filling the width of its panel.
+    """
+    return ft.Row(controls=[ft.Dropdown(expand=True, **_field_style(props))])
+
+
 CHIP_LABEL_SIZE = 13
 
 
@@ -378,54 +406,13 @@ def filter_chip(
     return ft.Chip(
         label=ft.Text(label, size=CHIP_LABEL_SIZE, weight=ft.FontWeight.W_600),
         selected=selected,
-        show_checkmark=True,
+        # A check mark grows the chip by its own width, so turning the filters
+        # on wrapped the picker's one row of them onto two -- which is exactly
+        # the moment the list underneath needs the height most. The fill says
+        # the filter is on, and says it at a constant width.
+        show_checkmark=False,
         selected_color=ft.Colors.PRIMARY_CONTAINER,
         on_select=on_select,
-    )
-
-
-def choice_chips(
-    options: Sequence[tuple[str, str]],
-    *,
-    selected: str,
-    on_select: Callable[[str], Any],
-    disabled: bool = False,
-) -> ft.Control:
-    """Return one row of chips, of which exactly one is chosen.
-
-    This is what the app uses where a dropdown would otherwise go. Material
-    sizes a dropdown to its longest entry rather than to its parent, so one
-    sat two thirds the width of every field above it; and on a phone a list of
-    five short choices is worth showing outright rather than hiding behind a
-    menu that costs two taps to read.
-
-    Args:
-        options: ``(value, label)`` pairs, in order.
-        selected: The value currently chosen.
-        on_select: Called with the value of the chip that was tapped.
-        disabled: Whether the whole group is unavailable, which is what shows
-            a setting that does not apply rather than hiding it.
-
-    Returns:
-        The chips, wrapping onto a second line when they do not fit.
-    """
-    return ft.Row(
-        controls=[
-            ft.Chip(
-                label=ft.Text(label, size=CHIP_LABEL_SIZE, weight=ft.FontWeight.W_600),
-                selected=value == selected,
-                disabled=disabled,
-                show_checkmark=False,
-                selected_color=ft.Colors.PRIMARY_CONTAINER,
-                # A tap on the chip that is already chosen re-applies it,
-                # rather than leaving the group with nothing selected.
-                on_select=lambda _, chosen=value: on_select(chosen),
-            )
-            for value, label in options
-        ],
-        spacing=GAP_SMALL,
-        wrap=True,
-        run_spacing=GAP_SMALL,
     )
 
 

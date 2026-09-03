@@ -14,8 +14,9 @@ Nothing here opens a dialog. A lesson is a full-screen task on a phone, and a
 box floating over the middle of one -- to say what a unit covers, to magnify
 the picture, to ask whether the user really means to leave -- reads as an
 interruption from somewhere else. So every one of those is part of the screen
-instead: the unit is a line under the heading, the picture magnifies into the
-whole screen, and leaving is asked in the same sheet the verdict arrives in.
+instead: what the unit covers unfolds from the unit's own chip, the picture
+magnifies into the whole screen, and leaving is asked in the same sheet the
+verdict arrives in.
 """
 
 from collections.abc import Callable
@@ -164,6 +165,10 @@ class PracticeScreen(ft.Column):
         # that moves the lesson on.
         self._grading_error: str | None = None
         self._rule_open = False
+        # Whether the unit's chip has been tapped to say what the unit covers.
+        # It shuts again with every new question: the line belongs to the
+        # question being read, not to the lesson.
+        self._unit_open = False
         # Two panes the lesson can put over itself, both part of the screen
         # rather than a dialog above it: the magnified picture, and the
         # question asked on the way out.
@@ -217,7 +222,7 @@ class PracticeScreen(ft.Column):
 
         self.controls = [
             self._lesson_bar(lesson),
-            self._scroller(*self._question_panels(lesson, active)),
+            self._scroller(*self._question_panels(active)),
             self._lesson_foot(lesson, active),
         ]
 
@@ -313,85 +318,87 @@ class PracticeScreen(ft.Column):
             ),
         )
 
-    def _question_panels(
-        self, lesson: Lesson, active: ActiveExercise
-    ) -> list[ft.Control]:
+    def _question_panels(self, active: ActiveExercise) -> list[ft.Control]:
         """Return the question itself.
 
         Args:
-            lesson: The run in progress, for the heading's count.
             active: The exercise in front of the user.
 
         Returns:
             Where it came from, what to do with it, the picture, and the field.
         """
         return [
-            self._meta(lesson, active),
+            self._meta(active),
             self._image_card(active),
             self._answer_panel(active),
         ]
 
-    def _meta(self, lesson: Lesson, active: ActiveExercise) -> ft.Control:
+    def _meta(self, active: ActiveExercise) -> ft.Control:
         """Return the block above the picture that places the question.
 
-        The heading counts the *lesson*, because the bar directly above it
-        does. The book has its own numbering -- the sentence this question is
-        in the printed exercise -- and that number is what the user needs to
-        find the right line in the picture, so it sits in the pills with the
-        unit rather than in the heading, where "Question 6" read as a
-        contradiction of the bar's "2/10".
+        The heading is the book's own numbering -- which sentence of the
+        printed exercise this is -- because that is the number the user reads
+        the picture with. How far along the lesson is belongs to the bar
+        directly above it, and saying it again here, in a different counting,
+        is what made "Question 6" read as a contradiction of "2/10".
 
         Args:
-            lesson: The run in progress.
             active: The exercise in front of the user.
 
         Returns:
-            The topic, the unit, the sentence, the count, what the unit covers
-            and the instruction.
+            The topic, the unit, what the unit covers while it is unfolded,
+            the sentence, and the instruction.
         """
         unit = active.exercise.unit
-        return ft.Column(
-            controls=[
-                ft.Row(
-                    controls=[
-                        pill(active.topic_name, icon=ft.Icons.CATEGORY_ROUNDED),
-                        pill(
-                            f"Unit {unit.unit_number}",
-                            icon=ft.Icons.MENU_BOOK_ROUNDED,
-                            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-                            color=ft.Colors.ON_SURFACE_VARIANT,
+        children: list[ft.Control] = [
+            ft.Row(
+                controls=[
+                    pill(active.topic_name, icon=ft.Icons.CATEGORY_ROUNDED),
+                    pill(
+                        f"Unit {unit.unit_number}",
+                        icon=ft.Icons.MENU_BOOK_ROUNDED,
+                        trailing=(
+                            ft.Icons.EXPAND_LESS_ROUNDED
+                            if self._unit_open
+                            else ft.Icons.EXPAND_MORE_ROUNDED
                         ),
-                        pill(
-                            f"Sentence {active.question.question_id}",
-                            icon=ft.Icons.FORMAT_LIST_NUMBERED_ROUNDED,
-                            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-                            color=ft.Colors.ON_SURFACE_VARIANT,
-                        ),
-                    ],
-                    spacing=GAP_SMALL,
-                    wrap=True,
-                    run_spacing=GAP_SMALL,
-                ),
-                ft.Text(
-                    f"Question {lesson.position} of {lesson.length}",
-                    size=22,
-                    weight=ft.FontWeight.W_700,
-                ),
-                # What the unit covers. It used to be a dialog behind the unit
-                # chip, which is a lot of ceremony for one line that is worth
-                # reading before answering anyway.
+                        on_click=lambda _: self._toggle_unit(),
+                        tooltip="What this unit covers",
+                    ),
+                ],
+                spacing=GAP_SMALL,
+                wrap=True,
+                run_spacing=GAP_SMALL,
+            )
+        ]
+        if self._unit_open:
+            # What the unit covers, unfolded from the chip it belongs to
+            # rather than standing under the heading whether it was asked
+            # for or not.
+            children.append(
                 ft.Text(
                     unit.title,
                     size=13,
                     weight=ft.FontWeight.W_600,
                     color=ft.Colors.ON_SURFACE_VARIANT,
+                )
+            )
+        children.extend(
+            [
+                ft.Text(
+                    f"Sentence {active.question.question_id}",
+                    size=22,
+                    weight=ft.FontWeight.W_700,
                 ),
                 hint(
                     "Answer in your own words - the grammar is what counts."
                     if active.question.is_open_ended
                     else "Type the missing words, or the whole sentence."
                 ),
-            ],
+            ]
+        )
+        return ft.Column(
+            controls=children,
             spacing=GAP_SMALL,
             tight=True,
             horizontal_alignment=STRETCH,
@@ -786,25 +793,31 @@ class PracticeScreen(ft.Column):
                 padding=ft.Padding.only(left=GAP_TINY, right=GAP, bottom=GAP_TINY),
             ),
             ft.Container(
+                # The viewer takes the frame itself. Centring it in the
+                # container instead handed it loose constraints, under which
+                # it measured itself at nothing and drew an empty screen --
+                # the bar on top of a blank page, with the crop nowhere.
                 content=ft.InteractiveViewer(
-                    # The mount hugs the picture instead of filling the
-                    # screen: these crops are wide and short, and a
-                    # full-height white sheet around one is mostly blank paper.
                     content=ft.Container(
-                        content=ft.Image(src=image, fit=ft.BoxFit.FIT_WIDTH),
-                        padding=GAP_SMALL,
-                        bgcolor=ft.Colors.WHITE,
-                        border_radius=RADIUS,
+                        # The white sheet hugs the picture instead of filling
+                        # the frame: these crops are wide and short, and a
+                        # full-height sheet around one is mostly blank paper.
+                        content=ft.Container(
+                            content=ft.Image(src=image, fit=ft.BoxFit.FIT_WIDTH),
+                            padding=GAP_SMALL,
+                            bgcolor=ft.Colors.WHITE,
+                            border_radius=RADIUS,
+                        ),
+                        alignment=ft.Alignment.CENTER,
                     ),
                     min_scale=1,
                     max_scale=6,
-                    alignment=ft.Alignment.CENTER,
                     # Room to drag a magnified crop past the frame's edge,
                     # rather than being clamped with its margin still cut off.
                     boundary_margin=ft.Margin.all(_ZOOM_PAN_MARGIN),
+                    expand=True,
                 ),
                 margin=ft.Margin.only(left=GAP, right=GAP, bottom=GAP),
-                alignment=ft.Alignment.CENTER,
                 expand=True,
             ),
         ]
@@ -934,6 +947,12 @@ class PracticeScreen(ft.Column):
         """Close a finished lesson."""
         await self._end_lesson()
 
+    def _toggle_unit(self) -> None:
+        """Fold what the unit covers open or shut, from a tap on its chip."""
+        self._unit_open = not self._unit_open
+        self.render()
+        push(self)
+
     def _on_toggle_rule(self) -> None:
         """Fold the rule open or shut."""
         self._rule_open = not self._rule_open
@@ -1020,6 +1039,7 @@ class PracticeScreen(ft.Column):
             lesson.active = drawn
             self._answer.value = ""
             self._rule_open = False
+            self._unit_open = False
             self._grading_error = None
 
         self.render()
@@ -1046,6 +1066,7 @@ class PracticeScreen(ft.Column):
 
         self._answer.value = ""
         self._rule_open = False
+        self._unit_open = False
         self._grading_error = None
         self._close_panes()
         lesson = self._session.begin(topic_id, topic_name)

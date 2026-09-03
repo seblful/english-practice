@@ -41,9 +41,8 @@ bottom — leaving the question, and what you wrote, exactly where they were.
 ```
 ✕  ▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░    3/10
 ──────────────────────────────────────────
- 📚 Present Tenses  📖 Unit 12  ☰ Sentence 3
- Question 3 of 10
- Present continuous: I am doing
+ 📚 Present Tenses  📖 Unit 12 ⌄
+ Sentence 3
  Type the missing words, or the sentence.
 ┌────────────────────────────────────────┐
 │        [ exercise image ]         🔍   │
@@ -63,8 +62,12 @@ bottom — leaving the question, and what you wrote, exactly where they were.
 ╰────────────────────────────────────────╯
 ```
 
-Nothing in a lesson opens a dialog. What a unit covers is a line under the
-heading; tapping the picture gives it the whole screen, with a way back in the
+The heading is the book's own numbering — which sentence of the printed
+exercise this is — because that is the number you read the picture with. How
+far along the lesson is belongs to the bar above it, and is said once.
+
+Nothing in a lesson opens a dialog. What a unit covers unfolds from the unit's
+own chip; tapping the picture gives it the whole screen, with a way back in the
 same place the lesson's own is; and leaving — from the cross or from Android's
 Back — is asked in the sheet the verdict arrives in, so the question and what
 you typed stay where they are while you decide. Back never closes the app out

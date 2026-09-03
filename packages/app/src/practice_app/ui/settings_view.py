@@ -41,8 +41,8 @@ from practice_app.ui.components import (
     SCROLL,
     STRETCH,
     banner,
-    choice_chips,
     collapsible,
+    dropdown,
     field_label,
     hint,
     inline_action,
@@ -357,6 +357,11 @@ class SettingsScreen(ft.Column):
     def _thinking_panel(self) -> ft.Control:
         """Return the thinking-level control for the selected model.
 
+        The levels are a list rather than a row of chips. They are an ordered
+        scale from off to hardest, which is what a list reads as, and a
+        provider can offer six of them -- more than a phone fits on one line
+        without wrapping them into a block to be scanned rather than read.
+
         Returns:
             The panel.
         """
@@ -369,12 +374,15 @@ class SettingsScreen(ft.Column):
         current = active.thinking if active.thinking in levels else levels[0]
 
         return panel(
-            field_label("Thinking level"),
-            choice_chips(
-                [(level.value, level.label) for level in levels],
-                selected=current.value,
-                on_select=self._choose_thinking,
+            dropdown(
+                label="Thinking level",
+                value=current.value,
+                options=[
+                    ft.DropdownOption(key=level.value, text=level.label)
+                    for level in levels
+                ],
                 disabled=not can_think,
+                on_select=self._choose_thinking,
             ),
             hint(
                 current.description
@@ -688,13 +696,16 @@ class SettingsScreen(ft.Column):
         self._check_result = None
         await self._apply(replace(self._config, provider=Provider(chosen)))
 
-    def _choose_thinking(self, level: str) -> None:
+    def _choose_thinking(self, event: ft.Event[ft.Dropdown]) -> None:
         """Change how hard the model should think.
 
         Args:
-            level: The value of the chip that was tapped. A chip's callback
-                cannot await, so the save is scheduled.
+            event: The list's selection event. Its callback cannot await, so
+                the save is scheduled.
         """
+        level = event.control.value
+        if level is None:  # pragma: no cover - the list always has a value
+            return
         self._page.run_task(self._on_thinking, level)
 
     async def _on_thinking(self, level: str) -> None:

@@ -4,6 +4,13 @@ A provider's catalogue runs to several hundred entries, so this is a search
 box over a lazily built list rather than a dropdown. Only the first
 :data:`MAX_RESULTS` matches are turned into controls: building five hundred
 rows on every keystroke is what makes a picker feel broken on a phone.
+
+Everything above the list is written to cost as little height as it can,
+because choosing a model means typing, and the keyboard takes half the screen
+away while you do. So the count sits inside the search field, the filters keep
+one row whether they are on or off, closing and reloading are icons on the
+title, and each entry is three lines rather than four -- which together are
+what put more than a single model on screen while the keyboard is up.
 """
 
 from collections.abc import Callable, Sequence
@@ -18,11 +25,17 @@ from practice_app.ui.components import (
     pill,
     text_field,
 )
-from practice_app.ui.theme import GAP, GAP_SMALL, RADIUS_SMALL
+from practice_app.ui.theme import GAP, GAP_SMALL, GAP_TINY, RADIUS_SMALL
 
 __all__ = ["MAX_RESULTS", "ModelPicker", "visible_models"]
 
 MAX_RESULTS = 60
+
+# Taller and wider than any phone, so the picker takes whatever the dialog's
+# insets and the keyboard leave it rather than shrinking to the longest model
+# id on screen. Material clamps both to the space actually available.
+_PICKER_WIDTH = 560
+_PICKER_HEIGHT = 900
 
 
 def visible_models(
@@ -80,10 +93,17 @@ class ModelPicker(ft.AlertDialog):
         self._selected = selected
         self._on_select = on_select
 
+        self._count = hint("")
         self._search = text_field(
             hint_text="Search by name or id",
             prefix_icon=ft.Icons.SEARCH_ROUNDED,
             dense=True,
+            content_padding=ft.Padding.symmetric(
+                horizontal=GAP_SMALL, vertical=GAP_SMALL
+            ),
+            # How many models the filters leave, in the field they are typed
+            # in. On its own line it cost a whole entry of the list.
+            suffix=self._count,
             # A model id is not prose: autocorrect turning "qwen" into a word
             # would silently empty the list.
             autocorrect=False,
@@ -99,7 +119,6 @@ class ModelPicker(ft.AlertDialog):
             "Thinking", selected=False, on_select=self._refilter
         )
         self._free = filter_chip("Free", selected=False, on_select=self._refilter)
-        self._count = hint("")
         self._list = ft.ListView(
             spacing=GAP_SMALL - 2,
             build_controls_on_demand=True,
@@ -109,21 +128,36 @@ class ModelPicker(ft.AlertDialog):
         super().__init__(
             title=ft.Row(
                 controls=[
-                    ft.Text(f"{provider_label} models", expand=True),
+                    ft.Text(
+                        f"{provider_label} models",
+                        size=16,
+                        weight=ft.FontWeight.W_700,
+                        max_lines=1,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                        expand=True,
+                    ),
                     ft.IconButton(
                         icon=ft.Icons.REFRESH_ROUNDED,
+                        icon_size=20,
                         tooltip="Reload the catalogue",
                         on_click=lambda _: on_refresh(),
                     ),
+                    # Closing is an icon up here rather than a button along
+                    # the bottom, where its row cost the list one model.
+                    ft.IconButton(
+                        icon=ft.Icons.CLOSE_ROUNDED,
+                        icon_size=20,
+                        tooltip="Close",
+                        on_click=self._close,
+                    ),
                 ],
+                spacing=0,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
+            title_padding=ft.Padding.only(left=GAP, right=GAP_TINY, top=GAP_SMALL),
             content=ft.Container(
-                # Wider and taller than any phone, so the picker fills what
-                # the dialog's insets leave it instead of shrinking around
-                # whatever the longest visible model id happens to be.
-                width=560,
-                height=520,
+                width=_PICKER_WIDTH,
+                height=_PICKER_HEIGHT,
                 content=ft.Column(
                     controls=[
                         self._search,
@@ -131,17 +165,20 @@ class ModelPicker(ft.AlertDialog):
                             controls=[self._vision, self._thinking, self._free],
                             spacing=GAP_SMALL,
                             wrap=True,
+                            run_spacing=GAP_SMALL,
                         ),
-                        self._count,
                         self._list,
                     ],
-                    spacing=GAP_SMALL + 2,
+                    spacing=GAP_SMALL,
                     horizontal_alignment=STRETCH,
                 ),
             ),
-            content_padding=ft.Padding.symmetric(horizontal=GAP, vertical=GAP_SMALL),
-            actions=[ft.TextButton(content="Close", on_click=self._close)],
-            actions_alignment=ft.MainAxisAlignment.END,
+            content_padding=ft.Padding.symmetric(
+                horizontal=GAP, vertical=GAP_SMALL - 2
+            ),
+            # The keyboard already takes half the screen; the dialog is not
+            # spending another 80dp of it on margins.
+            inset_padding=ft.Padding.symmetric(horizontal=GAP_SMALL, vertical=GAP),
         )
         self._render()
 
@@ -198,12 +235,9 @@ class ModelPicker(ft.AlertDialog):
                 )
             )
 
-        total = len(self._models)
-        self._count.value = (
-            f"{len(matches)} of {total} models"
-            if len(matches) != total
-            else f"{total} models"
-        )
+        # Short, because it sits inside the search field: a sentence there
+        # would take the room the query is typed in.
+        self._count.value = f"{len(matches)}/{len(self._models)}"
 
     def _pick(self, model: ModelInfo) -> None:
         """Report the chosen model and close.
@@ -222,7 +256,9 @@ class ModelPicker(ft.AlertDialog):
             model: The model to show.
 
         Returns:
-            A tappable row naming the model and what it can do.
+            A tappable row naming the model and what it can do, in three
+            lines: four wrapped the badges onto a second row and made the
+            entry tall enough that two of them filled the list.
         """
         is_selected = model.id == self._selected
 
@@ -231,15 +267,19 @@ class ModelPicker(ft.AlertDialog):
             badges.append(pill("vision", icon=ft.Icons.IMAGE_ROUNDED))
         if model.supports_thinking:
             badges.append(pill("thinking", icon=ft.Icons.PSYCHOLOGY_ROUNDED))
-        for label in (model.context_label, model.price_label):
-            if label:
-                badges.append(
-                    pill(
-                        label,
-                        bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-                        color=ft.Colors.ON_SURFACE_VARIANT,
-                    )
+        # The window and the price on one badge rather than two: they are
+        # both numbers about the same model, and two pills of them wrapped.
+        facts = " - ".join(
+            label for label in (model.context_label, model.price_label) if label
+        )
+        if facts:
+            badges.append(
+                pill(
+                    facts,
+                    bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+                    color=ft.Colors.ON_SURFACE_VARIANT,
                 )
+            )
 
         details: list[ft.Control] = [
             ft.Text(
@@ -287,7 +327,7 @@ class ModelPicker(ft.AlertDialog):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=GAP_SMALL,
             ),
-            padding=ft.Padding.symmetric(horizontal=GAP_SMALL + 4, vertical=10),
+            padding=ft.Padding.symmetric(horizontal=GAP_SMALL + 4, vertical=GAP_SMALL),
             bgcolor=(
                 ft.Colors.PRIMARY_CONTAINER
                 if is_selected

@@ -151,6 +151,25 @@ class TestComponents:
         built = pill("Topic", icon=ft.Icons.CATEGORY_ROUNDED)
 
         assert "Topic" in rendered(built)
+        assert built.on_click is None
+        assert built.ink is False
+
+    def test_a_pill_that_folds_something_open_is_tappable(self) -> None:
+        taps: list[int] = []
+        # As Flet delivers it: a handler taking the event, called with one.
+        built: Any = pill(
+            "Unit 1",
+            icon=ft.Icons.MENU_BOOK_ROUNDED,
+            trailing=ft.Icons.EXPAND_MORE_ROUNDED,
+            on_click=lambda _: taps.append(1),
+            tooltip="What this unit covers",
+        )
+
+        built.on_click(None)
+
+        assert taps == [1]
+        assert built.ink is True
+        assert built.tooltip == "What this unit covers"
 
     def test_a_banner_shows_its_actions(self) -> None:
         built = banner(
@@ -315,6 +334,25 @@ def _button(control: Any, label: str) -> Any:
             if label in rendered(button):
                 return button
     raise AssertionError(f"no button labelled {label!r}")
+
+
+def _pill(control: Any, label: str) -> Any:
+    """Return the tappable pill carrying ``label``.
+
+    Args:
+        control: Where to look.
+        label: The pill's text.
+
+    Returns:
+        The pill.
+
+    Raises:
+        AssertionError: If no tappable pill carries that text.
+    """
+    for container in _all(control, ft.Container):
+        if container.on_click is not None and label in texts(container.content):
+            return container
+    raise AssertionError(f"no tappable pill labelled {label!r}")
 
 
 async def _start(screen: PracticeScreen, length: int | None = None) -> Lesson:
@@ -616,24 +654,24 @@ class TestLessonFlow:
         assert "1/10" in body
         assert "Check" in body
 
-    async def test_the_heading_counts_the_lesson_not_the_book(
+    async def test_the_heading_is_the_sentence_to_answer(
         self, page: FakePage, services: Services
     ) -> None:
         """Two numbers labelled alike, meaning different things, read as a bug.
 
-        The bar says how far into the run the user is. The heading used to
-        show the book's own numbering instead, so a first question drawn from
-        sentence 2 of a printed exercise appeared as "Question 2" under a bar
-        reading "1/10".
+        The bar says how far into the run the user is, and says it once. The
+        heading is the book's own numbering -- the sentence of the printed
+        exercise this question is -- which is the number the picture is read
+        with.
         """
         screen = PracticeScreen(page, services)
 
         await _start(screen)
 
         body = rendered(screen)
-        assert "Question 1 of 10" in body
-        # The book's number is still there, told apart from the run's count.
         assert "Sentence 2" in body
+        assert "Question" not in body
+        assert "1/10" in body
 
     async def test_a_mixed_lesson_labels_the_topic_it_landed_on(
         self, page: FakePage, services: Services
@@ -693,8 +731,8 @@ class TestLessonFlow:
         # The question is still on screen: nothing scrolled away under a reply.
         assert "Sentence 2" in body
         # And the run has not moved on yet, because the user has not: the
-        # counter used to announce the next question over this one's verdict.
-        assert "Question 1 of 10" in body
+        # bar used to announce the next question over this one's verdict.
+        assert "1/10" in body
         assert "1/10" in body
 
     async def test_a_correct_answer_keeps_the_sheet_short(
@@ -921,15 +959,43 @@ class TestLessonFlow:
         assert lesson.active is not None
         assert lesson.active.is_revealed is True
 
-    async def test_the_question_says_what_the_unit_covers(
+    async def test_the_unit_chip_says_what_the_unit_covers(
         self, page: FakePage, services: Services
     ) -> None:
-        """It used to be a dialog behind the unit chip. A line is enough."""
+        """It used to be a dialog behind the chip. Unfolding it is enough."""
         screen = PracticeScreen(page, services)
         await _start(screen)
 
+        assert "Present Continuous" not in rendered(screen)
+
+        _pill(screen, "Unit 1").on_click(None)
+
         assert "Present Continuous" in rendered(screen)
         assert page.dialogs == []
+
+    async def test_tapping_the_unit_chip_again_folds_it_away(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        _pill(screen, "Unit 1").on_click(None)
+
+        _pill(screen, "Unit 1").on_click(None)
+
+        assert "Present Continuous" not in rendered(screen)
+
+    async def test_a_new_question_folds_the_unit_away(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """The line belongs to the question being read, not to the lesson."""
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        _pill(screen, "Unit 1").on_click(None)
+        await _answer(screen)
+
+        await screen._on_continue()
+
+        assert "Present Continuous" not in rendered(screen)
 
 
 class TestZoomingThePicture:
@@ -947,6 +1013,24 @@ class TestZoomingThePicture:
         assert page.dialogs == []
         # The question is not underneath it: this replaced the lesson.
         assert "YOUR ANSWER" not in rendered(screen)
+
+    async def test_the_magnified_picture_is_given_the_frame_to_draw_in(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """A viewer with no frame of its own drew an empty screen.
+
+        Centring it inside its container handed it loose constraints, under
+        which it measured itself at nothing: the bar arrived over a blank
+        page, with the crop nowhere on it.
+        """
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+
+        screen._open_zoom()
+
+        viewer = _find(screen, ft.InteractiveViewer)
+        assert viewer.expand is True
+        assert _find(viewer, ft.Image).src == b"\x89PNG\r\n\x1a\n"
 
     async def test_back_closes_the_zoom_before_the_lesson(
         self, page: FakePage, services: Services
@@ -1378,7 +1462,28 @@ class TestModelPicker:
     def test_the_count_reflects_the_filters(self, catalogue: list[ModelInfo]) -> None:
         picker, _, _ = self._picker(catalogue)
 
-        assert "1 of 3 models" in str(picker._count.value)
+        assert picker._count.value == "1/3"
+
+    def test_the_count_is_shown_inside_the_search_field(
+        self, catalogue: list[ModelInfo]
+    ) -> None:
+        """On its own line it cost the list a whole model."""
+        picker, _, _ = self._picker(catalogue)
+
+        assert picker._search.suffix is picker._count
+
+    def test_the_picker_closes_from_its_title(self, catalogue: list[ModelInfo]) -> None:
+        """The button along the bottom cost the list another model."""
+        picker, _, _ = self._picker(catalogue)
+
+        assert picker.actions == []
+        closers = [
+            button
+            for button in _all(picker.title, ft.IconButton)
+            if button.tooltip == "Close"
+        ]
+        assert len(closers) == 1
+        closers[0].on_click()
 
 
 # ----------------------------------------------------------------------
@@ -1540,31 +1645,33 @@ class TestSettingsScreen:
 
         assert services.config.active.thinking is ThinkingLevel.HIGH
 
-    async def test_tapping_a_level_schedules_the_save(
+    async def test_choosing_a_level_schedules_the_save(
         self, page: FakePage, services: Services
     ) -> None:
-        """A chip's callback cannot await, so the work is handed to the page."""
+        """The list's callback cannot await, so the work is handed to the page."""
         services.config = services.config.with_active(model_supports_thinking=True)
         screen = SettingsScreen(page, services)
 
-        screen._choose_thinking("medium")
+        screen._choose_thinking(_event(ft.Dropdown(value="medium")))
         await page.drain()
 
         assert services.config.active.thinking is ThinkingLevel.MEDIUM
 
-    def test_every_level_is_offered_as_a_chip(
+    def test_every_level_is_offered_on_the_list(
         self, page: FakePage, services: Services
     ) -> None:
-        """A dropdown sized itself to its longest entry; chips show them all."""
+        """Six ordered levels are a list, not a block of wrapped chips."""
         services.config = services.config.with_active(model_supports_thinking=True)
         screen = SettingsScreen(page, services)
 
-        chips = _all(screen.controls[2], ft.Chip)
+        levels = _find(screen.controls[2], ft.Dropdown)
 
-        assert [rendered(chip) for chip in chips] == [
+        assert [option.text for option in levels.options] == [
             level.label for level in supported_thinking_levels(Provider.OPENROUTER)
         ]
-        assert [chip.selected for chip in chips].count(True) == 1
+        assert levels.value == ThinkingLevel.OFF.value
+        # Material sizes a dropdown to its longest entry, not to its panel.
+        assert levels.expand is True
 
     def test_a_model_that_cannot_think_disables_the_control(
         self, page: FakePage, services: Services
@@ -1572,7 +1679,7 @@ class TestSettingsScreen:
         screen = SettingsScreen(page, services)
 
         assert "no thinking control" in rendered(screen)
-        assert all(chip.disabled for chip in _all(screen.controls[2], ft.Chip))
+        assert _find(screen.controls[2], ft.Dropdown).disabled is True
 
     async def test_choosing_a_model_carries_its_capabilities(
         self, page: FakePage, services: Services, catalogue: list[ModelInfo]
