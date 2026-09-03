@@ -53,7 +53,7 @@ from practice_app.ui.model_picker import MAX_RESULTS, ModelPicker, visible_model
 from practice_app.ui.practice_view import PracticeScreen
 from practice_app.ui.settings_view import SettingsScreen
 from practice_app.ui.stats_view import StatsScreen
-from practice_app.ui.theme import build_theme, theme_mode
+from practice_app.ui.theme import CORRECT, ON_CORRECT, build_theme, theme_mode
 from tests.conftest import FakePage, reply_transport
 
 
@@ -697,6 +697,16 @@ class TestLessonFlow:
 
         assert _find(screen, ft.Image).src == b"\x89PNG\r\n\x1a\n"
 
+    async def test_the_crop_is_never_rounded_off(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """A radius on the picture clips the corners of a page of the book."""
+        screen = PracticeScreen(page, services)
+
+        await _start(screen)
+
+        assert _find(screen, ft.Image).border_radius is None
+
     async def test_an_exercise_without_a_picture_says_so(
         self, page: FakePage, services: Services
     ) -> None:
@@ -734,6 +744,31 @@ class TestLessonFlow:
         # bar used to announce the next question over this one's verdict.
         assert "1/10" in body
         assert "1/10" in body
+
+    async def test_a_correct_answer_is_green(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """Right is green. The brand blue read as another announcement."""
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+
+        await _answer(screen)
+
+        sheet_shown: Any = screen.controls[-1]
+        assert sheet_shown.bgcolor == CORRECT
+        assert _button(sheet_shown, "Continue").bgcolor == ON_CORRECT
+        assert _find(sheet_shown, ft.Icon).color == ON_CORRECT
+
+    async def test_a_wrong_answer_is_not_green(
+        self, page: FakePage, wrong_services: Services
+    ) -> None:
+        screen = PracticeScreen(page, wrong_services)
+        await _start(screen)
+
+        await _answer(screen)
+
+        sheet_shown: Any = screen.controls[-1]
+        assert sheet_shown.bgcolor == ft.Colors.ERROR_CONTAINER
 
     async def test_a_correct_answer_keeps_the_sheet_short(
         self, page: FakePage, services: Services

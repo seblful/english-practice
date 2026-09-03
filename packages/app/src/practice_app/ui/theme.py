@@ -21,12 +21,14 @@ from practice_app.config import ThemeChoice
 
 __all__ = [
     "ACTION_HEIGHT",
+    "CORRECT",
     "GAP",
     "GAP_LARGE",
     "GAP_SMALL",
     "GAP_TINY",
     "INLINE_ACTION_HEIGHT",
     "LABEL_SIZE",
+    "ON_CORRECT",
     "RADIUS",
     "RADIUS_BUTTON",
     "RADIUS_LARGE",
@@ -38,6 +40,16 @@ __all__ = [
 
 # Sampled from the book cover the bot uses as its avatar.
 SEED = "#4582c3"
+
+# Material 3 has no role for "right", so a correct answer used to borrow the
+# brand blue -- the same blue as the hero card, the pills and every heading,
+# which made the one verdict worth celebrating read as another announcement.
+# These are the only literal colours in the app, and they are saturated rather
+# than a pale container pair on purpose: the theme is followed on both
+# brightnesses, and a pale green sheet that works under a light theme is a
+# bright block in the middle of a dark one.
+CORRECT = ft.Colors.GREEN_700
+ON_CORRECT = ft.Colors.WHITE
 
 # Three radii, and no fourth. Fields, pills and the cards nested inside a
 # panel take the small one; panels and the tiles in a row take the middle one;

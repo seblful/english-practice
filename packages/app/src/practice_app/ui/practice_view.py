@@ -56,9 +56,11 @@ from practice_app.ui.components import (
 from practice_app.ui.home_view import HomeState, HomeView
 from practice_app.ui.page import DialogPage
 from practice_app.ui.theme import (
+    CORRECT,
     GAP,
     GAP_SMALL,
     GAP_TINY,
+    ON_CORRECT,
     RADIUS,
     RADIUS_SMALL,
 )
@@ -424,10 +426,13 @@ class PracticeScreen(ft.Column):
         return ft.Container(
             content=ft.Column(
                 controls=[
+                    # Nothing rounds the crop itself. A radius on the
+                    # picture clips its corners, and the corners of a page
+                    # from the book carry the exercise number and the last
+                    # word of the first line.
                     ft.Image(
                         src=active.image,
                         fit=ft.BoxFit.FIT_WIDTH,
-                        border_radius=RADIUS_SMALL,
                         gapless_playback=True,
                     ),
                     # Under the crop rather than floating over a corner of it.
@@ -539,8 +544,8 @@ class PracticeScreen(ft.Column):
             on_tint = ft.Colors.ON_TERTIARY_CONTAINER
             icon = ft.Icons.LIGHTBULB_OUTLINE_ROUNDED
         elif evaluation.is_correct:
-            tint = ft.Colors.PRIMARY_CONTAINER
-            on_tint = ft.Colors.ON_PRIMARY_CONTAINER
+            tint = CORRECT
+            on_tint = ON_CORRECT
             icon = ft.Icons.CHECK_CIRCLE_ROUNDED
         else:
             tint = ft.Colors.ERROR_CONTAINER
