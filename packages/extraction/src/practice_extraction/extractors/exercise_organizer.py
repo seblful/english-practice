@@ -3,6 +3,7 @@ from typing import NamedTuple
 
 import cv2
 import numpy as np
+from practice_core.errors import PracticeError
 from practice_runtime.logging import get_logger
 from tqdm import tqdm
 
@@ -36,6 +37,15 @@ from practice_extraction.constants import (
 )
 
 logger = get_logger(__name__)
+
+
+class UnusableSlice(PracticeError):
+    """A page produced a slice too small to be an exercise.
+
+    Raised rather than skipped: the slice's position is what becomes its
+    exercise number on disk, so dropping one renumbers every exercise below
+    it and every later stage keys on that number.
+    """
 
 
 class BoundingBox(NamedTuple):
@@ -125,10 +135,9 @@ class ExerciseOrganizer:
             raise ValueError(f"Cannot read image: {image_path}")
 
         img = self._crop_image(img)
-        height, width = img.shape[:2]
 
         # Detect exercise header boxes
-        search_width = int(width * EXERCISE_SEARCH_WIDTH_RATIO)
+        search_width = int(img.shape[1] * EXERCISE_SEARCH_WIDTH_RATIO)
         left_region = img[:, :search_width]
         boxes = self._detect_exercise_headers(left_region)
 
@@ -136,7 +145,7 @@ class ExerciseOrganizer:
             return [img]
 
         # Extract individual exercises
-        exercises = self._split_into_exercises(img, boxes, height, width)
+        exercises = self._split_into_exercises(img, boxes)
 
         return exercises if exercises else [img]
 
@@ -201,20 +210,26 @@ class ExerciseOrganizer:
         self,
         img: np.ndarray,
         boxes: list[BoundingBox],
-        height: int,
-        width: int,
     ) -> list[np.ndarray]:
         """Split page image into individual exercises based on header positions.
+
+        The bounds come off ``img`` rather than from the caller: they have
+        to agree with the array being sliced, and numpy clips a slice that
+        runs past the end instead of raising, so a stale pair would show up
+        as a truncated crop rather than as an error.
 
         Args:
             img: Full page image
             boxes: Detected exercise header boxes
-            height: Image height
-            width: Image width
 
         Returns:
             List of exercise images
+
+        Raises:
+            UnusableSlice: If a header yields a slice under the minimum
+                height, which cannot be dropped without renumbering the page.
         """
+        height, width = img.shape[:2]
         exercises = []
 
         for i, box in enumerate(boxes):
@@ -226,16 +241,20 @@ class ExerciseOrganizer:
 
             exercise_img = img[start_y:end_y, 0:width]
 
-            # Skip exercises that are too small. A slice's position becomes its
-            # exercise number when it is saved, so dropping one silently
-            # renumbers every exercise below it on the page.
+            # A slice's position becomes its exercise number when it is saved,
+            # so dropping one renumbers every exercise below it on the page --
+            # and every later stage keys on that number. The crop the student
+            # is shown then holds a different sentence from the one they are
+            # asked to answer, and nothing downstream can tell: the row counts
+            # stay consistent and `validate` passes. Whether the right answer
+            # is to renumber, leave a gap, or re-tune the detector depends on
+            # the page, so this refuses it and says which one to look at.
             if exercise_img.shape[0] < EXERCISE_MIN_HEIGHT:
-                logger.warning(
-                    "exercise_slice_dropped",
-                    header_index=i,
-                    height=int(exercise_img.shape[0]),
+                raise UnusableSlice(
+                    f"header {i + 1} of {len(boxes)} yielded a "
+                    f"{exercise_img.shape[0]}px slice, under the "
+                    f"{EXERCISE_MIN_HEIGHT}px minimum"
                 )
-                continue
 
             # Crop bottom white space only for the last exercise
             if is_last:
@@ -370,18 +389,32 @@ class ExerciseOrganizer:
             output_dir: Output directory
 
         Returns:
-            List of created exercise file paths
+            List of created exercise file paths. A page whose split could not
+            be numbered contributes nothing and is named in the log, so the
+            gap is visible to every later stage.
         """
         output_paths = []
+
+        refused: list[int] = []
 
         for page_path in tqdm(page_files, desc="Processing pages"):
             page_num = int(page_path.stem)
             # Always at least one image: a page with no detected header is kept
             # whole rather than dropped.
-            exercises = self._extract_from_page(page_path)
+            try:
+                exercises = self._extract_from_page(page_path)
+            except UnusableSlice as exc:
+                # Nothing is written for this page, so the gap is visible to
+                # every later stage instead of being a silent renumbering.
+                refused.append(page_num)
+                logger.warning("page_refused", page=page_num, reason=str(exc))
+                continue
 
             page_output_paths = self._save_exercises(exercises, output_dir, page_num)
             output_paths.extend(page_output_paths)
+
+        if refused:
+            logger.warning("pages_need_attention", pages=refused, count=len(refused))
 
         return output_paths
 

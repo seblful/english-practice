@@ -17,7 +17,7 @@ from practice_core.errors import ContentError
 from practice_runtime.errors import ConfigurationError
 from practice_runtime.llm import get_llm
 from practice_runtime.logging import get_logger, setup_logging
-from practice_runtime.settings import BASE_DIR, secret_value
+from practice_runtime.settings import BASE_DIR, DATABASE_FILENAME, secret_value
 
 from practice_extraction import populate as populate_module
 from practice_extraction import validate as validate_module
@@ -45,10 +45,11 @@ logger = get_logger(__name__)
 
 app = typer.Typer(help="english-practice content pipeline", no_args_is_help=True)
 
-# Where `packages/app/pyproject.toml` expects the bundled database.
+# Where `packages/app/pyproject.toml` expects the bundled database. The name
+# comes from the runtime settings that declare it, not from a fourth literal.
 MOBILE_CONTENT_PATH = (
     BASE_DIR / "packages" / "app" / "src" / "practice_app" / "content"
-) / "english_practice.db"
+) / DATABASE_FILENAME
 
 
 def _chat_model() -> BaseChatModel:

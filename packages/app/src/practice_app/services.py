@@ -6,7 +6,7 @@ connection pool for the whole app — and what lets a test hand a screen a fake
 without patching module globals.
 
 Changing a setting has to reach the pool: the proxy and the timeout are baked
-into an :class:`~practice.llm.LLMClient` when it is built, so
+into an :class:`~practice_app.llm.LLMClient` when it is built, so
 :meth:`Services.update_config` closes the old one instead of leaving requests
 going through a proxy the user has just turned off.
 """

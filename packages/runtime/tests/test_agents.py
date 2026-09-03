@@ -71,17 +71,34 @@ class TestRender:
             _TestAgent(MagicMock()).render(DummyModel(name="test"))
 
     def test_an_agent_without_a_template(self) -> None:
-        with pytest.raises(ConfigurationError, match="PROMPT_TEMPLATE"):
+        with pytest.raises(
+            ConfigurationError, match="PROMPT_ANCHOR or PROMPT_TEMPLATE"
+        ):
             BaseAgent(MagicMock()).render(DummyModel(name="test"))
 
     def test_an_agent_without_an_anchor(self) -> None:
-        """Naming a template but not its package would read the wrong package."""
+        """Naming a template but not its package would read the wrong package.
+
+        The message used to name PROMPT_TEMPLATE either way, so this subclass
+        was told to declare the one thing it had declared.
+        """
 
         class _Anchorless(BaseAgent):
             PROMPT_TEMPLATE = "evaluate.j2"
 
-        with pytest.raises(ConfigurationError, match="PROMPT_TEMPLATE"):
+        with pytest.raises(
+            ConfigurationError, match=r"does not declare PROMPT_ANCHOR$"
+        ):
             _Anchorless(MagicMock()).render(_context())
+
+    def test_an_agent_without_a_template_but_with_an_anchor(self) -> None:
+        class _Templateless(BaseAgent):
+            PROMPT_ANCHOR = "practice_core"
+
+        with pytest.raises(
+            ConfigurationError, match=r"does not declare PROMPT_TEMPLATE$"
+        ):
+            _Templateless(MagicMock()).render(_context())
 
 
 class TestBuildMessage:

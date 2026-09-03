@@ -25,9 +25,18 @@ class ActiveExercise(SharedExercise):
     What the bot adds is routing: once an answer has been graded, the next
     message the user sends is a question *about* the exercise rather than
     another attempt at it, and this is the flag that decides which.
+
+    ``grading`` covers the gap that flag leaves. The bot runs updates
+    concurrently, so a second message can arrive while the grader is still
+    being awaited for the first -- and ``answered`` is only set once the
+    verdict is back. Both messages then saw an unanswered question and both
+    were graded: one answer, two provider calls, two contradictory verdicts.
     """
 
     answered: bool = False
+    # Set for the length of one grading call, and cleared however it ends: a
+    # grading that failed leaves the question open for another attempt.
+    grading: bool = False
 
 
 @dataclass(slots=True)

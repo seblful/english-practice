@@ -14,12 +14,18 @@ from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 __all__ = [
+    "DEFAULT_OCR_MODEL",
     "BookSettings",
     "ImageSettings",
     "OcrSettings",
     "Settings",
     "get_settings",
 ]
+
+#: The OCR model the pipeline calls unless the environment names another. The
+#: extractor's own default reads it from here, so bumping the model in one
+#: place cannot leave the test suite exercising a retired one.
+DEFAULT_OCR_MODEL = "mistral-ocr-latest"
 
 
 class BookSettings(BaseSettings):
@@ -50,7 +56,7 @@ class OcrSettings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("OCR_API_KEY", "MISTRAL_API_KEY", "API_KEY"),
     )
-    model: str = "mistral-ocr-latest"
+    model: str = DEFAULT_OCR_MODEL
 
 
 class Settings(BaseAppSettings):

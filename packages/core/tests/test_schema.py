@@ -3,9 +3,11 @@
 import sqlite3
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
+from practice_core import schema
 from practice_core.content import ContentLibrary
 from practice_core.errors import ContentError
 from practice_core.schema import (
@@ -138,3 +140,31 @@ class TestConnectContent:
     def test_a_path_that_cannot_be_opened(self, tmp_path: Path) -> None:
         with pytest.raises(ContentError, match="could not open"):
             connect_content(tmp_path / "no-such-dir" / "new.db")
+
+    def test_a_connection_that_fails_on_the_way_out_is_closed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The caller only owns a connection it was handed back.
+
+        A schema that cannot be created leaves nobody holding the connection,
+        so closing it is this function's job or it leaks for the process.
+        """
+        opened = MagicMock()
+        monkeypatch.setattr(schema.sqlite3, "connect", lambda *_, **__: opened)
+        monkeypatch.setattr(
+            schema,
+            "create_content_schema",
+            MagicMock(side_effect=ContentError("no schema for you")),
+        )
+
+        with pytest.raises(ContentError, match="no schema for you"):
+            connect_content(tmp_path / "new.db", create=True)
+
+        opened.close.assert_called_once_with()
+
+    def test_a_file_that_is_not_a_database(self, tmp_path: Path) -> None:
+        broken = tmp_path / "broken.db"
+        broken.write_bytes(b"this is not a database")
+
+        with pytest.raises(ContentError, match="could not create the content schema"):
+            connect_content(broken, create=True)

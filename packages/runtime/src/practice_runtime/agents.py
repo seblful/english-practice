@@ -78,9 +78,14 @@ class BaseAgent:
                 template was not packaged, or if it asks for something the
                 context does not carry.
         """
-        if not self.PROMPT_TEMPLATE or not self.PROMPT_ANCHOR:
+        undeclared = [
+            name
+            for name in ("PROMPT_ANCHOR", "PROMPT_TEMPLATE")
+            if not getattr(self, name)
+        ]
+        if undeclared:
             raise ConfigurationError(
-                f"{type(self).__name__} does not declare a PROMPT_TEMPLATE"
+                f"{type(self).__name__} does not declare {' or '.join(undeclared)}"
             )
         return render_packaged_template(
             self.PROMPT_ANCHOR, self.PROMPT_TEMPLATE, context

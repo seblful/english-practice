@@ -7,25 +7,7 @@ The practice content itself is not here. Units, exercises, questions and
 answers come from :mod:`practice_core.models`, shared with the Android app, and
 are imported from there directly rather than through a shim in this package —
 one name for one model.
+
+That rule applies to the two submodules above as well, which is why this file
+re-exports nothing: every importer names the submodule it wants.
 """
-
-from practice_bot.models.agents import (
-    AssistantContext,
-    AssistantOutput,
-    ChatMessage,
-    ChatRole,
-    EvaluateAnswerInput,
-    EvaluateAnswerOutput,
-)
-from practice_bot.models.auth import AuthStatus, PendingUser
-
-__all__ = [
-    "AssistantContext",
-    "AssistantOutput",
-    "AuthStatus",
-    "ChatMessage",
-    "ChatRole",
-    "EvaluateAnswerInput",
-    "EvaluateAnswerOutput",
-    "PendingUser",
-]

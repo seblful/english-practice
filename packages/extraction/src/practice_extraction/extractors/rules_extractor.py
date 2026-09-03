@@ -3,6 +3,7 @@
 import json
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 
 from practice_runtime.logging import get_logger
 from practice_runtime.settings import PathSettings
@@ -49,24 +50,26 @@ class RulesExtractor(BaseExtractor):
         path = self._paths.grammar_md_dir / f"{unit_number}.md"
         return path.read_text(encoding="utf-8") if path.exists() else None
 
-    def _load_answers_full_data(self) -> dict:
+    def _load_answers_full_data(self) -> dict[str, Any]:
         """Load answers_full data from JSON file."""
         if self._answers_full_path.exists():
             return json.loads(self._answers_full_path.read_text(encoding="utf-8"))
         return {}
 
-    def _build_answers_full_map(self, answers_full: dict) -> dict[str, dict]:
-        """Build a map of exercise:question_id to full answer info."""
+    def _build_answers_full_map(
+        self, answers_full: dict[str, Any]
+    ) -> dict[tuple[str, str], dict[str, Any]]:
+        """Index full answer info by ``(exercise_id, question_id)``."""
         return {
-            f"{e['exercise_id']}:{q['question_id']}": q
+            (e["exercise_id"], q["question_id"]): q
             for u in answers_full.get("units", [])
             for e in u.get("exercises", [])
             for q in e.get("questions", [])
         }
 
     @cached_property
-    def _answers_full_map(self) -> dict[str, dict]:
-        """Full answers indexed by ``"<exercise_id>:<question_id>"``, read once."""
+    def _answers_full_map(self) -> dict[tuple[str, str], dict[str, Any]]:
+        """Full answers indexed by ``(exercise_id, question_id)``, read once."""
         return self._build_answers_full_map(self._load_answers_full_data())
 
     async def extract(self) -> Path:
@@ -95,7 +98,7 @@ class RulesExtractor(BaseExtractor):
 
     async def _process_exercise(
         self,
-        exercise: dict,
+        exercise: dict[str, Any],
         rules_md: str,
         topic_name: str,
     ) -> ExtractedExerciseRules:
@@ -113,13 +116,13 @@ class RulesExtractor(BaseExtractor):
         )
         return self._build_exercise_data(exercise_id, questions_input, result)
 
-    def _prepare_questions(self, exercise: dict) -> list[RulesQuestion]:
+    def _prepare_questions(self, exercise: dict[str, Any]) -> list[RulesQuestion]:
         """Prepare questions for extraction."""
         questions = []
         for question in exercise.get("questions", []):
             question_id = question["question_id"]
 
-            key = f"{exercise['exercise_id']}:{question_id}"
+            key = (exercise["exercise_id"], question_id)
             full_info = self._answers_full_map.get(key, {})
             answers = full_info.get("answers", [])
 

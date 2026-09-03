@@ -91,9 +91,15 @@ def connect_content(db_path: Path, *, create: bool = False) -> sqlite3.Connectio
     except sqlite3.Error as exc:
         raise ContentError(f"could not open {db_path}: {exc}") from exc
 
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    if create:
-        create_content_schema(connection)
-        connection.commit()
+    try:
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        if create:
+            create_content_schema(connection)
+            connection.commit()
+    except (sqlite3.Error, ContentError):
+        # The caller only owns a connection it was handed, so one that fails
+        # on the way out has to be closed here or it leaks for the process.
+        connection.close()
+        raise
     return connection

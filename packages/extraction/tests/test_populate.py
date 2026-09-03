@@ -133,7 +133,9 @@ class TestBuildRulesMap:
             ]
         }
 
-        assert _build_rules_map(data) == {"1.1:2": {"question_id": "2", "rule": "r"}}
+        assert _build_rules_map(data) == {
+            ("1.1", "2"): {"question_id": "2", "rule": "r"}
+        }
 
     def test_empty_input(self) -> None:
         assert _build_rules_map({}) == {}
@@ -235,6 +237,25 @@ class TestMain:
 
         assert main(paths=content_root) == 1
         assert "Error importing data" in capsys.readouterr().out
+
+    def test_a_failed_run_leaves_no_database_behind(
+        self,
+        db_path: Path,
+        content_root: PathSettings,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A partial file is indistinguishable from a finished one downstream.
+
+        `Artifact.exists` for the database is a bare `is_file()`, so `check`
+        printed "populate: done" over whatever landed before the failure, and
+        `bundle` would ship it into the APK.
+        """
+        (content_root.metadata_dir / "rules.json").unlink()
+
+        assert main(paths=content_root) == 1
+
+        assert not db_path.exists()
+        assert "Removed the partial database" in capsys.readouterr().out
 
     def test_reads_the_configured_database_path_when_given_none(
         self, content_root: PathSettings, monkeypatch: pytest.MonkeyPatch

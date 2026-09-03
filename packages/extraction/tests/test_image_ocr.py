@@ -1,5 +1,6 @@
 """Tests for ImageOcrExtractor."""
 
+import base64
 import os
 from unittest.mock import MagicMock, patch
 
@@ -9,6 +10,9 @@ import pytest
 os.environ.setdefault("OTEL_PROPAGATORS", "tracecontext,baggage")
 
 from practice_extraction.extractors.image_ocr import ImageOcrExtractor
+
+PNG_MAGIC = bytes.fromhex("89504e470d0a1a0a")
+JPEG_MAGIC = bytes.fromhex("ffd8ff")
 
 
 class TestImageOcrExtractor:
@@ -36,18 +40,34 @@ class TestImageOcrExtractor:
     def test_encode_image_png(self, tmp_path) -> None:
         extractor = ImageOcrExtractor(api_key="test")
         img = tmp_path / "test.png"
-        img.write_bytes(b"fake_image_data")
+        img.write_bytes(PNG_MAGIC + b"fake_image_data")
 
         result = extractor._encode_image(img)
         assert result.startswith("data:image/png;base64,")
-        assert "ZmFrZV9pbWFnZV9kYXRh" in result
+        assert base64.b64encode(img.read_bytes()).decode("ascii") in result
 
     def test_encode_image_jpg(self, tmp_path) -> None:
         extractor = ImageOcrExtractor(api_key="test")
         img = tmp_path / "test.jpg"
-        img.write_bytes(b"data")
+        img.write_bytes(JPEG_MAGIC + b"data")
         result = extractor._encode_image(img)
         assert result.startswith("data:image/jpeg;base64,")
+
+    def test_the_type_comes_from_the_bytes_not_the_suffix(self, tmp_path) -> None:
+        """A .png holding a JPEG used to be announced to Mistral as a PNG."""
+        extractor = ImageOcrExtractor(api_key="test")
+        img = tmp_path / "mislabelled.png"
+        img.write_bytes(JPEG_MAGIC + b"body")
+
+        assert extractor._encode_image(img).startswith("data:image/jpeg;base64,")
+
+    def test_a_suffix_iana_does_not_name(self, tmp_path) -> None:
+        """`f"image/{suffix[1:]}"` happily emitted "image/tif"."""
+        extractor = ImageOcrExtractor(api_key="test")
+        img = tmp_path / "scan.tif"
+        img.write_bytes(PNG_MAGIC + b"body")
+
+        assert extractor._encode_image(img).startswith("data:image/png;base64,")
 
     def test_ocr_returns_markdown(self, tmp_path) -> None:
         extractor = ImageOcrExtractor(api_key="test-key")

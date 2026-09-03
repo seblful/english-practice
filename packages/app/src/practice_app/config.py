@@ -14,12 +14,14 @@ import json
 import os
 import tempfile
 from dataclasses import dataclass, field, replace
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 from practice_app.providers import Provider, ThinkingLevel
 
 __all__ = [
+    "MAX_PORT",
     "AppConfig",
     "ConfigStore",
     "ProviderConfig",
@@ -35,17 +37,23 @@ DEFAULT_TIMEOUT = 90.0
 
 PROXY_SCHEMES = ("http", "https", "socks5")
 
-_MAX_PORT = 65535
+#: The highest port a proxy can sit on. Public because the settings screen
+#: has to reject what it is typed, not only what is read back.
+MAX_PORT = 65535
 
 
-class ThemeChoice:
-    """The three values :attr:`AppConfig.theme` can take."""
+class ThemeChoice(StrEnum):
+    """The three values :attr:`AppConfig.theme` can take.
+
+    An enum rather than a bag of constants, like :class:`Provider` and
+    :class:`ThinkingLevel` beside it: the members still compare and serialise
+    as their strings, but a value that is not one of them can be rejected
+    where it is chosen instead of only where it is read back.
+    """
 
     SYSTEM = "system"
     LIGHT = "light"
     DARK = "dark"
-
-    ALL = (SYSTEM, LIGHT, DARK)
 
 
 def _as_float(value: Any, fallback: float) -> float:
@@ -133,7 +141,7 @@ class ProxyConfig:
             enabled=bool(data.get("enabled", False)),
             scheme=scheme if scheme in PROXY_SCHEMES else "http",
             host=_as_str(data.get("host")),
-            port=port if isinstance(port, int) and 0 < port <= _MAX_PORT else None,
+            port=port if isinstance(port, int) and 0 < port <= MAX_PORT else None,
             username=_as_str(data.get("username")),
             password=data.get("password")
             if isinstance(data.get("password"), str)
@@ -247,7 +255,7 @@ class AppConfig:
     )
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
     show_rules: bool = True
-    theme: str = ThemeChoice.SYSTEM
+    theme: ThemeChoice = ThemeChoice.SYSTEM
     temperature: float = DEFAULT_TEMPERATURE
     max_tokens: int = DEFAULT_MAX_TOKENS
     request_timeout: float = DEFAULT_TIMEOUT
@@ -258,11 +266,6 @@ class AppConfig:
         return self.providers.setdefault(
             self.provider, _default_provider(self.provider)
         )
-
-    @property
-    def is_ready(self) -> bool:
-        """Whether grading can be attempted at all."""
-        return not self.missing()
 
     def missing(self) -> list[str]:
         """Return one message per reason grading cannot run yet.
@@ -304,7 +307,7 @@ class AppConfig:
             },
             "proxy": self.proxy.to_dict(),
             "show_rules": self.show_rules,
-            "theme": self.theme,
+            "theme": self.theme.value,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             "request_timeout": self.request_timeout,
@@ -339,13 +342,16 @@ class AppConfig:
             for known in Provider
         }
 
-        theme = _as_str(data.get("theme")).lower()
+        try:
+            theme = ThemeChoice(_as_str(data.get("theme")).lower())
+        except ValueError:
+            theme = ThemeChoice.SYSTEM
         return cls(
             provider=provider,
             providers=providers,
             proxy=ProxyConfig.from_dict(data.get("proxy")),
             show_rules=bool(data.get("show_rules", True)),
-            theme=theme if theme in ThemeChoice.ALL else ThemeChoice.SYSTEM,
+            theme=theme,
             temperature=_as_float(data.get("temperature"), DEFAULT_TEMPERATURE),
             max_tokens=_as_int(data.get("max_tokens"), DEFAULT_MAX_TOKENS),
             request_timeout=_as_float(data.get("request_timeout"), DEFAULT_TIMEOUT),

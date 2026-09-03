@@ -1,7 +1,7 @@
 """Tests for the lesson both front ends can now run.
 
-These assert through the four transitions rather than by setting fields, which
-is the point of moving them here: recording an outcome used to be the caller's
+These assert through the transitions rather than by setting fields, which is
+the point of moving them here: recording an outcome used to be the caller's
 duty, so the rule that a revealed answer never counts as correct was enforced
 by whoever remembered to pass ``correct=False``.
 """
@@ -39,6 +39,12 @@ def lesson(active: ActiveExercise) -> Lesson:
     return Lesson(topic_id=1, topic_name="Present Tenses", active=active)
 
 
+def _answer(lesson: Lesson, active: ActiveExercise, *, correct: bool) -> None:
+    """Draw a question and grade it, the way a front end drives a run."""
+    lesson.advance(active)
+    lesson.check(EvaluateAnswerOutput(is_correct=correct))
+
+
 class TestTopicLabel:
     def test_the_requested_topic_wins(self, unit: Unit) -> None:
         assert topic_label(topic_name="Past Tenses", unit=unit) == "Past Tenses"
@@ -57,9 +63,6 @@ class TestTopicLabel:
 class TestActiveExercise:
     def test_a_fresh_question_is_not_revealed(self, active: ActiveExercise) -> None:
         assert active.is_revealed is False
-
-    def test_names_the_unit_and_section(self, active: ActiveExercise) -> None:
-        assert active.unit_reference == "1A"
 
     def test_reveals_through_the_shared_decision(
         self, active: ActiveExercise, answers: list[QuestionAnswer]
@@ -169,9 +172,9 @@ class TestProgress:
 
         assert lesson.position == 2
 
-    def test_a_finished_run(self, lesson: Lesson) -> None:
+    def test_a_finished_run(self, lesson: Lesson, active: ActiveExercise) -> None:
         for _ in range(LESSON_LENGTH):
-            lesson.record(correct=True)
+            _answer(lesson, active, correct=True)
 
         assert lesson.is_complete is True
         assert lesson.progress == 1.0
@@ -181,7 +184,7 @@ class TestProgress:
         self, lesson: Lesson, active: ActiveExercise
     ) -> None:
         for _ in range(LESSON_LENGTH + 3):
-            lesson.record(correct=True)
+            _answer(lesson, active, correct=True)
         lesson.advance(
             ActiveExercise(
                 exercise=active.exercise,

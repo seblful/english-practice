@@ -211,7 +211,6 @@ class TestAppConfig:
 class TestMissing:
     def test_a_ready_config_is_missing_nothing(self, config: AppConfig) -> None:
         assert config.missing() == []
-        assert config.is_ready is True
 
     def test_a_missing_key_is_reported_by_provider_name(self) -> None:
         config = AppConfig()

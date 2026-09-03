@@ -966,6 +966,26 @@ class TestLessonFlow:
 
         assert "open-ended" in rendered(screen)
 
+    async def test_a_closed_question_with_no_answer_is_not_called_open_ended(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """An empty reveal used to read as open-ended whatever caused it.
+
+        `validate` reports a closed question with no rows in question_answers
+        as a failure, so it happens -- and telling the student the question
+        was free-form says their own sentence was the point.
+        """
+        screen = PracticeScreen(page, services)
+        lesson = await _start(screen)
+        assert lesson.active is not None
+        lesson.active.answers = ()
+
+        await screen._on_reveal()
+
+        note = rendered(screen)
+        assert "The book records no answer" in note
+        assert "open-ended" not in note
+
     async def test_continuing_draws_the_next_question(
         self, page: FakePage, services: Services
     ) -> None:
@@ -1841,6 +1861,22 @@ class TestSettingsScreen:
 
         assert services.config.proxy.port is None
 
+    async def test_a_port_above_the_maximum_is_dropped(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """Staged and read back used to disagree about the range.
+
+        Anything made of digits was written to settings.json, and the launch
+        after that quietly dropped it -- so a proxy the user had configured
+        and tested was simply off, with the screen blaming a missing host.
+        """
+        services.config = replace(services.config, proxy=ProxyConfig(enabled=True))
+        screen = SettingsScreen(page, services)
+
+        screen._stage_proxy_port(_event(ft.TextField(value="99999")))
+
+        assert services.config.proxy.port is None
+
     async def test_the_proxy_scheme_is_saved(
         self, page: FakePage, services: Services
     ) -> None:
@@ -2020,6 +2056,17 @@ class TestSettingsScreen:
 
         assert page.popped == 1
         assert isinstance(page.last_dialog, ModelPicker)
+
+    async def test_a_refresh_while_one_is_in_flight_is_ignored(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """Its twin has this guard; only a popped dialog stood in for it here."""
+        screen = SettingsScreen(page, services)
+        screen._loading_models = True
+
+        await screen._reload_models()
+
+        assert page.popped == 0
 
     def test_the_pickers_callbacks_schedule_work(
         self, page: FakePage, services: Services, catalogue: list[ModelInfo]

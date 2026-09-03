@@ -114,7 +114,7 @@ class TestRulesExtractor:
             ],
         }
         result = extractor._build_answers_full_map(data)
-        assert "1.1:1" in result
+        assert ("1.1", "1") in result
 
     def test_prepare_questions_returns_list(self, extractor) -> None:
         exercise = {
@@ -122,7 +122,7 @@ class TestRulesExtractor:
             "questions": [{"question_id": "1"}],
         }
         extractor._answers_full_map = {
-            "1.1:1": {
+            ("1.1", "1"): {
                 "is_open_ended": False,
                 "answers": [{"short_answer": "yes", "full_answer": "Yes!"}],
             }

@@ -1,10 +1,12 @@
 """Image OCR extractor using Mistral OCR API."""
 
-import base64
 from pathlib import Path
 
 from mistralai.client import Mistral
+from practice_core.images import data_uri
 from tqdm import tqdm
+
+from practice_extraction.settings import DEFAULT_OCR_MODEL
 
 
 class ImageOcrExtractor:
@@ -13,7 +15,7 @@ class ImageOcrExtractor:
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "mistral-ocr-latest",
+        model: str = DEFAULT_OCR_MODEL,
     ) -> None:
         """Initialize the extractor.
 
@@ -41,21 +43,20 @@ class ImageOcrExtractor:
     def _encode_image(self, image_path: Path) -> str:
         """Encode an image file to a data URL (base64).
 
+        The media type is read off the bytes rather than off the filename.
+        This used to build one from the suffix, which named a format the file
+        might not hold and could emit types IANA does not have -- ``.tif``
+        became ``image/tif``. :mod:`practice_core.images` owns that decision
+        precisely because assuming it is what sent ``data:image/png`` for a
+        WebP blob elsewhere.
+
         Args:
             image_path: Path to the image file.
 
         Returns:
             Data URL string (e.g. data:image/png;base64,...).
         """
-        raw = image_path.read_bytes()
-        b64 = base64.b64encode(raw).decode("utf-8")
-        suffix = image_path.suffix.lower()
-        media_type = (
-            "image/jpeg"
-            if suffix in (".jpg", ".jpeg")
-            else f"image/{suffix[1:] or 'png'}"
-        )
-        return f"data:{media_type};base64,{b64}"
+        return data_uri(image_path.read_bytes())
 
     def ocr(self, image_path: Path) -> str:
         """Run OCR on an image and return extracted text as markdown.

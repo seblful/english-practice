@@ -208,7 +208,7 @@ def theme_mode(choice: str) -> ft.ThemeMode:
     """Translate a stored theme preference into Flet's enum.
 
     Args:
-        choice: One of :class:`~practice.config.ThemeChoice`.
+        choice: One of :class:`~practice_app.config.ThemeChoice`.
 
     Returns:
         The matching theme mode, defaulting to following the system.

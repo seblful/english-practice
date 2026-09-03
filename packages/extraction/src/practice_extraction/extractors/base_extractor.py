@@ -11,16 +11,16 @@ from pydantic import BaseModel
 from tqdm import tqdm
 
 from practice_extraction.models import ExtractedUnitsRoot
+
+# Both names come from `practice_extraction.stages`, the one place the
+# pipeline's filenames are written: they used to be re-declared as literals
+# here and again in the importer.
 from practice_extraction.stages import SOURCE_ANSWERS_FILENAME, TOPIC_MAP_FILENAME
 
 RootT = TypeVar("RootT", bound=ExtractedUnitsRoot[Any])
 
 # Exercise ids are "<unit>.<number>", so they split into exactly two parts.
 _EXERCISE_ID_PARTS = 2
-
-# Both names come from `practice_extraction.stages`, which is the one place
-# the pipeline's filenames are written: they used to be re-declared as
-# literals here and again in the importer.
 
 logger = get_logger(__name__)
 
@@ -105,6 +105,30 @@ class BaseExtractor:
         """Check if unit was already processed."""
         return any(u.unit_id == unit_id for u in output.units)
 
+    @staticmethod
+    def _warn_if_hollow(unit_id: str, unit_data: Any) -> None:
+        """Say so when a unit came back with nothing in it.
+
+        A unit is cached by its presence in the output, so one whose calls all
+        came back unusable is skipped on every re-run from then on. Whether
+        that is worth re-running is the operator's call -- but it has to be
+        visible when it happens, rather than surfacing three stages later as
+        `validate`'s "Questions without answers" count.
+
+        Args:
+            unit_id: The unit just processed.
+            unit_data: What the subclass built for it.
+        """
+        exercises = getattr(unit_data, "exercises", [])
+        questions = sum(len(getattr(e, "questions", [])) for e in exercises)
+        if questions:
+            return
+        logger.warning(
+            "unit_extracted_empty",
+            unit_id=unit_id,
+            exercises=len(exercises),
+        )
+
     async def _extract_units(self, output_model: type[RootT]) -> Path:
         """Extract data from all units, resuming past ones already processed.
 
@@ -124,6 +148,7 @@ class BaseExtractor:
                 continue
 
             unit_data = await self._process_unit(unit)
+            self._warn_if_hollow(unit_id, unit_data)
             output.units.append(unit_data)
             self._save_output(output)
 

@@ -7,15 +7,17 @@ no separate place to register its printing, and none to declare its verdict.
 """
 
 import sqlite3
-import traceback
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import TracebackType
 
 from practice_core.schema import connect_content
+from practice_runtime.logging import get_logger
 
 from practice_extraction.settings import get_settings
+
+logger = get_logger(__name__)
 
 # How many offending rows to list before collapsing into a "... and N more" line.
 MAX_LISTED_DEFAULT = 3
@@ -231,6 +233,8 @@ class DatabaseValidator:
                         lambda r: str(r["name"]),
                     ),
                     warning=True,
+                    sample=MAX_LISTED_DEFAULT,
+                    show_remainder=True,
                 ),
             ],
         )
@@ -320,7 +324,14 @@ def print_report(results: Sequence[CheckResult]) -> int:
 
     for result in results:
         print(f"\n{result.title}")
-        marker = "[OK]" if result.passed else "[FAIL]"
+        # Not derived from `passed`, which is False for a check that found only
+        # warnings: that stamped [FAIL] on the facts of a run exiting 0.
+        if result.errors:
+            marker = "[FAIL]"
+        elif result.warnings:
+            marker = "[WARN]"
+        else:
+            marker = "[OK]"
         for fact in result.facts:
             print(f"  {marker} {fact}")
         if result.passed:
@@ -365,6 +376,9 @@ def main(db_path: Path | None = None) -> int:
         with DatabaseValidator(db_path) as validator:
             return print_report(validator.run())
     except Exception:
-        print("Error during validation:")
-        traceback.print_exc()
+        # The report is the deliverable and stays on stdout; a run that
+        # could not produce one is a failure that needs a level and a
+        # traceback in the log file, not a terminal nobody kept.
+        logger.error("validate_failed", db_path=str(db_path), exc_info=True)
+        print("Error during validation. See the log for the traceback.")
         return 1

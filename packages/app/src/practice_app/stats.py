@@ -139,6 +139,26 @@ class StatsSummary:
         return self.total == 0
 
 
+@dataclass(slots=True)
+class _Tally:
+    """Attempts and hits while they are still being counted.
+
+    The loop below used to carry these as a two-slot list, so "attempts" and
+    "correct" were positions rather than names -- restated at six sites, and a
+    transposition anywhere reported an accuracy above 100% with nothing
+    failing. :class:`TopicStat` and :class:`DayStat` are the frozen forms of
+    the same pair, built from this once the counting is done.
+    """
+
+    attempts: int = 0
+    correct: int = 0
+
+    def add(self, hit: bool) -> None:
+        """Count one attempt, correct or not."""
+        self.attempts += 1
+        self.correct += hit
+
+
 def _summarize(
     rows: Sequence[tuple[str, str, int]], today: date, days: int
 ) -> StatsSummary:
@@ -166,8 +186,8 @@ def _summarize(
     correct = 0
     streak = 0
     best_streak = 0
-    per_day: dict[date, list[int]] = {}
-    per_topic: dict[str, list[int]] = {}
+    per_day: dict[date, _Tally] = {}
+    per_topic: dict[str, _Tally] = {}
 
     for stamp, topic_name, is_correct in rows:
         hit = bool(is_correct)
@@ -175,15 +195,11 @@ def _summarize(
         streak = streak + 1 if hit else 0
         best_streak = max(best_streak, streak)
 
-        topic = per_topic.setdefault(topic_name or "Unknown", [0, 0])
-        topic[0] += 1
-        topic[1] += hit
+        per_topic.setdefault(topic_name or "Unknown", _Tally()).add(hit)
 
         day = _local_date(stamp)
         if day is not None:
-            counts = per_day.setdefault(day, [0, 0])
-            counts[0] += 1
-            counts[1] += hit
+            per_day.setdefault(day, _Tally()).add(hit)
 
     practised = sorted(per_day)
     day_streak = 0
@@ -195,11 +211,12 @@ def _summarize(
             day_streak += 1
             cursor -= timedelta(days=1)
 
+    blank = _Tally()
     recent = tuple(
         DayStat(
             day=day,
-            attempts=per_day.get(day, [0, 0])[0],
-            correct=per_day.get(day, [0, 0])[1],
+            attempts=per_day.get(day, blank).attempts,
+            correct=per_day.get(day, blank).correct,
         )
         for day in (today - timedelta(days=offset) for offset in reversed(range(days)))
     )
@@ -207,8 +224,8 @@ def _summarize(
     topics = tuple(
         sorted(
             (
-                TopicStat(name=name, attempts=counts[0], correct=counts[1])
-                for name, counts in per_topic.items()
+                TopicStat(name=name, attempts=tally.attempts, correct=tally.correct)
+                for name, tally in per_topic.items()
             ),
             key=lambda stat: (-stat.attempts, stat.name),
         )

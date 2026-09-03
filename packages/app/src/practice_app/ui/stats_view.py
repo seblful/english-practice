@@ -1,7 +1,7 @@
 """The progress screen.
 
 Everything here is derived from the attempt rows on each visit, so the screen
-is a pure function of :class:`~practice.stats.StatsSummary` — which is what
+is a pure function of :class:`~practice_app.stats.StatsSummary` — which is what
 makes it worth reading: no counter can drift out of step with the answers.
 """
 
@@ -78,6 +78,19 @@ class StatsScreen(ft.Column):
     # ------------------------------------------------------------------
     # Rendering
     # ------------------------------------------------------------------
+
+    def _repaint(self) -> None:
+        """Rebuild this screen and send it.
+
+        The two halves were written out at every call site and neither is any
+        use alone: ``render`` rebuilds ``controls`` in memory, ``push`` sends
+        the subtree, and pushing first sends the tree the user already has.
+        Forgetting the second one shows up as a tap that did nothing, and no
+        test catches it -- they assert on ``controls``, which ``render`` alone
+        already satisfies.
+        """
+        self.render()
+        push(self)
 
     def render(self) -> None:
         """Rebuild the screen from the held summary."""
@@ -400,5 +413,4 @@ class StatsScreen(ft.Column):
     async def refresh(self) -> None:
         """Reload the figures and redraw."""
         self._summary = await self._services.stats.summary()
-        self.render()
-        push(self)
+        self._repaint()

@@ -281,6 +281,26 @@ class TestRelocatingTheTree:
         assert paths.database_path == elsewhere
         assert paths.content_dir == tmp_path / "content"
 
+    def test_every_declared_path_follows_the_data_dir(self, tmp_path: Path) -> None:
+        """The check the two lists never had.
+
+        The layout is declared twice -- once as class-body defaults, once as
+        the validator's derivation table -- and nothing makes them agree. Add
+        an eleventh directory to the model and forget the table, and it stays
+        rooted at the import-time ``BASE_DIR`` while its parent moves: the
+        pipeline then writes into the real ``data/`` tree during a test. This
+        fails the moment that happens, without naming the fields.
+        """
+        moved = PathSettings(data_dir=tmp_path)
+
+        stranded = [
+            name
+            for name, value in vars(moved).items()
+            if isinstance(value, Path) and not value.is_relative_to(tmp_path)
+        ]
+
+        assert stranded == []
+
     def test_an_environment_variable_still_wins(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

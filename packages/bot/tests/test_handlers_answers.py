@@ -1,5 +1,6 @@
 """Tests for grading answers and answering follow-up questions."""
 
+import asyncio
 from unittest.mock import Mock
 
 import pytest
@@ -178,6 +179,50 @@ class TestGrading:
 
         mock_context.agents.grader.evaluate.assert_not_called()
         assert replies(mock_update.message) == [answers_handler.EMPTY_ANSWER_HINT]
+
+
+class TestTwoMessagesAtOnce:
+    """The bot runs updates concurrently, so they can meet inside a grading."""
+
+    async def test_a_message_arriving_mid_grading_is_not_graded_again(
+        self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
+    ) -> None:
+        """`answered` is only set once the verdict is back.
+
+        Until then a second message saw an unanswered question, so one answer
+        cost two provider calls and posted two verdicts for the same question.
+        """
+        grading = asyncio.Event()
+        finish = asyncio.Event()
+
+        async def slow(*_args: object, **_kwargs: object) -> EvaluateAnswerOutput:
+            grading.set()
+            await finish.wait()
+            return EvaluateAnswerOutput(is_correct=True, answer_idx=[0])
+
+        mock_context.agents.grader.evaluate.side_effect = slow
+
+        first = asyncio.create_task(
+            answers_handler.text_message(mock_update, mock_context)
+        )
+        await grading.wait()
+        await answers_handler.text_message(mock_update, mock_context)
+        finish.set()
+        await first
+
+        assert mock_context.agents.grader.evaluate.await_count == 1
+        mock_context.agents.assist.assert_awaited_once()
+
+    async def test_the_claim_is_released_when_grading_fails(
+        self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
+    ) -> None:
+        """A failed grading deliberately leaves the question open for a retry."""
+        mock_context.agents.grader.evaluate.side_effect = AgentError("provider down")
+
+        await answers_handler.text_message(mock_update, mock_context)
+
+        assert with_exercise.grading is False
+        assert with_exercise.answered is False
 
 
 class TestRuleDisplay:

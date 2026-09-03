@@ -26,6 +26,7 @@ from practice_app import __version__
 from practice_app.config import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TIMEOUT,
+    MAX_PORT,
     PROXY_SCHEMES,
     AppConfig,
     ThemeChoice,
@@ -142,8 +143,7 @@ class SettingsScreen(ft.Column):
             config: The settings to store.
         """
         await self._services.update_config(config)
-        self.render()
-        push(self)
+        self._repaint()
         if self._on_changed is not None:
             self._on_changed()
 
@@ -154,6 +154,19 @@ class SettingsScreen(ft.Column):
     # ------------------------------------------------------------------
     # Rendering
     # ------------------------------------------------------------------
+
+    def _repaint(self) -> None:
+        """Rebuild this screen and send it.
+
+        The two halves were written out at every call site and neither is any
+        use alone: ``render`` rebuilds ``controls`` in memory, ``push`` sends
+        the subtree, and pushing first sends the tree the user already has.
+        Forgetting the second one shows up as a tap that did nothing, and no
+        test catches it -- they assert on ``controls``, which ``render`` alone
+        already satisfies.
+        """
+        self.render()
+        push(self)
 
     def render(self) -> None:
         """Rebuild the screen from the current settings.
@@ -644,9 +657,16 @@ class SettingsScreen(ft.Column):
         self._config.proxy.host = (event.control.value or "").strip()
 
     def _stage_proxy_port(self, event: ft.Event[ft.TextField]) -> None:
-        """Hold a typed proxy port in memory."""
+        """Hold a typed proxy port in memory.
+
+        Bounded the same way :meth:`ProxyConfig.from_dict` bounds it. The two
+        used to disagree: anything made of digits was staged and written to
+        settings.json, and the next launch quietly dropped it, so a proxy the
+        user had configured and tested was simply off with no explanation.
+        """
         raw = (event.control.value or "").strip()
-        self._config.proxy.port = int(raw) if raw.isdigit() and raw != "0" else None
+        port = int(raw) if raw.isdigit() else 0
+        self._config.proxy.port = port if 0 < port <= MAX_PORT else None
 
     def _stage_proxy_username(self, event: ft.Event[ft.TextField]) -> None:
         """Hold a typed proxy username in memory."""
@@ -756,7 +776,10 @@ class SettingsScreen(ft.Column):
         chosen = next(iter(event.control.selected), None)
         if chosen is None:  # pragma: no cover - empty selection is disallowed
             return
-        await self._apply(replace(self._config, theme=chosen))
+        # The button offers nothing else, so this cannot raise -- but it is
+        # where a value that is not a theme stops, rather than being written
+        # to settings.json and quietly reset on the next launch.
+        await self._apply(replace(self._config, theme=ThemeChoice(chosen)))
 
     # ------------------------------------------------------------------
     # Long-running actions
@@ -769,8 +792,7 @@ class SettingsScreen(ft.Column):
 
         if not self._services.cached_models():
             self._loading_models = True
-            self.render()
-            push(self)
+            self._repaint()
             try:
                 await self._services.models()
             except PracticeError as exc:
@@ -778,8 +800,7 @@ class SettingsScreen(ft.Column):
                 return
             finally:
                 self._loading_models = False
-                self.render()
-                push(self)
+                self._repaint()
             await self._reconcile_capabilities()
 
         self._open_picker()
@@ -809,11 +830,18 @@ class SettingsScreen(ft.Column):
         self._page.run_task(self._reload_models)
 
     async def _reload_models(self) -> None:
-        """Fetch the catalogue again and reopen the picker on top of it."""
+        """Fetch the catalogue again and reopen the picker on top of it.
+
+        Guarded like :meth:`_on_open_models`, which is the copy that says so.
+        Nothing but the dialog being popped first kept a double-tap on Refresh
+        from putting two catalogue fetches on the same client at once.
+        """
+        if self._loading_models:
+            return
+
         self._page.pop_dialog()
         self._loading_models = True
-        self.render()
-        push(self)
+        self._repaint()
         try:
             await self._services.models(refresh=True)
         except PracticeError as exc:
@@ -821,8 +849,7 @@ class SettingsScreen(ft.Column):
             return
         finally:
             self._loading_models = False
-            self.render()
-            push(self)
+            self._repaint()
         await self._reconcile_capabilities()
         self._open_picker()
 
@@ -885,16 +912,14 @@ class SettingsScreen(ft.Column):
             return
         self._checking = True
         self._check_result = None
-        self.render()
-        push(self)
+        self._repaint()
         try:
             self._check_result = (await self._services.client.check(), True)
         except PracticeError as exc:
             self._check_result = (str(exc), False)
         finally:
             self._checking = False
-            self.render()
-            push(self)
+            self._repaint()
 
     async def refresh(self) -> None:
         """Load what the bundled book holds, then redraw."""
@@ -903,5 +928,4 @@ class SettingsScreen(ft.Column):
                 self._counts = await self._services.content.counts()
             except PracticeError:
                 self._counts = None
-        self.render()
-        push(self)
+        self._repaint()

@@ -161,8 +161,16 @@ async def text_message(who: Interaction, context: BotContext) -> None:
         await who.message.reply_text(EMPTY_ANSWER_HINT)
         return
 
-    if active.answered:
+    if active.answered or active.grading:
         await _explain(who, context, active)
         return
 
-    await _grade(who, context, session, active)
+    # Claimed before the first await. Updates run concurrently, so leaving the
+    # claim to `_grade` -- which only sets `answered` once the verdict is back
+    # -- let two messages past this check and billed two gradings for one
+    # answer.
+    active.grading = True
+    try:
+        await _grade(who, context, session, active)
+    finally:
+        active.grading = False

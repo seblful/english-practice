@@ -11,14 +11,18 @@ re-encodes.
 
 import json
 import sqlite3
-import traceback
 from pathlib import Path
+from typing import Any
 
 from practice_core.schema import connect_content
+from practice_runtime.logging import get_logger
 from practice_runtime.settings import PathSettings
 from tqdm import tqdm
 
 from practice_extraction.settings import get_settings
+
+# The four filenames below used to be fresh literals here, two of them already
+# declared by the stages that write the files.
 from practice_extraction.stages import (
     ANSWERS_FULL_FILENAME,
     RULES_FILENAME,
@@ -26,9 +30,9 @@ from practice_extraction.stages import (
     UNIT_TITLES_FILENAME,
 )
 
-# The four names below used to be fresh literals here, two of them already
-# declared by the stages that write the files.
+logger = get_logger(__name__)
 
+# The tables the run prints a row count for when it finishes.
 _SUMMARY_TABLES = (
     "units",
     "exercises",
@@ -87,7 +91,9 @@ def parse_exercise_id(exercise_id: str) -> tuple[int, int]:
     return int(parts[0]), int(parts[1])
 
 
-def _load_import_metadata(paths: PathSettings) -> tuple[dict, dict]:
+def _load_import_metadata(
+    paths: PathSettings,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Load answers_full.json and rules.json, failing if extraction has not run.
 
     Args:
@@ -122,14 +128,22 @@ def _load_import_metadata(paths: PathSettings) -> tuple[dict, dict]:
     return answers_data, rules_data
 
 
-def _build_rules_map(rules_data: dict) -> dict[str, dict]:
-    """Index rule metadata by "<exercise_id>:<question_id>"."""
-    rules_map: dict[str, dict] = {}
+def _build_rules_map(
+    rules_data: dict[str, Any],
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Index rule metadata by ``(exercise_id, question_id)``.
+
+    The pair used to be packed into one delimited string, built in four
+    places across two modules with nothing connecting them -- and a lookup
+    that misses is silent: every question imports with no rule and no
+    section letter, and the database still validates clean.
+    """
+    rules_map: dict[tuple[str, str], dict[str, Any]] = {}
     for unit in rules_data.get("units", []):
         for exercise in unit.get("exercises", []):
             exercise_id = exercise["exercise_id"]
             for q in exercise.get("questions", []):
-                rules_map[f"{exercise_id}:{q['question_id']}"] = q
+                rules_map[exercise_id, q["question_id"]] = q
     return rules_map
 
 
@@ -155,7 +169,9 @@ def _store_exercise_image(
     )
 
 
-def _import_answers(cursor: sqlite3.Cursor, question_db_id: int, question: dict) -> int:
+def _import_answers(
+    cursor: sqlite3.Cursor, question_db_id: int, question: dict[str, Any]
+) -> int:
     """Insert a question's answers and return how many were newly added."""
     added = 0
     for answer in question.get("answers", []):
@@ -177,9 +193,9 @@ def _import_answers(cursor: sqlite3.Cursor, question_db_id: int, question: dict)
 def _import_questions(
     cursor: sqlite3.Cursor,
     exercise_db_id: int,
-    exercise: dict,
+    exercise: dict[str, Any],
     exercise_id: str,
-    rules_map: dict[str, dict],
+    rules_map: dict[tuple[str, str], dict[str, Any]],
 ) -> tuple[int, int]:
     """Import one exercise's questions, returning (questions, answers) added."""
     questions_imported = 0
@@ -188,7 +204,7 @@ def _import_questions(
     for idx, question in enumerate(exercise.get("questions", [])):
         question_id = question["question_id"]
         is_open_ended = question.get("is_open_ended", False)
-        rule_info = rules_map.get(f"{exercise_id}:{question_id}", {})
+        rule_info = rules_map.get((exercise_id, question_id), {})
 
         cursor.execute(
             """
@@ -379,8 +395,18 @@ def main(*, force: bool = False, paths: PathSettings | None = None) -> int:
         print("=" * 50)
 
     except Exception:
-        print("Error importing data:")
-        traceback.print_exc()
+        # The progress report is the deliverable and stays on stdout; a
+        # run that could not finish is a failure that needs a level and a
+        # traceback in the log file, not a terminal nobody kept.
+        logger.error("populate_failed", db_path=str(db_path), exc_info=True)
+        print("Error importing data. See the log for the traceback.")
+        # The file this run created holds whatever landed before the failure,
+        # and nothing downstream can tell that from a finished database:
+        # `check` reads its mere existence as "populate: done", `bundle` ships
+        # it into the APK, and a re-run refuses without --force.
+        conn.close()
+        db_path.unlink(missing_ok=True)
+        print(f"Removed the partial database at {db_path}.")
         return 1
     finally:
         conn.close()

@@ -5,7 +5,7 @@ OpenRouter nests it under ``reasoning``, OpenAI takes a bare
 ``reasoning_effort``, Gemini wants a token budget — so the app keeps one
 :class:`ThinkingLevel` scale for the UI and does the translation here. Anything
 provider-specific about *thinking* belongs in this module; anything
-provider-specific about *transport* belongs in :mod:`practice.llm`.
+provider-specific about *transport* belongs in :mod:`practice_app.llm`.
 """
 
 from dataclasses import dataclass

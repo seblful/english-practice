@@ -327,7 +327,7 @@ class ContentLibrary:
         Returns:
             The stored image, or ``None`` when the exercise has no usable one.
             A zero-length blob is a broken import rather than a picture —
-            ``scripts/database/validate.py`` reports them — so it counts as
+            :mod:`practice_extraction.validate` reports them — so it counts as
             absent instead of reaching a screen as an empty frame.
         """
         row = await self._row(

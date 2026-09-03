@@ -42,12 +42,9 @@ _TAB_TITLES = ("Practice", "Progress", "Settings")
 # room under it.
 _BODY_TOP_GAP = GAP // 2
 
-# Cycled by the app-bar button, in the order a user expects a toggle to go.
-_THEME_CYCLE: Sequence[str] = (
-    ThemeChoice.SYSTEM,
-    ThemeChoice.LIGHT,
-    ThemeChoice.DARK,
-)
+# Cycled by the app-bar button. Declaration order is the order a user expects
+# a toggle to go, so the enum is the list -- one place to add a fourth theme.
+_THEME_CYCLE: Sequence[ThemeChoice] = tuple(ThemeChoice)
 
 _THEME_ICONS = {
     ThemeChoice.SYSTEM: ft.Icons.BRIGHTNESS_AUTO_ROUNDED,

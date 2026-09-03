@@ -5,6 +5,8 @@ same pattern the bot uses, for the same reason: one SQLite path, one HTTP
 connection pool, and screens that can be tested without patching globals.
 """
 
+import asyncio
+
 import flet as ft
 from practice_core.content import ContentLibrary
 from practice_core.errors import PracticeError
@@ -85,7 +87,11 @@ async def main(page: ft.Page) -> None:
         page: The page Flet hands the app.
     """
     try:
-        services = build_services()
+        # The first launch after an install unpacks a twenty-six megabyte
+        # database out of the app zip, synchronously. On the event loop that
+        # is a frozen blank screen for the whole copy, long enough for Android
+        # to call the app unresponsive.
+        services = await asyncio.to_thread(build_services)
     except PracticeError as exc:
         _fatal(page, str(exc))
         return

@@ -13,10 +13,10 @@ unmodified.
 
 import io
 import sqlite3
+from collections.abc import Callable
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from PIL import Image
 from practice_core.errors import ContentError
@@ -101,7 +101,9 @@ def shrink_image(data: bytes) -> bytes:
             buffer = io.BytesIO()
             converted.save(buffer, "WEBP", quality=WEBP_QUALITY, method=WEBP_METHOD)
     except OSError:
-        logger.warning("bundle_image_unreadable", bytes=len(data))
+        # Returned unchanged, and identically: :func:`_copy_images` tells a
+        # passthrough from a re-encode by identity, so that the row it names
+        # in the warning is one the operator can go and look at.
         return data
     return buffer.getvalue()
 
@@ -158,6 +160,13 @@ def _copy_images(
             continue
 
         shrunk = shrink_image(original)
+        if shrunk is original:
+            logger.warning(
+                "bundle_image_unreadable",
+                image_id=row["id"],
+                exercise_id=row["exercise_id"],
+                bytes=len(original),
+            )
         target.execute(
             "INSERT INTO exercise_images (id, exercise_id, image_data) "
             "VALUES (?, ?, ?)",
@@ -174,7 +183,7 @@ def build_mobile_content(
     source_path: Path,
     target_path: Path,
     *,
-    progress: Any = None,
+    progress: Callable[[str], None] | None = None,
 ) -> BundleResult:
     """Write a compact copy of the exercise database for the app bundle.
 

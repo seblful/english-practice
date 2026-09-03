@@ -22,10 +22,12 @@ from practice_extraction.constants import (
     EXERCISE_PADDING,
     EXERCISE_SEARCH_WIDTH_RATIO,
 )
+from practice_extraction.extractors import exercise_organizer
 from practice_extraction.extractors.exercise_organizer import (
     BoundingBox,
     ExerciseOrganizer,
     HSVRange,
+    UnusableSlice,
 )
 
 
@@ -114,7 +116,7 @@ class TestExerciseOrganizer:
             BoundingBox(0, 50, 100, 20),
             BoundingBox(0, 200, 100, 20),
         ]
-        exercises = ExerciseOrganizer()._split_into_exercises(img, boxes, 500, 300)
+        exercises = ExerciseOrganizer()._split_into_exercises(img, boxes)
         assert len(exercises) == 2
         start_y = max(0, 50 - EXERCISE_PADDING)
         end_y = 200 - EXERCISE_PADDING
@@ -359,17 +361,42 @@ class TestBottomWhiteSpace:
         assert ExerciseOrganizer()._crop_bottom_white_space(image).shape[0] == 400
 
 
-class TestSplitSkipsUnusableSlices:
-    """Tests for the guard against slivers between two adjacent headers."""
+class TestSplitRefusesUnusableSlices:
+    """Tests for the guard against slivers between two adjacent headers.
 
-    def test_slice_below_the_minimum_height_is_dropped(self) -> None:
+    A slice's position becomes its exercise number on disk, so dropping one
+    used to renumber every exercise below it -- and every later stage keys on
+    that number, which is how a student came to be shown a crop holding a
+    different sentence from the one they were asked to answer.
+    """
+
+    def test_a_slice_below_the_minimum_height_refuses_the_page(self) -> None:
         image = np.zeros((300, 100, 3), dtype=np.uint8)
         boxes = [BoundingBox(0, 10, 1, 1), BoundingBox(0, 20, 1, 1)]
 
-        exercises = ExerciseOrganizer()._split_into_exercises(image, boxes, 300, 100)
+        with pytest.raises(UnusableSlice, match="header 1 of 2"):
+            ExerciseOrganizer()._split_into_exercises(image, boxes)
 
-        # The first slice spans 10 pixels and is discarded; the second runs
-        # from its own header to the bottom of the page, so the survivor is
-        # identifiable by its height.
-        assert len(exercises) == 1
-        assert exercises[0].shape[0] == 290
+    def test_a_refused_page_writes_nothing_and_is_named(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The gap has to be visible to the stages that read these crops."""
+        warnings: list[tuple[str, dict]] = []
+        monkeypatch.setattr(
+            exercise_organizer.logger,
+            "warning",
+            lambda event, **fields: warnings.append((event, fields)),
+        )
+        page = tmp_path / "12.png"
+        organizer = ExerciseOrganizer()
+        monkeypatch.setattr(
+            organizer,
+            "_extract_from_page",
+            lambda _: (_ for _ in ()).throw(UnusableSlice("sliver")),
+        )
+
+        written = organizer._process_pages([page], tmp_path / "out")
+
+        assert written == []
+        assert ("page_refused", {"page": 12, "reason": "sliver"}) in warnings
+        assert ("pages_need_attention", {"pages": [12], "count": 1}) in warnings

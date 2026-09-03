@@ -78,11 +78,6 @@ class ActiveExercise:
         """Whether the book's answer has been shown for this question."""
         return self.evaluation is not None or self.ungraded
 
-    @property
-    def unit_reference(self) -> str:
-        """Return the unit and section this question came from."""
-        return f"{self.exercise.unit.unit_number}{self.question.section_letter or ''}"
-
     def reveal(self, *, show_rule: bool = True) -> Reveal:
         """Return what to show the student for this question.
 
@@ -109,10 +104,11 @@ class Lesson:
     bar, the counter beside it and the result at the end are all read off this
     list, so none of them can disagree with another.
 
-    The four transitions are the reason this is a module and not a bag of
-    fields. Recording an outcome used to be the caller's duty, which meant the
-    rule this class documents -- a revealed answer counts as done but never as
+    The transitions are the reason this is a module and not a bag of fields.
+    Recording an outcome used to be the caller's duty, which meant the rule
+    this class documents -- a revealed answer counts as done but never as
     correct -- was enforced by whoever remembered to pass ``correct=False``.
+    Every way an outcome can be added now goes through one of them.
     """
 
     topic_id: int | None
@@ -223,14 +219,6 @@ class Lesson:
             PracticeError: If no question is on screen.
         """
         return self._spend()
-
-    def record(self, *, correct: bool) -> None:
-        """Count the question on screen as answered.
-
-        Args:
-            correct: Whether the model marked it right.
-        """
-        self.outcomes.append(correct)
 
     def _spend(self) -> ActiveExercise:
         """Mark the question on screen as revealed without a verdict.

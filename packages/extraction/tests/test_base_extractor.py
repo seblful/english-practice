@@ -7,12 +7,28 @@ import pytest
 from practice_runtime.errors import ConfigurationError
 from pydantic import BaseModel
 
+from practice_extraction.extractors import base_extractor
 from practice_extraction.extractors.base_extractor import BaseExtractor
 from tests.conftest import extraction_paths
 
 
 class _UnitModel(BaseModel):
     unit_id: str
+
+
+class _QuestionModel(BaseModel):
+    question_id: str
+
+
+class _ExerciseModel(BaseModel):
+    questions: list[_QuestionModel] = []
+
+
+class _FullUnitModel(BaseModel):
+    """A unit shaped like the two the extractors really build."""
+
+    unit_id: str
+    exercises: list[_ExerciseModel] = []
 
 
 class _OutputModel(BaseModel):
@@ -120,3 +136,48 @@ class TestBaseExtractor:
         """Otherwise the stage would silently write over answers.json."""
         with pytest.raises(ConfigurationError, match="OUTPUT_FILENAME"):
             BaseExtractor(extraction_paths(tmp_path))
+
+
+class TestHollowUnits:
+    """A unit is cached by its presence, so an empty one must be visible.
+
+    Both extractors skip past a question the model omitted, and a unit whose
+    calls all came back unusable is still appended, saved, and skipped on
+    every re-run after that.
+    """
+
+    @pytest.fixture
+    def warnings(self, monkeypatch) -> list[tuple[str, dict]]:
+        """Collect what the extractor logs at WARNING."""
+        collected: list[tuple[str, dict]] = []
+        monkeypatch.setattr(
+            base_extractor.logger,
+            "warning",
+            lambda event, **fields: collected.append((event, fields)),
+        )
+        return collected
+
+    def test_a_unit_that_produced_questions_is_quiet(self, warnings) -> None:
+        unit = _FullUnitModel(
+            unit_id="7",
+            exercises=[_ExerciseModel(questions=[_QuestionModel(question_id="1")])],
+        )
+
+        BaseExtractor._warn_if_hollow("7", unit)
+
+        assert warnings == []
+
+    def test_a_unit_whose_exercises_are_all_empty_is_reported(self, warnings) -> None:
+        unit = _FullUnitModel(unit_id="7", exercises=[_ExerciseModel()])
+
+        BaseExtractor._warn_if_hollow("7", unit)
+
+        assert warnings == [("unit_extracted_empty", {"unit_id": "7", "exercises": 1})]
+
+    @pytest.mark.asyncio
+    async def test_the_warning_lands_during_a_run(self, extractor, warnings) -> None:
+        extractor._answers_path.write_text(json.dumps({"units": [{"unit_id": "1"}]}))
+
+        await extractor._extract_units(_OutputModel)
+
+        assert ("unit_extracted_empty", {"unit_id": "1", "exercises": 0}) in warnings

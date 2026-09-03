@@ -252,6 +252,34 @@ class TestPrintReport:
         assert "[FAIL] Exercises without questions: 1" in out
         assert "[WARN] Topics without units: 1" in out
 
+    def test_an_orphaned_topic_is_named_not_just_counted(
+        self, validator: DatabaseValidator, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """It was the one issue with no sample, so it printed a bare count."""
+        print_report(validator.run())
+
+        out = capsys.readouterr().out
+        topics = out.split("[WARN] Topics without units:")[1]
+        assert topics.lstrip().startswith("1\n    - ")
+
+    def test_a_check_with_only_warnings_does_not_stamp_its_facts_failed(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """`passed` is False for warnings too, which read as [FAIL] on a pass."""
+        result = CheckResult(
+            title="[X] CHECK",
+            all_clear="fine",
+            facts=["Exercises in DB: 566"],
+            issues=[Issue("thin", ["a"], warning=True, sample=1)],
+        )
+
+        exit_code = print_report([result])
+
+        out = capsys.readouterr().out
+        assert exit_code == 0
+        assert "[WARN] Exercises in DB: 566" in out
+        assert "[FAIL]" not in out
+
 
 class TestMain:
     """Tests for the script entry point."""

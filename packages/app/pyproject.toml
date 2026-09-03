@@ -19,7 +19,7 @@ keywords = ["android", "flet", "english", "grammar", "llm"]
 #
 # What is deliberately absent is a provider SDK. LangChain's tree does not fit
 # in an APK, and the useful part of it here is five HTTP calls, so this app
-# talks to the providers over httpx directly (see `practice/llm.py`).
+# talks to the providers over httpx directly (see `practice_app/llm.py`).
 dependencies = [
     "practice-core",
     "flet>=0.86.5",
@@ -101,7 +101,7 @@ exclude = [".flet"]
 [tool.flet.android]
 # The bundled content database is opened by sqlite3, which needs a real file.
 # Shipping the package extracted saves the first launch from unpacking it out
-# of the app zip; `practice/storage.py` copes either way.
+# of the app zip; `practice_app/storage.py` copes either way.
 extract_packages = ["practice_app"]
 
 [tool.flet.splash]

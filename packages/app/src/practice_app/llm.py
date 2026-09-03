@@ -55,6 +55,15 @@ _RETRY_DELAYS: Final = (0.8, 2.4)
 _MAX_ERROR_DETAIL = 300
 _SERVER_ERROR = 500
 
+# Every provider reaches this condition by its own route -- a "length" finish
+# reason here, "MAX_TOKENS" there -- but the student reads one sentence, and
+# it is the one that tells them which setting to move.
+_OUT_OF_OUTPUT_TOKENS: Final = (
+    "The model ran out of output tokens before answering. "
+    "Raise the token limit or lower the thinking level."
+)
+_EMPTY_REPLY: Final = "The model returned an empty reply."
+
 # Model ids that are not chat models. Every provider mixes them into the same
 # list, and offering the user "whisper-1" as a grader is worse than a filter
 # that occasionally hides something exotic.
@@ -287,11 +296,8 @@ class _OpenAICompatibleAdapter(ProviderAdapter):
                 return text
             reason = _text_field(choices[0], "finish_reason")
             if reason == "length":
-                raise ProviderError(
-                    "The model ran out of output tokens before answering. "
-                    "Raise the token limit or lower the thinking level."
-                )
-        raise ProviderError("The model returned an empty reply.")
+                raise ProviderError(_OUT_OF_OUTPUT_TOKENS)
+        raise ProviderError(_EMPTY_REPLY)
 
 
 class OpenRouterAdapter(_OpenAICompatibleAdapter):
@@ -584,15 +590,12 @@ class GeminiAdapter(ProviderAdapter):
             ]
             if texts:
                 return "\n".join(texts)
-            if _text_field(candidate, "finishReason") == "MAX_TOKENS":
-                raise ProviderError(
-                    "The model ran out of output tokens before answering. "
-                    "Raise the token limit or lower the thinking level."
-                )
-            blocked = _text_field(candidate, "finishReason")
-            if blocked and blocked != "STOP":
-                raise ProviderError(f"The model stopped early ({blocked}).")
-        raise ProviderError("The model returned an empty reply.")
+            reason = _text_field(candidate, "finishReason")
+            if reason == "MAX_TOKENS":
+                raise ProviderError(_OUT_OF_OUTPUT_TOKENS)
+            if reason and reason != "STOP":
+                raise ProviderError(f"The model stopped early ({reason}).")
+        raise ProviderError(_EMPTY_REPLY)
 
 
 #: The adapters the app ships. Passed to :class:`LLMClient` by default, and
