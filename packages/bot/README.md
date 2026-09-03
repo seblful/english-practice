@@ -13,7 +13,8 @@ Telegram update
       ▼
 handlers/*          one module per feature; access control is a decorator
       │
-      ├── repository  async SQLite reads (content + who may use the bot)
+      ├── content     the book, from `practice-core`
+      ├── users       who may use the bot, this package's own table
       ├── agents      LLM calls: grade an answer, explain an exercise
       ├── states      what each user is working on, in memory
       └── formatter   domain objects → Telegram HTML
@@ -24,17 +25,23 @@ client: `app.py` builds one of each at startup and hands them to every handler
 through the context (`context.py`), which is what makes the handlers testable
 without patching module globals.
 
+The book and the bot's own table are separate collaborators over the same
+file. They were one class — the repository *inherited* `ContentLibrary` to
+reach the plumbing for running a statement — so a table that has nothing to do
+with the book arrived with every content query attached, and this package's
+tests re-asserted thirteen of them.
+
 | Module | Responsibility |
 | :----- | :------------- |
 | `cli.py` | The entry point: `info`, `check`, `bot` |
 | `app.py` | Builds the application, wires dependencies, starts polling |
-| `context.py` | `BotDependencies` and the `BotContext` handlers receive |
+| `context.py` | `BotDependencies` and the `BotContext` handlers receive: the book, the users, the agents, the sessions |
 | `handlers/` | `access` (authorization + the handler decorator), `menu`, `exercises`, `answers`, `admin`, `errors` |
 | `callbacks.py` | Typed inline-button payloads, encode and parse in one place |
 | `states.py` | `SessionStore`: the active exercise per user, with idle eviction |
-| `formatter.py` | Message text, with HTML escaping |
+| `formatter.py` | Message text, with HTML escaping. Returns `Html`, so a reply carries its own parse mode |
 | `keyboards.py` | Inline keyboards built from domain objects |
-| `repositories/database.py` | Who may use the bot, and the table that records it |
+| `repositories/database.py` | `AuthRepository`: who may use the bot, and the table that records it |
 | `services/agent_service.py` | Owns the chat-model client and the assistant transcripts |
 | `agents/` | One class per prompt: `evaluate`, `assistant` |
 | `models/` | `auth` (who may use the bot), `agents` (LLM I/O) |
@@ -51,7 +58,7 @@ without patching module globals.
 | Building the database, and bundling it for the phone | `english-practice-extraction` | A build tool, not part of a running bot — which is why this package's container carries no OpenCV. |
 
 What *is* the bot's: Telegram, and its own idea of who may use it. The
-`authorized_users` table is created by `DatabaseRepository.ensure_schema()` at
+`authorized_users` table is created by `AuthRepository.ensure_schema()` at
 startup, from this package's own `schema/auth.sql`.
 
 ## Running it
@@ -120,6 +127,7 @@ uv run ty check
 uv run ruff check . && uv run ruff format .
 ```
 
-The tests mirror the layers: handler tests drive the real `SessionStore` with a
-mocked repository and agent service, and the repository tests run against a
-real SQLite file built from the shared schema.
+The tests mirror the layers: handler tests drive the real `SessionStore` with
+a mocked book and agent service, and the authorization tests run against a real
+SQLite file built from both schemas. The content queries are not re-tested
+here; `practice-core` owns them.

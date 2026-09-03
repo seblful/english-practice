@@ -76,26 +76,43 @@ class TestClientLifecycle:
         assert services._client is None
 
 
-class TestListeners:
-    async def test_a_plain_listener_is_called(self, services: Services) -> None:
-        seen: list[AppConfig] = []
-        services.on_config_change(seen.append)
+class TestStaging:
+    """An edit held in memory still has to reach the provider client."""
 
-        await services.update_config(replace(services.config, show_rules=False))
+    async def test_a_staged_edit_is_not_saved(self, services: Services) -> None:
+        services.stage(replace(services.config, show_rules=False))
 
-        assert seen[0].show_rules is False
+        assert services.config.show_rules is False
+        assert services.config_store.load().show_rules is True
 
-    async def test_an_async_listener_is_awaited(self, services: Services) -> None:
-        seen: list[bool] = []
+    async def test_the_client_is_rebuilt_from_a_staged_edit(
+        self, services: Services
+    ) -> None:
+        """ "Test connection" answered on the key the user had typed over."""
+        first = services.client
 
-        async def listener(config: AppConfig) -> None:
-            seen.append(config.show_rules)
+        services.stage(services.config.with_active(api_key="typed-just-now"))
 
-        services.on_config_change(listener)
+        assert services.client is not first
+        assert services.client.config.active.api_key == "typed-just-now"
 
-        await services.update_config(replace(services.config, show_rules=False))
+    async def test_a_client_left_by_staging_is_closed_at_the_next_save(
+        self, services: Services
+    ) -> None:
+        retired = services.client
+        _ = retired._http()
+        services.stage(services.config.with_active(api_key="typed-just-now"))
+        _ = services.client
 
-        assert seen == [False]
+        await services.update_config(services.config)
+
+        assert services._retired == []
+        assert retired._client is None
+
+    async def test_an_unstaged_client_is_left_alone(self, services: Services) -> None:
+        first = services.client
+
+        assert services.client is first
 
 
 class TestCatalogue:

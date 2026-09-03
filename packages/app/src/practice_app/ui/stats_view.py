@@ -18,12 +18,12 @@ from practice_app.ui.components import (
     panel,
     placeholder,
     progress_track,
-    push,
     section_title,
     show_snack,
     stat_tile,
 )
 from practice_app.ui.page import DialogPage
+from practice_app.ui.screen import Screen
 from practice_app.ui.theme import GAP, GAP_LARGE, GAP_SMALL, RADIUS, RADIUS_SMALL
 
 __all__ = ["StatsScreen"]
@@ -56,8 +56,12 @@ def _accuracy_color(accuracy: float, attempts: int) -> str:
     return ft.Colors.ERROR
 
 
-class StatsScreen(ft.Column):
+class StatsScreen(Screen):
     """How the practice is going: accuracy, streaks, the week, the topics."""
+
+    tab_title = "Progress"
+    tab_label = "Progress"
+    tab_icon = ft.Icons.INSIGHTS_ROUNDED
 
     def __init__(self, page: DialogPage, services: Services) -> None:
         """Build the screen.
@@ -78,19 +82,6 @@ class StatsScreen(ft.Column):
     # ------------------------------------------------------------------
     # Rendering
     # ------------------------------------------------------------------
-
-    def _repaint(self) -> None:
-        """Rebuild this screen and send it.
-
-        The two halves were written out at every call site and neither is any
-        use alone: ``render`` rebuilds ``controls`` in memory, ``push`` sends
-        the subtree, and pushing first sends the tree the user already has.
-        Forgetting the second one shows up as a tap that did nothing, and no
-        test catches it -- they assert on ``controls``, which ``render`` alone
-        already satisfies.
-        """
-        self.render()
-        push(self)
 
     def render(self) -> None:
         """Rebuild the screen from the held summary."""
@@ -407,10 +398,10 @@ class StatsScreen(ft.Column):
         """Delete the progress history and redraw."""
         self._page.pop_dialog()
         await self._services.stats.reset()
-        await self.refresh()
+        await self.reload()
         show_snack(self._page, "Progress reset.")
 
-    async def refresh(self) -> None:
+    async def reload(self) -> None:
         """Reload the figures and redraw."""
         self._summary = await self._services.stats.summary()
-        self._repaint()
+        self.repaint()

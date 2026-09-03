@@ -51,6 +51,7 @@ from practice_app.ui.components import (
 from practice_app.ui.home_view import MIXED_LESSON_LABEL, HomeState, HomeView
 from practice_app.ui.model_picker import MAX_RESULTS, ModelPicker, visible_models
 from practice_app.ui.practice_view import PracticeScreen
+from practice_app.ui.screen import Screen
 from practice_app.ui.settings_view import SettingsScreen
 from practice_app.ui.stats_view import StatsScreen
 from practice_app.ui.theme import CORRECT, ON_CORRECT, build_theme, theme_mode
@@ -511,7 +512,7 @@ class TestPracticeHome:
     ) -> None:
         screen = PracticeScreen(page, services)
 
-        await screen.load()
+        await screen.reload()
 
         body = rendered(screen)
         assert "Start a lesson" in body
@@ -523,7 +524,7 @@ class TestPracticeHome:
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        await screen.load()
+        await screen.reload()
         await _start(screen)
         await _answer(screen)
 
@@ -535,7 +536,7 @@ class TestPracticeHome:
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        await screen.load()
+        await screen.reload()
         await _start(screen)
         await _answer(screen)
 
@@ -546,7 +547,7 @@ class TestPracticeHome:
     async def test_an_unconfigured_app_says_what_is_missing(
         self, page: FakePage, services: Services
     ) -> None:
-        services.config = AppConfig()
+        services.stage(AppConfig())
         screen = PracticeScreen(page, services, on_open_settings=lambda: None)
 
         body = rendered(screen)
@@ -556,7 +557,7 @@ class TestPracticeHome:
     async def test_the_setup_banner_can_reach_the_settings_tab(
         self, page: FakePage, services: Services
     ) -> None:
-        services.config = AppConfig()
+        services.stage(AppConfig())
         opened: list[bool] = []
         screen = PracticeScreen(
             page, services, on_open_settings=lambda: opened.append(True)
@@ -569,7 +570,7 @@ class TestPracticeHome:
     async def test_without_a_settings_hook_the_banner_has_no_button(
         self, page: FakePage, services: Services
     ) -> None:
-        services.config = AppConfig()
+        services.stage(AppConfig())
         screen = PracticeScreen(page, services)
 
         assert "Open settings" not in rendered(screen)
@@ -578,7 +579,7 @@ class TestPracticeHome:
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        await screen.load()
+        await screen.reload()
         topics = await services.content.list_topics()
 
         cards = [item for item in _all(screen, ft.Container) if item.on_click]
@@ -623,7 +624,7 @@ class TestPracticeHome:
         )
         screen = PracticeScreen(page, missing)
 
-        await screen.load()
+        await screen.reload()
         await screen.start_lesson(1, "Present Tenses")
 
         assert "database is missing" in page.snack_texts()[0]
@@ -633,9 +634,9 @@ class TestPracticeHome:
 
     def test_refreshing_redraws(self, page: FakePage, services: Services) -> None:
         screen = PracticeScreen(page, services)
-        services.config = AppConfig()
+        services.stage(AppConfig())
 
-        screen.refresh()
+        screen.repaint()
 
         assert "API key is not set" in rendered(screen)
 
@@ -832,7 +833,7 @@ class TestLessonFlow:
     async def test_the_rule_toggle_is_hidden_when_rules_are_off(
         self, page: FakePage, services: Services
     ) -> None:
-        services.config = replace(services.config, show_rules=False)
+        services.stage(replace(services.config, show_rules=False))
         screen = PracticeScreen(page, services)
         await _start(screen)
 
@@ -1293,7 +1294,7 @@ class TestStatsScreen:
     ) -> None:
         screen = StatsScreen(page, services)
 
-        await screen.refresh()
+        await screen.reload()
 
         assert "No progress yet" in rendered(screen)
 
@@ -1312,7 +1313,7 @@ class TestStatsScreen:
             )
         screen = StatsScreen(page, services)
 
-        await screen.refresh()
+        await screen.reload()
 
         body = rendered(screen)
         assert "67%" in body
@@ -1334,7 +1335,7 @@ class TestStatsScreen:
             )
         )
         screen = StatsScreen(page, services)
-        await screen.refresh()
+        await screen.reload()
 
         screen._confirm_reset()
 
@@ -1353,7 +1354,7 @@ class TestStatsScreen:
             )
         )
         screen = StatsScreen(page, services)
-        await screen.refresh()
+        await screen.reload()
 
         await screen._reset()
 
@@ -1376,7 +1377,7 @@ class TestStatsScreen:
             )
         screen = StatsScreen(page, services)
 
-        await screen.refresh()
+        await screen.reload()
 
         assert "more topics" in rendered(screen)
 
@@ -1552,7 +1553,7 @@ class TestSettingsScreen:
     ) -> None:
         screen = SettingsScreen(page, services)
 
-        await screen.refresh()
+        await screen.reload()
 
         body = rendered(screen)
         for section in (
@@ -1572,7 +1573,7 @@ class TestSettingsScreen:
         """A heading worth reading is what makes folding them away honest."""
         screen = SettingsScreen(page, services)
 
-        await screen.refresh()
+        await screen.reload()
 
         body = rendered(screen)
         assert "Off - calls go straight to the provider" in body
@@ -1614,13 +1615,13 @@ class TestSettingsScreen:
     async def test_closing_a_fold_is_remembered(
         self, page: FakePage, services: Services
     ) -> None:
-        services.config = replace(services.config, proxy=ProxyConfig(enabled=True))
+        services.stage(replace(services.config, proxy=ProxyConfig(enabled=True)))
         screen = SettingsScreen(page, services)
 
         screen._on_proxy_fold(
             _event(ft.ExpansionTile(title=ft.Text("Proxy")), data=False)
         )
-        await screen.refresh()
+        await screen.reload()
 
         folds = [
             tile
@@ -1634,7 +1635,7 @@ class TestSettingsScreen:
     ) -> None:
         """At 360dp the default size wrapped "OpenRouter" mid-word."""
         screen = SettingsScreen(page, services)
-        await screen.refresh()
+        await screen.reload()
 
         values = {known.value for known in Provider}
         chooser = next(
@@ -1654,7 +1655,7 @@ class TestSettingsScreen:
     ) -> None:
         screen = SettingsScreen(page, services)
 
-        await screen.refresh()
+        await screen.reload()
 
         assert "2 exercises and 2 questions" in rendered(screen)
 
@@ -1693,7 +1694,7 @@ class TestSettingsScreen:
     async def test_the_thinking_level_is_saved(
         self, page: FakePage, services: Services
     ) -> None:
-        services.config = services.config.with_active(model_supports_thinking=True)
+        services.stage(services.config.with_active(model_supports_thinking=True))
         screen = SettingsScreen(page, services)
 
         await screen._on_thinking("high")
@@ -1704,7 +1705,7 @@ class TestSettingsScreen:
         self, page: FakePage, services: Services
     ) -> None:
         """The list's callback cannot await, so the work is handed to the page."""
-        services.config = services.config.with_active(model_supports_thinking=True)
+        services.stage(services.config.with_active(model_supports_thinking=True))
         screen = SettingsScreen(page, services)
 
         screen._choose_thinking(_event(ft.Dropdown(value="medium")))
@@ -1716,7 +1717,7 @@ class TestSettingsScreen:
         self, page: FakePage, services: Services
     ) -> None:
         """Six ordered levels are a list, not a block of wrapped chips."""
-        services.config = services.config.with_active(model_supports_thinking=True)
+        services.stage(services.config.with_active(model_supports_thinking=True))
         screen = SettingsScreen(page, services)
 
         levels = _find(screen.controls[2], ft.Dropdown)
@@ -1759,7 +1760,7 @@ class TestSettingsScreen:
         were recorded. Once a catalogue is in hand it says what the model can
         do, and the control has to follow it rather than the stale flag.
         """
-        services.config = services.config.with_active(model_supports_thinking=False)
+        services.stage(services.config.with_active(model_supports_thinking=False))
         services._catalogues[Provider.OPENROUTER] = catalogue
         screen = SettingsScreen(page, services)
 
@@ -1770,8 +1771,10 @@ class TestSettingsScreen:
         self, page: FakePage, services: Services, catalogue: list[ModelInfo]
     ) -> None:
         """The request is built from the stored flags, so they must agree."""
-        services.config = services.config.with_active(
-            model_supports_thinking=False, model_supports_json=False
+        services.stage(
+            services.config.with_active(
+                model_supports_thinking=False, model_supports_json=False
+            )
         )
         services._catalogues[Provider.OPENROUTER] = catalogue
         screen = SettingsScreen(page, services)
@@ -1785,7 +1788,7 @@ class TestSettingsScreen:
     async def test_reconciling_an_unlisted_model_changes_nothing(
         self, page: FakePage, services: Services
     ) -> None:
-        services.config = services.config.with_active(model="vendor/not-in-catalogue")
+        services.stage(services.config.with_active(model="vendor/not-in-catalogue"))
         screen = SettingsScreen(page, services)
 
         await screen._reconcile_capabilities()
@@ -1795,8 +1798,10 @@ class TestSettingsScreen:
     async def test_choosing_a_model_that_cannot_think_resets_the_level(
         self, page: FakePage, services: Services, catalogue: list[ModelInfo]
     ) -> None:
-        services.config = services.config.with_active(
-            model_supports_thinking=True, thinking=ThinkingLevel.HIGH
+        services.stage(
+            services.config.with_active(
+                model_supports_thinking=True, thinking=ThinkingLevel.HIGH
+            )
         )
         screen = SettingsScreen(page, services)
 
@@ -1839,7 +1844,7 @@ class TestSettingsScreen:
     async def test_the_proxy_fields_are_staged_and_committed(
         self, page: FakePage, services: Services
     ) -> None:
-        services.config = replace(services.config, proxy=ProxyConfig(enabled=True))
+        services.stage(replace(services.config, proxy=ProxyConfig(enabled=True)))
         screen = SettingsScreen(page, services)
 
         screen._stage_proxy_host(_event(ft.TextField(value="proxy.example")))
@@ -1854,7 +1859,7 @@ class TestSettingsScreen:
     async def test_a_nonsense_port_is_dropped(
         self, page: FakePage, services: Services
     ) -> None:
-        services.config = replace(services.config, proxy=ProxyConfig(enabled=True))
+        services.stage(replace(services.config, proxy=ProxyConfig(enabled=True)))
         screen = SettingsScreen(page, services)
 
         screen._stage_proxy_port(_event(ft.TextField(value="0")))
@@ -1870,7 +1875,7 @@ class TestSettingsScreen:
         after that quietly dropped it -- so a proxy the user had configured
         and tested was simply off, with the screen blaming a missing host.
         """
-        services.config = replace(services.config, proxy=ProxyConfig(enabled=True))
+        services.stage(replace(services.config, proxy=ProxyConfig(enabled=True)))
         screen = SettingsScreen(page, services)
 
         screen._stage_proxy_port(_event(ft.TextField(value="99999")))
@@ -1880,7 +1885,7 @@ class TestSettingsScreen:
     async def test_the_proxy_scheme_is_saved(
         self, page: FakePage, services: Services
     ) -> None:
-        services.config = replace(services.config, proxy=ProxyConfig(enabled=True))
+        services.stage(replace(services.config, proxy=ProxyConfig(enabled=True)))
         screen = SettingsScreen(page, services)
 
         await screen._on_proxy_scheme(
@@ -2128,6 +2133,72 @@ class TestPracticeApp:
         assert len(page.navigation_bar.destinations) == 3
         assert page.controls
 
+    async def test_the_chrome_is_labelled_by_the_screens_themselves(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """A fourth tab is one entry in the list, not six edits in the shell."""
+        app = PracticeApp(page, services)
+
+        await app.start()
+
+        assert page.appbar.title.value == app.screens[0].tab_title
+        assert [d.label for d in page.navigation_bar.destinations] == [
+            screen.tab_label for screen in app.screens
+        ]
+
+    async def test_every_screen_is_loaded_at_startup(
+        self, page: FakePage, services: Services, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """One of the three used to be called without being awaited."""
+        app = PracticeApp(page, services)
+        reloaded: list[str] = []
+        for screen in app.screens:
+            name = type(screen).__name__
+
+            async def record(name: str = name) -> None:
+                reloaded.append(name)
+
+            monkeypatch.setattr(screen, "reload", record)
+
+        await app.start()
+
+        assert reloaded == [type(s).__name__ for s in app.screens]
+
+    async def test_the_page_going_away_releases_the_pool(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """The one shutdown a phone app gets."""
+        app = PracticeApp(page, services)
+        await app.start()
+        client = services.client
+        _ = client._http()
+
+        await page.on_disconnect()
+
+        assert client._client is None
+
+
+class TestScreen:
+    """What the shell needs from a pane, and what it gets for free."""
+
+    def test_a_screen_must_say_how_it_draws_itself(self) -> None:
+        with pytest.raises(NotImplementedError):
+            Screen().render()
+
+    async def test_reloading_a_screen_with_nothing_to_read_redraws_it(self) -> None:
+        drawn: list[int] = []
+
+        class Bare(Screen):
+            def render(self) -> None:
+                drawn.append(1)
+
+        await Bare().reload()
+
+        assert drawn == [1]
+
+    def test_a_screen_spends_no_back_gesture_by_default(self) -> None:
+        assert Screen().handle_back() is False
+
 
 class TestTheBackGesture:
     """Back is a step inside the app, not a way out of it."""
@@ -2309,7 +2380,7 @@ class TestTheBackGesture:
     ) -> None:
         app = PracticeApp(page, services)
         await app.start()
-        services.config = AppConfig()
+        services.stage(AppConfig())
 
         app._settings_changed()
 
@@ -2318,7 +2389,7 @@ class TestTheBackGesture:
     async def test_the_setup_banner_jumps_to_the_settings_tab(
         self, page: FakePage, services: Services
     ) -> None:
-        services.config = AppConfig()
+        services.stage(AppConfig())
         app = PracticeApp(page, services)
         await app.start()
 

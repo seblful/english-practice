@@ -8,6 +8,7 @@ from pydantic import SecretStr
 
 from practice_runtime.settings import (
     DATABASE_FILENAME,
+    LAYOUT,
     BaseAppSettings,
     DashscopeSettings,
     GeminiSettings,
@@ -282,14 +283,12 @@ class TestRelocatingTheTree:
         assert paths.content_dir == tmp_path / "content"
 
     def test_every_declared_path_follows_the_data_dir(self, tmp_path: Path) -> None:
-        """The check the two lists never had.
+        """A path added to the model and forgotten in ``LAYOUT`` is stranded.
 
-        The layout is declared twice -- once as class-body defaults, once as
-        the validator's derivation table -- and nothing makes them agree. Add
-        an eleventh directory to the model and forget the table, and it stays
-        rooted at the import-time ``BASE_DIR`` while its parent moves: the
-        pipeline then writes into the real ``data/`` tree during a test. This
-        fails the moment that happens, without naming the fields.
+        It keeps ``_DERIVED`` -- a bare relative path -- while everything
+        around it moves, so the pipeline would write beside the working
+        directory during a test. This fails the moment that happens, without
+        naming the fields.
         """
         moved = PathSettings(data_dir=tmp_path)
 
@@ -300,6 +299,25 @@ class TestRelocatingTheTree:
         ]
 
         assert stranded == []
+
+    def test_the_layout_names_every_path_but_the_root(self) -> None:
+        """``data_dir`` is the only path the layout does not derive."""
+        declared = {name for name, _, _ in LAYOUT}
+        fields = {
+            name
+            for name, info in PathSettings.model_fields.items()
+            if info.annotation is Path
+        }
+
+        assert fields - declared == {"data_dir"}
+        assert declared - fields == set()
+
+    def test_the_layout_settles_each_parent_before_its_children(self) -> None:
+        """Derivation reads the parent, so the order is the whole contract."""
+        settled = {"data_dir"}
+        for name, parent, _ in LAYOUT:
+            assert parent in settled, f"{name} is derived from an unsettled {parent}"
+            settled.add(name)
 
     def test_an_environment_variable_still_wins(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

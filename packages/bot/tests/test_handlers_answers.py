@@ -5,16 +5,18 @@ from unittest.mock import Mock
 
 import pytest
 from practice_core.grading import EvaluateAnswerOutput
+from practice_core.lesson import ActiveExercise
 from practice_core.models import Exercise, QuestionAnswer
 from practice_runtime.errors import AgentError
 
 from practice_bot.handlers import answers as answers_handler
-from practice_bot.states import ActiveExercise
 from tests.conftest import USER_ID, replies
 
 
 @pytest.fixture
-def with_exercise(mock_context: Mock, exercise: Exercise) -> ActiveExercise:
+def with_exercise(
+    mock_context: Mock, exercise: Exercise, answers: list[QuestionAnswer]
+) -> ActiveExercise:
     """Put an unanswered exercise in the user's session."""
     active = ActiveExercise(
         exercise=exercise,
@@ -22,6 +24,7 @@ def with_exercise(mock_context: Mock, exercise: Exercise) -> ActiveExercise:
         topic_id=1,
         topic_name="Present Tenses",
         image=b"fake_image_bytes",
+        answers=tuple(answers),
     )
     mock_context.sessions.start_exercise(USER_ID, active)
     return active
@@ -67,7 +70,7 @@ class TestGrading:
 
         kwargs = mock_context.agents.grader.evaluate.await_args.kwargs
         assert kwargs["image"] == b"fake_image_bytes"
-        mock_context.repository.get_exercise_image.assert_not_called()
+        mock_context.content.get_exercise_image.assert_not_called()
 
     async def test_marks_the_question_answered(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
@@ -150,7 +153,7 @@ class TestGrading:
     async def test_question_without_stored_answers(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        mock_context.repository.list_answers.return_value = []
+        with_exercise.answers = ()
         mock_context.agents.grader.evaluate.return_value = EvaluateAnswerOutput(
             is_correct=True, answer_idx=[]
         )
@@ -286,6 +289,22 @@ class TestGradingFailure:
 
         assert with_exercise.answered is False
 
+    async def test_the_question_still_counts_as_revealed(
+        self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
+    ) -> None:
+        """The book's answer is in the chat, so saying otherwise is a lie.
+
+        The bot used to set neither flag on this path, so the shared
+        ``is_revealed`` reported False for a question whose answer the user
+        was looking at.
+        """
+        mock_context.agents.grader.evaluate.side_effect = AgentError("provider down")
+
+        await answers_handler.text_message(mock_update, mock_context)
+
+        assert with_exercise.is_revealed is True
+        assert with_exercise.ungraded is True
+
 
 class TestFollowUp:
     """Once answered, further messages go to the assistant."""
@@ -293,7 +312,7 @@ class TestFollowUp:
     async def test_routes_to_the_assistant(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        with_exercise.answered = True
+        with_exercise.record(EvaluateAnswerOutput(is_correct=True))
         mock_update.message.text = "why is it continuous?"
 
         await answers_handler.text_message(mock_update, mock_context)
@@ -303,13 +322,13 @@ class TestFollowUp:
         assert kwargs["exercise_id"] == with_exercise.exercise.id
         assert kwargs["question_number"] == "1"
         assert kwargs["image"] == b"fake_image_bytes"
-        mock_context.repository.get_exercise_image.assert_not_called()
+        mock_context.content.get_exercise_image.assert_not_called()
         mock_context.agents.grader.evaluate.assert_not_called()
 
     async def test_renders_the_reply_as_html(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        with_exercise.answered = True
+        with_exercise.record(EvaluateAnswerOutput(is_correct=True))
 
         await answers_handler.text_message(mock_update, mock_context)
 
@@ -320,7 +339,7 @@ class TestFollowUp:
     async def test_assistant_failure_is_reported(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        with_exercise.answered = True
+        with_exercise.record(EvaluateAnswerOutput(is_correct=True))
         mock_context.agents.assist.side_effect = AgentError("provider down")
 
         await answers_handler.text_message(mock_update, mock_context)

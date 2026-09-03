@@ -8,11 +8,17 @@ name, with the same docstring paragraph, once per front end -- and
 sat inside the app where the bot could not reach it. A lesson mode for the bot
 would have meant a third copy.
 
-Each front end still owns its own tail. The bot needs to know whether the
-question has been answered, so that the next message routes to the assistant
-rather than to the grader; that is a routing concern and stays there.
+Every way of settling a question goes through a transition on
+:class:`ActiveExercise`. There used to be five overlapping flags for the one
+fact -- ``evaluation``, ``ungraded`` and ``is_revealed`` here, ``answered``
+and ``grading`` on a subclass in the bot -- with each front end maintaining a
+different pair. A grading that failed in the bot showed the book's answer and
+set neither of the two this module reads, so ``is_revealed`` said no with the
+answer on the user's screen.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from practice_core.errors import PracticeError
@@ -72,11 +78,62 @@ class ActiveExercise:
     # Set when the answer was revealed without a verdict -- either the user
     # asked, or grading failed. No verdict is then claimed.
     ungraded: bool = False
+    # Held for the length of one grading call. Public so a front end can see
+    # a claim it did not make; claimed only through `being_graded`.
+    grading: bool = False
+
+    @property
+    def answered(self) -> bool:
+        """Whether a verdict has come back for this question.
+
+        A grading that failed does not count: the bot offers another attempt,
+        and this is the flag that decides whether the next message it gets is
+        one. The bot used to carry a field of its own for this, set beside
+        ``evaluation`` and meaning the same thing.
+        """
+        return self.evaluation is not None
 
     @property
     def is_revealed(self) -> bool:
         """Whether the book's answer has been shown for this question."""
-        return self.evaluation is not None or self.ungraded
+        return self.answered or self.ungraded
+
+    def record(self, evaluation: EvaluateAnswerOutput) -> None:
+        """Take the model's verdict for this question.
+
+        Args:
+            evaluation: What the model said.
+        """
+        self.evaluation = evaluation
+        self.ungraded = False
+
+    def give_up(self) -> None:
+        """Show the book's answer without claiming a verdict.
+
+        Either the student asked for it or the grading failed. Both front ends
+        need the distinction: it is what stops a revealed answer counting as a
+        right one, and what tells the bot the question is still open.
+        """
+        self.ungraded = True
+
+    @contextmanager
+    def being_graded(self) -> Iterator[None]:
+        """Hold this question for the length of one grading call.
+
+        The claim has to be taken before the first ``await``, and released
+        however the grading ends. Written out by hand in the bot's handler,
+        it was taken late -- ``evaluation`` only arrives once the verdict is
+        back -- so two messages sent at once were both graded: one answer, two
+        provider calls, two contradictory verdicts.
+
+        Yields:
+            Nothing; the claim is the point.
+        """
+        self.grading = True
+        try:
+            yield
+        finally:
+            self.grading = False
 
     def reveal(self, *, show_rule: bool = True) -> Reveal:
         """Return what to show the student for this question.
@@ -184,11 +241,11 @@ class Lesson:
             The question the verdict belongs to.
 
         Raises:
-            PracticeError: If no question is on screen.
+            PracticeError: If no question is on screen, or that question has
+                already been settled.
         """
-        active = self._on_screen()
-        active.evaluation = evaluation
-        active.ungraded = False
+        active = self._unsettled()
+        active.record(evaluation)
         self.outcomes.append(evaluation.is_correct)
         return active
 
@@ -227,11 +284,33 @@ class Lesson:
             The question that was spent.
 
         Raises:
-            PracticeError: If no question is on screen.
+            PracticeError: If no question is on screen, or that question has
+                already been settled.
+        """
+        active = self._unsettled()
+        active.give_up()
+        self.outcomes.append(False)
+        return active
+
+    def _unsettled(self) -> ActiveExercise:
+        """Return the question on screen, which must not have an outcome yet.
+
+        The run has a fixed number of slots and every transition takes one, so
+        settling the same question twice spends two of them: the bar and the
+        counter then report a lesson longer than the one the student sat.
+        Nothing here enforced it -- the app was safe only because the screen
+        hides the Check button once an answer is revealed.
+
+        Returns:
+            The active exercise, still open.
+
+        Raises:
+            PracticeError: If no question is on screen, or the one on screen
+                has already been settled.
         """
         active = self._on_screen()
-        active.ungraded = True
-        self.outcomes.append(False)
+        if active.is_revealed:
+            raise PracticeError("this question already has an outcome")
         return active
 
     def _on_screen(self) -> ActiveExercise:

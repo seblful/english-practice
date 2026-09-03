@@ -2,7 +2,6 @@
 
 import io
 
-from practice_core.lesson import topic_label
 from practice_core.models import Topic
 from practice_runtime.logging import get_logger
 
@@ -17,7 +16,6 @@ from practice_bot.callbacks import (
 )
 from practice_bot.context import BotContext
 from practice_bot.handlers.access import handler
-from practice_bot.states import ActiveExercise
 from practice_bot.updates import Interaction
 
 logger = get_logger(__name__)
@@ -42,49 +40,35 @@ async def send_exercise(
     """
     # The draw only returns exercises that have questions, so an empty result
     # means the topic itself is empty.
-    drawn = await context.repository.draw_question(topic.id if topic else None)
-    if drawn is None:
+    active = await context.content.draw(
+        topic.id if topic else None,
+        topic_name=topic.name if topic else None,
+    )
+    if active is None:
         logger.info("no_exercise_available", topic_id=topic.id if topic else None)
-        await who.message.reply_text(NO_EXERCISES_MESSAGE)
+        await who.say(NO_EXERCISES_MESSAGE)
         return
 
-    exercise, question, image = drawn
-    topic_name = topic_label(
-        topic_name=topic.name if topic else None, unit=exercise.unit
-    )
-
-    context.start_exercise(
-        who.user.id,
-        ActiveExercise(
-            exercise=exercise,
-            question=question,
-            topic_id=topic.id if topic else None,
-            topic_name=topic_name,
-            image=image,
-        ),
-    )
+    exercise = active.exercise
+    context.start_exercise(who.user.id, active)
     logger.info(
         "exercise_sent",
         user_id=who.user.id,
         exercise_id=exercise.id,
-        question_id=question.question_id,
+        question_id=active.question.question_id,
         unit_number=exercise.unit.unit_number,
     )
 
-    await who.message.reply_text(formatter.topic_line(topic_name), parse_mode="HTML")
-    await who.message.reply_text(
-        formatter.question_prompt(question.question_id), parse_mode="HTML"
-    )
+    await who.say(formatter.topic_line(active.topic_name))
+    await who.say(formatter.question_prompt(active.question.question_id))
 
-    if image is None:
+    if active.image is None:
         logger.warning("exercise_image_missing", exercise_id=exercise.id)
-        await who.message.reply_text(
-            NO_IMAGE_MESSAGE, reply_markup=keyboards.exercise_keyboard()
-        )
+        await who.say(NO_IMAGE_MESSAGE, reply_markup=keyboards.exercise_keyboard())
         return
 
     await who.message.reply_photo(
-        photo=io.BytesIO(image), reply_markup=keyboards.exercise_keyboard()
+        photo=io.BytesIO(active.image), reply_markup=keyboards.exercise_keyboard()
     )
 
 
@@ -103,8 +87,8 @@ async def topic_selection(who: Interaction, context: BotContext) -> None:
 
     match choice:
         case KeywordChoice(TopicSelection.NEW_TOPIC):
-            topics = await context.repository.list_topics()
-            await who.message.reply_text(
+            topics = await context.content.list_topics()
+            await who.say(
                 CHOOSE_TOPIC_MESSAGE,
                 reply_markup=keyboards.topics_keyboard(topics),
             )
@@ -113,16 +97,16 @@ async def topic_selection(who: Interaction, context: BotContext) -> None:
         case KeywordChoice(TopicSelection.SAME):
             last_topic_id = context.sessions.get(who.user.id).last_topic_id
             topic = (
-                await context.repository.get_topic(last_topic_id)
+                await context.content.get_topic(last_topic_id)
                 if last_topic_id is not None
                 else None
             )
             await send_exercise(who, context, topic=topic)
         case SpecificTopic(topic_id):
-            topic = await context.repository.get_topic(topic_id)
+            topic = await context.content.get_topic(topic_id)
             if topic is None:
                 logger.warning("unknown_topic_selected", topic_id=topic_id)
-                await who.message.reply_text(NO_EXERCISES_MESSAGE)
+                await who.say(NO_EXERCISES_MESSAGE)
                 return
             await send_exercise(who, context, topic=topic)
 
@@ -142,13 +126,12 @@ async def exercise_action(who: Interaction, context: BotContext) -> None:
 
     active = context.sessions.get(who.user.id).active
     if active is None:
-        await who.message.reply_text(NO_ACTIVE_EXERCISE_MESSAGE)
+        await who.say(NO_ACTIVE_EXERCISE_MESSAGE)
         return
 
     match action:
         case ExerciseAction.SHOW_UNIT:
             unit = active.exercise.unit
-            await who.message.reply_text(
+            await who.say(
                 formatter.unit_info(unit.unit_number, unit.title),
-                parse_mode="HTML",
             )

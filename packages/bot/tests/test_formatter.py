@@ -113,3 +113,32 @@ class TestEvaluation:
 
         assert text.startswith("❌ <b>")
         assert any(phrase in text for phrase in feedback.WRONG_PHRASES)
+
+
+class TestTheHtmlType:
+    """The parse mode travels with the text rather than with the call site."""
+
+    def test_everything_this_module_builds_is_marked_as_html(self) -> None:
+        """`escape` is the exception: it takes markup apart, it does not make it."""
+        answers = [QuestionAnswer(short_answer="is doing", full_answer="He is.")]
+        built = [
+            formatter.rich("**bold**"),
+            formatter.topic_line("Present Tenses"),
+            formatter.question_prompt("1"),
+            formatter.evaluation(is_correct=True),
+            formatter.short_answers(answers),
+            formatter.full_answers(answers),
+            formatter.rule_block("Unit 12A", "Use the present continuous."),
+            formatter.unit_info(12, "Present Continuous"),
+            formatter.assistant_answer("because"),
+            formatter.access_request("Alice", "alice", 111),
+        ]
+
+        assert [text for text in built if not isinstance(text, formatter.Html)] == []
+
+    def test_a_plain_constant_is_not_html(self) -> None:
+        """The two were the same type, so a reply site had to remember which."""
+        assert not isinstance("Choose next exercise:", formatter.Html)
+
+    def test_html_is_still_a_string(self) -> None:
+        assert formatter.topic_line("Present Tenses").startswith("📚")

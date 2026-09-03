@@ -30,7 +30,6 @@ from practice_core.feedback import (
     to_markdown,
     verdict_phrase,
 )
-from practice_core.lesson import topic_label
 from practice_core.reveal import Reveal
 
 from practice_app.services import Services
@@ -47,7 +46,6 @@ from practice_app.ui.components import (
     placeholder,
     primary_action,
     progress_track,
-    push,
     secondary_action,
     section_title,
     sheet,
@@ -57,6 +55,7 @@ from practice_app.ui.components import (
 )
 from practice_app.ui.home_view import HomeState, HomeView
 from practice_app.ui.page import DialogPage
+from practice_app.ui.screen import Screen
 from practice_app.ui.theme import (
     CORRECT,
     GAP,
@@ -93,8 +92,14 @@ _ANSWER_MIN_LINES = 3
 _ANSWER_MAX_LINES = 6
 
 
-class PracticeScreen(ft.Column):
+class PracticeScreen(Screen):
     """A lesson: a run of questions, one on screen at a time."""
+
+    tab_title = "Practice"
+    tab_label = "Practice"
+    tab_icon = ft.Icons.SCHOOL_ROUNDED
+    # The progress bar and the verdict sheet run edge to edge.
+    inset = False
 
     def __init__(
         self,
@@ -162,19 +167,6 @@ class PracticeScreen(ft.Column):
     # ------------------------------------------------------------------
     # Rendering
     # ------------------------------------------------------------------
-
-    def _repaint(self) -> None:
-        """Rebuild this screen and send it.
-
-        The two halves were written out at every call site and neither is any
-        use alone: ``render`` rebuilds ``controls`` in memory, ``push`` sends
-        the subtree, and pushing first sends the tree the user already has.
-        Forgetting the second one shows up as a tap that did nothing, and no
-        test catches it -- they assert on ``controls``, which ``render`` alone
-        already satisfies.
-        """
-        self.render()
-        push(self)
 
     def render(self) -> None:
         """Rebuild the screen from the current state.
@@ -905,22 +897,22 @@ class PracticeScreen(ft.Column):
         if self._session.lesson is None:  # pragma: no cover - both guard it
             return
         self._leaving = True
-        self._repaint()
+        self.repaint()
 
     def _stay(self) -> None:
         """Put the leave question away and carry on with the question."""
         self._leaving = False
-        self._repaint()
+        self.repaint()
 
     def _open_zoom(self) -> None:
         """Give the screen over to the exercise picture."""
         self._zoom_open = True
-        self._repaint()
+        self.repaint()
 
     def _close_zoom(self) -> None:
         """Go back to the question from the magnified picture."""
         self._zoom_open = False
-        self._repaint()
+        self.repaint()
 
     # ------------------------------------------------------------------
     # Events
@@ -937,12 +929,12 @@ class PracticeScreen(ft.Column):
     def _toggle_unit(self) -> None:
         """Fold what the unit covers open or shut, from a tap on its chip."""
         self._unit_open = not self._unit_open
-        self._repaint()
+        self.repaint()
 
     def _on_toggle_rule(self) -> None:
         """Fold the rule open or shut."""
         self._rule_open = not self._rule_open
-        self._repaint()
+        self.repaint()
 
     async def _on_reveal(self) -> None:
         """Give up on the question and show the book's answer."""
@@ -953,7 +945,7 @@ class PracticeScreen(ft.Column):
         # lesson's rule to keep rather than this handler's to remember.
         lesson.reveal_answer()
         self._verdict = _REVEALED_HEADLINE
-        self._repaint()
+        self.repaint()
 
     async def _on_check(self) -> None:
         """Grade what the user typed."""
@@ -970,7 +962,7 @@ class PracticeScreen(ft.Column):
             return
 
         self._busy = True
-        self._repaint()
+        self.repaint()
 
         try:
             evaluation = await self._services.grader.grade(
@@ -998,7 +990,7 @@ class PracticeScreen(ft.Column):
             )
         finally:
             self._busy = False
-            self._repaint()
+            self.repaint()
 
     async def _on_continue(self) -> None:
         """Move past the verdict: on to the next question, or to the result."""
@@ -1019,7 +1011,7 @@ class PracticeScreen(ft.Column):
             self._unit_open = False
             self._grading_error = None
 
-        self._repaint()
+        self.repaint()
 
     # ------------------------------------------------------------------
     # Running a lesson
@@ -1049,7 +1041,7 @@ class PracticeScreen(ft.Column):
         lesson.advance(drawn)
 
         self._announce()
-        self._repaint()
+        self.repaint()
 
     async def _draw(
         self, topic_id: int | None, topic_name: str
@@ -1065,33 +1057,16 @@ class PracticeScreen(ft.Column):
             case the user has already been told why.
         """
         try:
-            drawn = await self._services.content.draw_question(topic_id)
+            active = await self._services.content.draw(topic_id, topic_name=topic_name)
         except ContentError as exc:
             show_snack(self._page, str(exc), error=True)
             return None
 
-        if drawn is None:
+        if active is None:
             show_snack(self._page, _NO_EXERCISES)
             return None
 
-        exercise, question, image = drawn
-        try:
-            answers = await self._services.content.list_answers(question.id)
-        except ContentError as exc:  # pragma: no cover - the draw already read it
-            show_snack(self._page, str(exc), error=True)
-            return None
-
-        return ActiveExercise(
-            exercise=exercise,
-            question=question,
-            topic_id=topic_id,
-            topic_name=topic_label(
-                topic_name=topic_name if topic_id is not None else None,
-                unit=exercise.unit,
-            ),
-            image=image,
-            answers=tuple(answers),
-        )
+        return active
 
     def _close_panes(self) -> None:
         """Put away anything the lesson had open over itself.
@@ -1109,7 +1084,7 @@ class PracticeScreen(ft.Column):
         self._close_panes()
         await self._reload_stats()
         self._announce()
-        self._repaint()
+        self.repaint()
 
     def _announce(self) -> None:
         """Tell the shell whether a lesson has the screen to itself."""
@@ -1120,7 +1095,7 @@ class PracticeScreen(ft.Column):
     # Loading
     # ------------------------------------------------------------------
 
-    async def load(self) -> None:
+    async def reload(self) -> None:
         """Load what the home screen shows: the topics, and today's progress.
 
         The topics are read once — they ship with the app and cannot change —
@@ -1133,13 +1108,9 @@ class PracticeScreen(ft.Column):
             except ContentError as exc:
                 show_snack(self._page, str(exc), error=True)
         await self._reload_stats()
-        self._repaint()
+        self.repaint()
 
     async def _reload_stats(self) -> None:
         """Re-read the progress the home screen reports."""
         self._summary = await self._services.stats.summary()
         self._topic_stats = {topic.name: topic for topic in self._summary.topics}
-
-    def refresh(self) -> None:
-        """Re-render after a settings change, which may hide the setup notice."""
-        self._repaint()

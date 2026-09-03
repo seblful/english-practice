@@ -15,7 +15,9 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 import structlog
+from practice_core.content import ContentLibrary
 from practice_core.grading import EvaluateAnswerOutput
+from practice_core.lesson import ActiveExercise, topic_label
 from practice_core.models import Exercise, Question, QuestionAnswer, Topic, Unit
 from practice_core.resources import read_packaged_text
 from practice_core.schema import create_content_schema
@@ -28,7 +30,7 @@ from practice_bot.repositories.database import (
     AUTH_SCHEMA,
     SCHEMA_ANCHOR,
     SCHEMA_DIR,
-    DatabaseRepository,
+    AuthRepository,
 )
 from practice_bot.services.agent_service import AgentService
 from practice_bot.settings import Settings
@@ -272,29 +274,53 @@ def mock_callback_update(mock_user: Mock, mock_callback_query: AsyncMock) -> Moc
 
 
 @pytest.fixture
-def mock_repository(
+def mock_content(
     exercise: Exercise, answers: list[QuestionAnswer], topics: list[Topic]
 ) -> AsyncMock:
-    """A repository whose queries succeed with the domain fixtures."""
-    repository = AsyncMock(spec=DatabaseRepository)
-    repository.list_topics.return_value = topics
-    repository.get_topic.return_value = topics[0]
-    repository.random_exercise.return_value = exercise
-    # The handlers draw through `draw_question`, which is the shared query that
-    # picks the exercise, the question and the image together.
-    repository.draw_question.return_value = (
-        exercise,
-        exercise.questions[0],
-        b"fake_image_bytes",
-    )
-    repository.get_exercise_image.return_value = b"fake_image_bytes"
-    repository.list_answers.return_value = answers
-    repository.get_auth_status.return_value = None
-    repository.list_pending_users.return_value = [
+    """The book, answering with the domain fixtures."""
+    content = AsyncMock(spec=ContentLibrary)
+    content.list_topics.return_value = topics
+    content.get_topic.return_value = topics[0]
+    content.random_exercise.return_value = exercise
+
+    # The handlers draw through `draw`, which is the shared query that hands
+    # back a question ready to be asked: the exercise, the picture and the
+    # book's answers all travel with it. The stand-in labels the topic the way
+    # the real one does, so a handler cannot pass the wrong thing and pass.
+    async def draw(
+        topic_id: int | None = None,
+        *,
+        topic_name: str | None = None,
+        choose: object = None,
+    ) -> ActiveExercise:
+        return ActiveExercise(
+            exercise=exercise,
+            question=exercise.questions[0],
+            topic_id=topic_id,
+            topic_name=topic_label(
+                topic_name=topic_name if topic_id is not None else None,
+                unit=exercise.unit,
+            ),
+            image=b"fake_image_bytes",
+            answers=tuple(answers),
+        )
+
+    content.draw.side_effect = draw
+    content.get_exercise_image.return_value = b"fake_image_bytes"
+    content.list_answers.return_value = answers
+    return content
+
+
+@pytest.fixture
+def mock_users() -> AsyncMock:
+    """The record of who may use the bot, with one unknown user and two waiting."""
+    users = AsyncMock(spec=AuthRepository)
+    users.get_auth_status.return_value = None
+    users.list_pending_users.return_value = [
         PendingUser(telegram_id=111, full_name="Alice", telegram_username="alice"),
         PendingUser(telegram_id=222, full_name="Bob"),
     ]
-    return repository
+    return users
 
 
 @pytest.fixture
@@ -321,11 +347,15 @@ def sessions() -> SessionStore:
 
 @pytest.fixture
 def dependencies(
-    mock_repository: AsyncMock, mock_agents: AsyncMock, sessions: SessionStore
+    mock_content: AsyncMock,
+    mock_users: AsyncMock,
+    mock_agents: AsyncMock,
+    sessions: SessionStore,
 ) -> BotDependencies:
     """Dependencies with access control switched off."""
     return BotDependencies(
-        repository=mock_repository,
+        content=mock_content,
+        users=mock_users,
         agents=mock_agents,
         sessions=sessions,
         admin_user_id=None,
@@ -338,7 +368,8 @@ def mock_context(dependencies: BotDependencies) -> Mock:
     context = Mock(spec=BotContext)
     context.bot = AsyncMock()
     context.dependencies = dependencies
-    context.repository = dependencies.repository
+    context.content = dependencies.content
+    context.users = dependencies.users
     context.agents = dependencies.agents
     context.sessions = dependencies.sessions
     context.start_exercise = dependencies.start_exercise

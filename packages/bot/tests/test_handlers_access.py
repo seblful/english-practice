@@ -25,7 +25,7 @@ class TestAccessDisabled:
         await menu.start_command(mock_update, mock_context)
 
         assert "Welcome" in replies(mock_update.message)[0]
-        mock_context.repository.get_auth_status.assert_not_called()
+        mock_context.users.get_auth_status.assert_not_called()
 
 
 class TestAccessEnabled:
@@ -39,13 +39,13 @@ class TestAccessEnabled:
         await menu.start_command(mock_update, mock_context)
 
         assert "Welcome" in replies(mock_update.message)[0]
-        mock_context.repository.get_auth_status.assert_not_called()
+        mock_context.users.get_auth_status.assert_not_called()
 
     async def test_approved_user_is_allowed(
         self, mock_update: Mock, mock_context: Mock, set_admin: Callable[[int], None]
     ) -> None:
         set_admin(ADMIN_ID)
-        mock_context.repository.get_auth_status.return_value = "approved"
+        mock_context.users.get_auth_status.return_value = "approved"
 
         await menu.start_command(mock_update, mock_context)
 
@@ -55,11 +55,11 @@ class TestAccessEnabled:
         self, mock_update: Mock, mock_context: Mock, set_admin: Callable[[int], None]
     ) -> None:
         set_admin(ADMIN_ID)
-        mock_context.repository.get_auth_status.return_value = None
+        mock_context.users.get_auth_status.return_value = None
 
         await menu.start_command(mock_update, mock_context)
 
-        mock_context.repository.register_user.assert_awaited_once_with(
+        mock_context.users.register_user.assert_awaited_once_with(
             USER_ID, "Test User", "testuser"
         )
         assert "approval" in replies(mock_update.message)[0]
@@ -70,23 +70,23 @@ class TestAccessEnabled:
         self, mock_update: Mock, mock_context: Mock, set_admin: Callable[[int], None]
     ) -> None:
         set_admin(ADMIN_ID)
-        mock_context.repository.get_auth_status.return_value = "pending"
+        mock_context.users.get_auth_status.return_value = "pending"
 
         await menu.start_command(mock_update, mock_context)
 
         assert "still pending" in replies(mock_update.message)[0]
-        mock_context.repository.register_user.assert_not_called()
+        mock_context.users.register_user.assert_not_called()
         mock_context.bot.send_message.assert_not_called()
 
     async def test_rejected_user_reapplies(
         self, mock_update: Mock, mock_context: Mock, set_admin: Callable[[int], None]
     ) -> None:
         set_admin(ADMIN_ID)
-        mock_context.repository.get_auth_status.return_value = "rejected"
+        mock_context.users.get_auth_status.return_value = "rejected"
 
         await menu.start_command(mock_update, mock_context)
 
-        mock_context.repository.reset_to_pending.assert_awaited_once_with(
+        mock_context.users.reset_to_pending.assert_awaited_once_with(
             USER_ID, "Test User", "testuser"
         )
         assert "approval" in replies(mock_update.message)[0]
@@ -99,7 +99,7 @@ class TestAccessEnabled:
 
         await menu.start_command(mock_update, mock_context)
 
-        mock_context.repository.register_user.assert_awaited_once_with(
+        mock_context.users.register_user.assert_awaited_once_with(
             USER_ID, "Unknown", "testuser"
         )
 
@@ -108,7 +108,7 @@ class TestAccessEnabled:
     ) -> None:
         """A user waiting for approval can still read /help."""
         set_admin(ADMIN_ID)
-        mock_context.repository.get_auth_status.return_value = "pending"
+        mock_context.users.get_auth_status.return_value = "pending"
 
         await menu.help_command(mock_update, mock_context)
 
@@ -126,7 +126,7 @@ class TestAdminAccess:
         await pending_command(mock_update, mock_context)
 
         assert replies(mock_update.message) == [NOT_AUTHORIZED_MESSAGE]
-        mock_context.repository.list_pending_users.assert_not_called()
+        mock_context.users.list_pending_users.assert_not_called()
 
     async def test_refused_when_no_admin_is_configured(
         self, mock_update: Mock, mock_context: Mock

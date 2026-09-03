@@ -8,6 +8,7 @@ before it, or is one an operator has to bring by hand.
 from pathlib import Path
 
 import pytest
+from practice_runtime.errors import ConfigurationError
 from practice_runtime.settings import PathSettings
 
 from practice_extraction.settings import Settings
@@ -16,6 +17,7 @@ from practice_extraction.stages import (
     STAGES,
     Artifact,
     Stage,
+    register,
 )
 
 
@@ -122,3 +124,28 @@ class TestIsDone:
         self, settings: Settings
     ) -> None:
         assert Stage("report").is_done(settings) is True
+
+
+class TestRunning:
+    """A stage does something. The record used to declare only its files."""
+
+    def test_a_stage_nothing_has_declared_says_so(self, settings: Settings) -> None:
+        """Reached when the module holding the runner was never imported."""
+        orphan = Stage("not-a-real-stage")
+
+        with pytest.raises(ConfigurationError, match="no runner is declared"):
+            orphan.run(settings)
+
+    def test_the_runner_is_handed_the_settings(self, settings: Settings) -> None:
+        seen: list[Settings] = []
+        stage = Stage("scratch-stage")
+        register(stage, seen.append)
+
+        assert stage.run(settings) == 0
+        assert seen == [settings]
+
+    def test_the_runner_decides_the_exit_code(self, settings: Settings) -> None:
+        stage = Stage("failing-stage")
+        register(stage, lambda _settings: 3)
+
+        assert stage.run(settings) == 3

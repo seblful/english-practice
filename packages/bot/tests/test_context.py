@@ -25,7 +25,8 @@ class TestDependencies:
         context = BotContext(application=Mock(bot_data=bot_data))
 
         assert context.dependencies is dependencies
-        assert context.repository is dependencies.repository
+        assert context.content is dependencies.content
+        assert context.users is dependencies.users
         assert context.agents is dependencies.agents
         assert context.sessions is dependencies.sessions
 

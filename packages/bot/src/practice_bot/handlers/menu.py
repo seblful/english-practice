@@ -39,7 +39,7 @@ async def start_command(who: Interaction, context: BotContext) -> None:
     session = context.sessions.get(who.user.id)
     logger.info("bot_started", user_id=who.user.id)
 
-    await who.message.reply_text(
+    await who.say(
         _welcome(who.user.first_name),
         reply_markup=keyboards.main_menu_keyboard(session.has_previous_topic),
     )
@@ -54,7 +54,7 @@ async def exercise_command(who: Interaction, context: BotContext) -> None:
         context: The handler context.
     """
     session = context.sessions.get(who.user.id)
-    await who.message.reply_text(
+    await who.say(
         MENU_PROMPT,
         reply_markup=keyboards.main_menu_keyboard(session.has_previous_topic),
     )
@@ -70,7 +70,7 @@ async def rule_command(who: Interaction, context: BotContext) -> None:
     """
     enabled = context.sessions.toggle_show_rule(who.user.id)
     status = "enabled ✅" if enabled else "disabled ❌"
-    await who.message.reply_text(f"📋 Rule display is now {status}.")
+    await who.say(f"📋 Rule display is now {status}.")
 
 
 @handler(Access.PUBLIC)
@@ -84,7 +84,6 @@ async def help_command(who: Interaction, context: BotContext) -> None:
         who: The user behind the update.
         context: The handler context.
     """
-    await who.message.reply_text(
+    await who.say(
         commands.help_text(include_admin=context.dependencies.is_admin(who.user.id)),
-        parse_mode="HTML",
     )

@@ -2,9 +2,11 @@
 
 from datetime import UTC, datetime, timedelta
 
+from practice_core.grading import EvaluateAnswerOutput
+from practice_core.lesson import ActiveExercise
 from practice_core.models import Exercise, Question
 
-from practice_bot.states import ActiveExercise, SessionStore, UserSession
+from practice_bot.states import SessionStore, UserSession
 
 
 class _Clock:
@@ -94,7 +96,7 @@ class TestActiveExercise:
     ) -> None:
         session = sessions.start_exercise(1, _active(exercise, question, 3))
         assert session.active is not None
-        session.active.answered = True
+        session.active.record(EvaluateAnswerOutput(is_correct=True))
 
         session = sessions.start_exercise(1, _active(exercise, question, 3))
 

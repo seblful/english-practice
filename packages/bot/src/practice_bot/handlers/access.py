@@ -45,6 +45,37 @@ class Access(StrEnum):
     ADMIN = auto()
 
 
+async def _send(
+    context: BotContext,
+    chat_id: int,
+    text: str,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> None:
+    """Send an unsolicited message, in HTML when the text is HTML.
+
+    These two sibling notifications took the same parameter type and applied
+    opposite policies to it -- one always claimed HTML, the other never did --
+    with the obligation written down only in a docstring.
+
+    Args:
+        context: The handler context.
+        chat_id: Who to send it to.
+        text: What to send. :class:`~practice_bot.formatter.Html` carries its
+            own parse mode.
+        reply_markup: Optional keyboard to attach.
+
+    Raises:
+        Exception: Whatever Telegram raised; the callers decide what a
+            failure to reach one chat costs.
+    """
+    kwargs: dict[str, Any] = {"chat_id": chat_id, "text": text}
+    if reply_markup is not None:
+        kwargs["reply_markup"] = reply_markup
+    if isinstance(text, formatter.Html):
+        kwargs["parse_mode"] = "HTML"
+    await context.bot.send_message(**kwargs)
+
+
 async def notify_admin(
     context: BotContext,
     text: str,
@@ -54,19 +85,14 @@ async def notify_admin(
 
     Args:
         context: The handler context.
-        text: Message text in Telegram HTML.
+        text: Message text.
         reply_markup: Optional keyboard to attach.
     """
     admin_user_id = context.dependencies.admin_user_id
     if admin_user_id is None:
         return
     try:
-        await context.bot.send_message(
-            chat_id=admin_user_id,
-            text=text,
-            parse_mode="HTML",
-            reply_markup=reply_markup,
-        )
+        await _send(context, admin_user_id, text, reply_markup)
     except Exception as exc:
         # The admin may never have started a chat with the bot; that must not
         # break the request the user is waiting on.
@@ -78,7 +104,7 @@ async def notify_admin(
 
 
 async def notify_user(context: BotContext, user_id: int, text: str) -> None:
-    """Send a plain message to a user, tolerating a blocked bot.
+    """Send a message to a user, tolerating a blocked bot.
 
     Args:
         context: The handler context.
@@ -86,7 +112,7 @@ async def notify_user(context: BotContext, user_id: int, text: str) -> None:
         text: Message text.
     """
     try:
-        await context.bot.send_message(chat_id=user_id, text=text)
+        await _send(context, user_id, text)
     except Exception as exc:
         logger.warning("user_notify_failed", user_id=user_id, error=str(exc))
 
@@ -99,7 +125,7 @@ async def _request_access(who: Interaction, context: BotContext) -> None:
         context: The handler context.
     """
     full_name = who.user.full_name or "Unknown"
-    await who.message.reply_text(PENDING_MESSAGE)
+    await who.say(PENDING_MESSAGE)
 
     await notify_admin(
         context,
@@ -125,25 +151,21 @@ async def ensure_approved(who: Interaction, context: BotContext) -> bool:
     if not dependencies.access_control_enabled or dependencies.is_admin(who.user.id):
         return True
 
-    status: AuthStatus | None = await context.repository.get_auth_status(who.user.id)
+    status: AuthStatus | None = await context.users.get_auth_status(who.user.id)
     if status == "approved":
         return True
 
     full_name = who.user.full_name or "Unknown"
     if status is None:
-        await context.repository.register_user(
-            who.user.id, full_name, who.user.username
-        )
+        await context.users.register_user(who.user.id, full_name, who.user.username)
         logger.info("access_requested", user_id=who.user.id)
         await _request_access(who, context)
     elif status == "rejected":
-        await context.repository.reset_to_pending(
-            who.user.id, full_name, who.user.username
-        )
+        await context.users.reset_to_pending(who.user.id, full_name, who.user.username)
         logger.info("access_reapplied", user_id=who.user.id)
         await _request_access(who, context)
     else:
-        await who.message.reply_text(STILL_PENDING_MESSAGE)
+        await who.say(STILL_PENDING_MESSAGE)
 
     return False
 
@@ -161,7 +183,7 @@ async def ensure_admin(who: Interaction, context: BotContext) -> bool:
     if context.dependencies.is_admin(who.user.id):
         return True
     logger.warning("admin_action_denied", user_id=who.user.id)
-    await who.message.reply_text(NOT_AUTHORIZED_MESSAGE)
+    await who.say(NOT_AUTHORIZED_MESSAGE)
     return False
 
 

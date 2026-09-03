@@ -4,11 +4,11 @@ from collections.abc import Callable
 from unittest.mock import Mock
 
 import pytest
+from practice_core.lesson import ActiveExercise
 from practice_core.models import Exercise
 
 from practice_bot.handlers import admin
 from practice_bot.handlers.access import APPROVED_NOTICE, REJECTED_NOTICE
-from practice_bot.states import ActiveExercise
 from tests.conftest import USER_ID, replies
 
 
@@ -31,7 +31,7 @@ class TestPendingCommand:
     async def test_reports_an_empty_queue(
         self, mock_update: Mock, mock_context: Mock
     ) -> None:
-        mock_context.repository.list_pending_users.return_value = []
+        mock_context.users.list_pending_users.return_value = []
 
         await admin.pending_command(mock_update, mock_context)
 
@@ -48,7 +48,7 @@ class TestAdminAction:
 
         await admin.admin_action(mock_callback_update, mock_context)
 
-        mock_context.repository.set_auth_status.assert_awaited_once_with(
+        mock_context.users.set_auth_status.assert_awaited_once_with(
             111, "approved", USER_ID
         )
         mock_context.bot.send_message.assert_awaited_once_with(
@@ -62,7 +62,7 @@ class TestAdminAction:
 
         await admin.admin_action(mock_callback_update, mock_context)
 
-        mock_context.repository.set_auth_status.assert_awaited_once_with(
+        mock_context.users.set_auth_status.assert_awaited_once_with(
             111, "rejected", USER_ID
         )
         mock_context.bot.send_message.assert_awaited_once_with(
@@ -84,7 +84,7 @@ class TestAdminAction:
         self, mock_callback_update: Mock, mock_context: Mock
     ) -> None:
         mock_callback_update.callback_query.data = "admin:approve:111"
-        mock_context.repository.list_pending_users.return_value = []
+        mock_context.users.list_pending_users.return_value = []
 
         await admin.admin_action(mock_callback_update, mock_context)
 
@@ -99,7 +99,7 @@ class TestAdminAction:
 
         await admin.admin_action(mock_callback_update, mock_context)
 
-        mock_context.repository.set_auth_status.assert_awaited_once()
+        mock_context.users.set_auth_status.assert_awaited_once()
 
     async def test_rejecting_drops_the_users_state(
         self, mock_callback_update: Mock, mock_context: Mock, exercise: Exercise
@@ -139,5 +139,5 @@ class TestAdminAction:
 
         await admin.admin_action(mock_callback_update, mock_context)
 
-        mock_context.repository.set_auth_status.assert_not_called()
+        mock_context.users.set_auth_status.assert_not_called()
         mock_callback_update.callback_query.message.reply_text.assert_not_called()

@@ -20,11 +20,16 @@ the importer read them from here rather than spelling them again.
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
+
+from practice_runtime.errors import ConfigurationError
+from practice_runtime.settings import BASE_DIR, DATABASE_FILENAME
 
 from practice_extraction.settings import Settings
 
 __all__ = [
     "ANSWERS_FULL_FILENAME",
+    "MOBILE_CONTENT_PATH",
     "RULES_FILENAME",
     "SOURCE_ANSWERS_FILENAME",
     "STAGES",
@@ -33,7 +38,17 @@ __all__ = [
     "UNIT_TITLES_FILENAME",
     "Artifact",
     "Stage",
+    "StageRunner",
+    "register",
 ]
+
+#: Where `packages/app/pyproject.toml` expects the bundled database. It is the
+#: pipeline's actual deliverable, and it lived in the CLI -- so it could not be
+#: declared as an artifact, and `bundle` was the one stage `check` could never
+#: report as done.
+MOBILE_CONTENT_PATH = (
+    BASE_DIR / "packages" / "app" / "src" / "practice_app" / "content"
+) / DATABASE_FILENAME
 
 # Brought by hand, not produced by any stage.
 SOURCE_ANSWERS_FILENAME = "answers.json"
@@ -113,6 +128,59 @@ class Stage:
         """Return whether every output this stage produces is there."""
         return all(artifact.exists(settings) for artifact in self.writes)
 
+    @property
+    def runner(self) -> "StageRunner | None":
+        """Return what this stage does, once something has declared it."""
+        return _RUNNERS.get(self.name)
+
+    def run(self, settings: Settings, *args: Any, **kwargs: Any) -> int:
+        """Do this stage's work.
+
+        Args:
+            settings: The configured layout.
+            args: Passed to the runner.
+            kwargs: Passed to the runner.
+
+        Returns:
+            The exit code, ``0`` when the stage finished.
+
+        Raises:
+            ConfigurationError: If nothing declared what this stage does,
+                which means the module holding its runner was never imported.
+        """
+        runner = self.runner
+        if runner is None:
+            raise ConfigurationError(f"no runner is declared for {self.name}")
+        return runner(settings, *args, **kwargs) or 0
+
+
+#: What each stage does, filled in by :func:`register`. It is separate from the
+#: declarations above because those are cheap to import and these are not: the
+#: runners pull in OpenCV, PyMuPDF and an LLM client.
+_RUNNERS: dict[str, "StageRunner"] = {}
+
+#: A stage's work: it takes the settings, plus whatever its own command adds,
+#: and returns an exit code.
+type StageRunner = Callable[..., int | None]
+
+
+def register(stage: Stage, runner: StageRunner) -> None:
+    """Declare what a stage does.
+
+    Args:
+        stage: The declaration this runner performs. Taking the stage rather
+            than its name is the point: the command that binds a runner cannot
+            name a stage that does not exist, or spell it differently from the
+            record it is meant to run.
+        runner: The function that does the work.
+
+    Raises:
+        ConfigurationError: If the stage already has a runner.
+    """
+    if stage.name in _RUNNERS:
+        raise ConfigurationError(f"{stage.name} already has a runner")
+    _RUNNERS[stage.name] = runner
+
 
 SOURCE_BOOK = Artifact(
     "the source book",
@@ -170,43 +238,62 @@ DATABASE = Artifact(
     lambda s: s.paths.database_path,
     produced_by="populate",
 )
+MOBILE_CONTENT = Artifact(
+    "the database bundled into the app",
+    lambda _: MOBILE_CONTENT_PATH,
+    produced_by="bundle",
+)
+
+CUT_PDF = Stage("cut-pdf", reads=(SOURCE_BOOK,), writes=(SNIPPETS,))
+SEPARATE_PAGE_IMAGES = Stage(
+    "separate-page-images",
+    reads=(SOURCE_BOOK,),
+    writes=(GRAMMAR_PAGES, EXERCISE_PAGES),
+)
+OCR_GRAMMAR_IMAGES = Stage(
+    "ocr-grammar-images", reads=(GRAMMAR_PAGES,), writes=(GRAMMAR_MD,)
+)
+ORGANIZE_EXERCISES = Stage(
+    "organize-exercises", reads=(EXERCISE_PAGES,), writes=(EXERCISE_CROPS,)
+)
+EXTRACT_ANSWERS = Stage(
+    "extract-answers",
+    reads=(SOURCE_ANSWERS, EXERCISE_CROPS),
+    writes=(ANSWERS_FULL,),
+)
+EXTRACT_RULES = Stage(
+    "extract-rules",
+    reads=(SOURCE_ANSWERS, ANSWERS_FULL, GRAMMAR_MD, EXERCISE_CROPS),
+    writes=(RULES,),
+)
+POPULATE = Stage(
+    "populate",
+    reads=(
+        UNIT_TITLES,
+        TOPIC_MAP,
+        ANSWERS_FULL,
+        RULES,
+        GRAMMAR_MD,
+        EXERCISE_CROPS,
+    ),
+    writes=(DATABASE,),
+)
+VALIDATE = Stage("validate", reads=(DATABASE,))
+BUNDLE = Stage("bundle", reads=(DATABASE,), writes=(MOBILE_CONTENT,))
 
 #: Every stage, in the order they run. The order is not declared separately:
 #: each stage names the artifacts it needs, and those name the stage that
 #: writes them, so this sequence is checkable rather than merely conventional.
 STAGES: tuple[Stage, ...] = (
-    Stage("cut-pdf", reads=(SOURCE_BOOK,), writes=(SNIPPETS,)),
-    Stage(
-        "separate-page-images",
-        reads=(SOURCE_BOOK,),
-        writes=(GRAMMAR_PAGES, EXERCISE_PAGES),
-    ),
-    Stage("ocr-grammar-images", reads=(GRAMMAR_PAGES,), writes=(GRAMMAR_MD,)),
-    Stage("organize-exercises", reads=(EXERCISE_PAGES,), writes=(EXERCISE_CROPS,)),
-    Stage(
-        "extract-answers",
-        reads=(SOURCE_ANSWERS, EXERCISE_CROPS),
-        writes=(ANSWERS_FULL,),
-    ),
-    Stage(
-        "extract-rules",
-        reads=(SOURCE_ANSWERS, ANSWERS_FULL, GRAMMAR_MD, EXERCISE_CROPS),
-        writes=(RULES,),
-    ),
-    Stage(
-        "populate",
-        reads=(
-            UNIT_TITLES,
-            TOPIC_MAP,
-            ANSWERS_FULL,
-            RULES,
-            GRAMMAR_MD,
-            EXERCISE_CROPS,
-        ),
-        writes=(DATABASE,),
-    ),
-    Stage("validate", reads=(DATABASE,)),
-    Stage("bundle", reads=(DATABASE,)),
+    CUT_PDF,
+    SEPARATE_PAGE_IMAGES,
+    OCR_GRAMMAR_IMAGES,
+    ORGANIZE_EXERCISES,
+    EXTRACT_ANSWERS,
+    EXTRACT_RULES,
+    POPULATE,
+    VALIDATE,
+    BUNDLE,
 )
 
 STAGE_BY_NAME: dict[str, Stage] = {stage.name: stage for stage in STAGES}

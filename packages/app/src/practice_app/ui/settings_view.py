@@ -51,7 +51,6 @@ from practice_app.ui.components import (
     link_action,
     panel,
     pill,
-    push,
     segmented,
     show_snack,
     switch_row,
@@ -59,6 +58,7 @@ from practice_app.ui.components import (
 )
 from practice_app.ui.model_picker import ModelPicker
 from practice_app.ui.page import DialogPage
+from practice_app.ui.screen import Screen
 from practice_app.ui.theme import GAP, GAP_LARGE, GAP_SMALL, RADIUS_SMALL
 
 __all__ = ["SettingsScreen"]
@@ -91,8 +91,12 @@ def _clamp_float(raw: str, fallback: float, low: float, high: float) -> float:
         return fallback
 
 
-class SettingsScreen(ft.Column):
+class SettingsScreen(Screen):
     """Everything the user can change about how answers are graded."""
+
+    tab_title = "Settings"
+    tab_label = "Settings"
+    tab_icon = ft.Icons.SETTINGS_ROUNDED
 
     def __init__(
         self,
@@ -143,7 +147,7 @@ class SettingsScreen(ft.Column):
             config: The settings to store.
         """
         await self._services.update_config(config)
-        self._repaint()
+        self.repaint()
         if self._on_changed is not None:
             self._on_changed()
 
@@ -154,19 +158,6 @@ class SettingsScreen(ft.Column):
     # ------------------------------------------------------------------
     # Rendering
     # ------------------------------------------------------------------
-
-    def _repaint(self) -> None:
-        """Rebuild this screen and send it.
-
-        The two halves were written out at every call site and neither is any
-        use alone: ``render`` rebuilds ``controls`` in memory, ``push`` sends
-        the subtree, and pushing first sends the tree the user already has.
-        Forgetting the second one shows up as a tap that did nothing, and no
-        test catches it -- they assert on ``controls``, which ``render`` alone
-        already satisfies.
-        """
-        self.render()
-        push(self)
 
     def render(self) -> None:
         """Rebuild the screen from the current settings.
@@ -642,11 +633,30 @@ class SettingsScreen(ft.Column):
         """Open the provider's key page in a browser."""
         await self._page.launch_url(self._config.provider.console_url)
 
+    def _stage(self, config: AppConfig) -> None:
+        """Hold an edit until the field that made it loses focus.
+
+        Args:
+            config: The settings as this keystroke leaves them.
+        """
+        self._services.stage(config)
+
+    def _stage_proxy(self, **fields: object) -> None:
+        """Hold a proxy edit.
+
+        The proxy used to be edited in place, on the object the live client
+        was already holding, so a half-typed host reached the connection pool
+        before the user had finished the word.
+
+        Args:
+            fields: The proxy fields this keystroke changed.
+        """
+        self._stage(replace(self._config, proxy=replace(self._config.proxy, **fields)))
+
     def _stage_api_key(self, event: ft.Event[ft.TextField]) -> None:
         """Hold a typed API key in memory until the field loses focus."""
-        self._services.config = self._config.with_active(
-            api_key=(event.control.value or "").strip()
-        )
+        key = (event.control.value or "").strip()
+        self._stage(self._config.with_active(api_key=key))
 
     async def _commit_api_key(self) -> None:
         """Persist the typed API key."""
@@ -654,7 +664,7 @@ class SettingsScreen(ft.Column):
 
     def _stage_proxy_host(self, event: ft.Event[ft.TextField]) -> None:
         """Hold a typed proxy host in memory."""
-        self._config.proxy.host = (event.control.value or "").strip()
+        self._stage_proxy(host=(event.control.value or "").strip())
 
     def _stage_proxy_port(self, event: ft.Event[ft.TextField]) -> None:
         """Hold a typed proxy port in memory.
@@ -666,38 +676,42 @@ class SettingsScreen(ft.Column):
         """
         raw = (event.control.value or "").strip()
         port = int(raw) if raw.isdigit() else 0
-        self._config.proxy.port = port if 0 < port <= MAX_PORT else None
+        self._stage_proxy(port=port if 0 < port <= MAX_PORT else None)
 
     def _stage_proxy_username(self, event: ft.Event[ft.TextField]) -> None:
         """Hold a typed proxy username in memory."""
-        self._config.proxy.username = (event.control.value or "").strip()
+        self._stage_proxy(username=(event.control.value or "").strip())
 
     def _stage_proxy_password(self, event: ft.Event[ft.TextField]) -> None:
         """Hold a typed proxy password in memory."""
-        self._config.proxy.password = event.control.value or ""
+        self._stage_proxy(password=event.control.value or "")
 
     def _stage_max_tokens(self, event: ft.Event[ft.TextField]) -> None:
         """Hold a typed token limit in memory, clamped to something usable."""
-        self._services.config = replace(
-            self._config,
-            max_tokens=_clamp_int(
-                (event.control.value or "").strip(),
-                DEFAULT_MAX_TOKENS,
-                _MIN_TOKENS,
-                _MAX_TOKENS,
-            ),
+        self._stage(
+            replace(
+                self._config,
+                max_tokens=_clamp_int(
+                    (event.control.value or "").strip(),
+                    DEFAULT_MAX_TOKENS,
+                    _MIN_TOKENS,
+                    _MAX_TOKENS,
+                ),
+            )
         )
 
     def _stage_timeout(self, event: ft.Event[ft.TextField]) -> None:
         """Hold a typed timeout in memory, clamped to something usable."""
-        self._services.config = replace(
-            self._config,
-            request_timeout=_clamp_float(
-                (event.control.value or "").strip(),
-                DEFAULT_TIMEOUT,
-                _MIN_TIMEOUT,
-                _MAX_TIMEOUT,
-            ),
+        self._stage(
+            replace(
+                self._config,
+                request_timeout=_clamp_float(
+                    (event.control.value or "").strip(),
+                    DEFAULT_TIMEOUT,
+                    _MIN_TIMEOUT,
+                    _MAX_TIMEOUT,
+                ),
+            )
         )
 
     async def _commit(self) -> None:
@@ -792,7 +806,7 @@ class SettingsScreen(ft.Column):
 
         if not self._services.cached_models():
             self._loading_models = True
-            self._repaint()
+            self.repaint()
             try:
                 await self._services.models()
             except PracticeError as exc:
@@ -800,7 +814,7 @@ class SettingsScreen(ft.Column):
                 return
             finally:
                 self._loading_models = False
-                self._repaint()
+                self.repaint()
             await self._reconcile_capabilities()
 
         self._open_picker()
@@ -841,7 +855,7 @@ class SettingsScreen(ft.Column):
 
         self._page.pop_dialog()
         self._loading_models = True
-        self._repaint()
+        self.repaint()
         try:
             await self._services.models(refresh=True)
         except PracticeError as exc:
@@ -849,7 +863,7 @@ class SettingsScreen(ft.Column):
             return
         finally:
             self._loading_models = False
-            self._repaint()
+            self.repaint()
         await self._reconcile_capabilities()
         self._open_picker()
 
@@ -912,20 +926,20 @@ class SettingsScreen(ft.Column):
             return
         self._checking = True
         self._check_result = None
-        self._repaint()
+        self.repaint()
         try:
             self._check_result = (await self._services.client.check(), True)
         except PracticeError as exc:
             self._check_result = (str(exc), False)
         finally:
             self._checking = False
-            self._repaint()
+            self.repaint()
 
-    async def refresh(self) -> None:
+    async def reload(self) -> None:
         """Load what the bundled book holds, then redraw."""
         if self._counts is None:
             try:
                 self._counts = await self._services.content.counts()
             except PracticeError:
                 self._counts = None
-        self._repaint()
+        self.repaint()

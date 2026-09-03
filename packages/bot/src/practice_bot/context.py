@@ -9,12 +9,14 @@ handler a mock without patching module globals.
 from dataclasses import dataclass
 from typing import Any
 
+from practice_core.content import ContentLibrary
+from practice_core.lesson import ActiveExercise
 from practice_runtime.errors import ConfigurationError
 from telegram.ext import CallbackContext, ContextTypes, ExtBot
 
-from practice_bot.repositories.database import DatabaseRepository
+from practice_bot.repositories.database import AuthRepository
 from practice_bot.services.agent_service import AgentService
-from practice_bot.states import ActiveExercise, SessionStore
+from practice_bot.states import SessionStore
 
 _DEPENDENCIES_KEY = "dependencies"
 
@@ -23,7 +25,8 @@ _DEPENDENCIES_KEY = "dependencies"
 class BotDependencies:
     """Everything the handlers need, built once per process."""
 
-    repository: DatabaseRepository
+    content: ContentLibrary
+    users: AuthRepository
     agents: AgentService
     sessions: SessionStore
     admin_user_id: int | None = None
@@ -88,9 +91,14 @@ class BotContext(
         return load_dependencies(self.application.bot_data)
 
     @property
-    def repository(self) -> DatabaseRepository:
-        """Return the content and authorization repository."""
-        return self.dependencies.repository
+    def content(self) -> ContentLibrary:
+        """Return the book."""
+        return self.dependencies.content
+
+    @property
+    def users(self) -> AuthRepository:
+        """Return the record of who may use the bot."""
+        return self.dependencies.users
 
     @property
     def agents(self) -> AgentService:

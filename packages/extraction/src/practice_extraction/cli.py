@@ -8,8 +8,12 @@ owns an HTTP connection pool, and the pipeline makes thousands of calls.
 """
 
 import asyncio
+import functools
+import inspect
+from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
 import typer
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -17,7 +21,7 @@ from practice_core.errors import ContentError
 from practice_runtime.errors import ConfigurationError
 from practice_runtime.llm import get_llm
 from practice_runtime.logging import get_logger, setup_logging
-from practice_runtime.settings import BASE_DIR, DATABASE_FILENAME, secret_value
+from practice_runtime.settings import secret_value
 
 from practice_extraction import populate as populate_module
 from practice_extraction import validate as validate_module
@@ -39,17 +43,26 @@ from practice_extraction.extractors import (
     RulesExtractor,
 )
 from practice_extraction.settings import Settings, get_settings
-from practice_extraction.stages import STAGE_BY_NAME, STAGES
+from practice_extraction.stages import (
+    BUNDLE,
+    CUT_PDF,
+    EXTRACT_ANSWERS,
+    EXTRACT_RULES,
+    MOBILE_CONTENT_PATH,
+    OCR_GRAMMAR_IMAGES,
+    ORGANIZE_EXERCISES,
+    POPULATE,
+    SEPARATE_PAGE_IMAGES,
+    STAGES,
+    VALIDATE,
+    Stage,
+    StageRunner,
+    register,
+)
 
 logger = get_logger(__name__)
 
 app = typer.Typer(help="english-practice content pipeline", no_args_is_help=True)
-
-# Where `packages/app/pyproject.toml` expects the bundled database. The name
-# comes from the runtime settings that declare it, not from a fourth literal.
-MOBILE_CONTENT_PATH = (
-    BASE_DIR / "packages" / "app" / "src" / "practice_app" / "content"
-) / DATABASE_FILENAME
 
 
 def _chat_model() -> BaseChatModel:
@@ -68,7 +81,7 @@ def _chat_model() -> BaseChatModel:
         raise typer.Exit(code=1) from exc
 
 
-def _ready(name: str) -> Settings:
+def _ready(stage: Stage) -> Settings:
     """Return the settings, refusing to run a stage whose inputs are absent.
 
     A stage that runs without its inputs does not fail loudly. The rules
@@ -77,7 +90,7 @@ def _ready(name: str) -> Settings:
     ruined -- so the useful moment to stop is before the first call.
 
     Args:
-        name: The stage about to run.
+        stage: The stage about to run.
 
     Returns:
         The settings, when the stage can run.
@@ -86,13 +99,64 @@ def _ready(name: str) -> Settings:
         Exit: With code 1, listing what is missing and which stage makes it.
     """
     settings = get_settings()
-    missing = STAGE_BY_NAME[name].missing_inputs(settings)
+    missing = stage.missing_inputs(settings)
     if missing:
-        typer.secho(f"{name} cannot run yet:", fg=typer.colors.RED)
+        typer.secho(f"{stage.name} cannot run yet:", fg=typer.colors.RED)
         for problem in missing:
             typer.echo(f"  - {problem}")
         raise typer.Exit(code=1)
     return settings
+
+
+def stage_command(
+    stage: Stage, **command_kwargs: Any
+) -> Callable[[StageRunner], StageRunner]:
+    """Bind one function to one stage: its runner, and its command.
+
+    The stage supplies the command's name and the gate its inputs are checked
+    against, so the two halves cannot drift. They used to be joined by a
+    string typed twice -- once in ``@app.command(name=...)``, once in the
+    ``_ready("...")`` call inside the body -- with nothing checking that a
+    stage had a command at all. ``bundle`` did not call the gate, and its
+    declared input was enforced only by ``check``.
+
+    The command's parameters are the runner's own, minus the settings it is
+    handed, so a stage that takes an option declares it once.
+
+    Args:
+        stage: The stage this function performs.
+        command_kwargs: Passed to typer, for the help text.
+
+    Returns:
+        A decorator that registers the runner and returns it unchanged.
+    """
+
+    def bind(runner: StageRunner) -> StageRunner:
+        register(stage, runner)
+        signature = inspect.signature(runner)
+
+        @functools.wraps(runner)
+        def command(*args: Any, **kwargs: Any) -> None:
+            code = stage.run(_ready(stage), *args, **kwargs)
+            if code:
+                raise typer.Exit(code=code)
+
+        # Typer reads the callback's signature to build the command's
+        # options, so the runner's own parameters are handed over minus the
+        # settings it is given: a stage that takes an option declares it once.
+        visible = signature.replace(
+            parameters=[
+                parameter
+                for name, parameter in signature.parameters.items()
+                if name != "settings"
+            ],
+            return_annotation=None,
+        )
+        setattr(command, "__signature__", visible)  # noqa: B010
+        app.command(name=stage.name, **command_kwargs)(command)
+        return runner
+
+    return bind
 
 
 @app.callback()
@@ -151,17 +215,14 @@ def check() -> None:
         raise typer.Exit(code=1)
 
 
-@app.command(
-    name="cut-pdf",
-    help="Cut a PDF file based on the section type provided.",
-)
+@stage_command(CUT_PDF, help="Cut a PDF file based on the section type provided.")
 def cut_pdf(
+    settings: Settings,
     section: SectionType = typer.Argument(
         ..., help="The section of the book to cut (contents, units, answers)."
     ),
 ) -> None:
     """Cut the given section out of the source PDF."""
-    settings = _ready("cut-pdf")
     page_ranges = {
         SectionType.contents: (START_CONTENT_PAGE, END_CONTENT_PAGE),
         SectionType.units: (START_UNIT_PAGE, END_UNIT_PAGE),
@@ -188,13 +249,12 @@ def cut_pdf(
     )
 
 
-@app.command(
-    name="separate-page-images",
+@stage_command(
+    SEPARATE_PAGE_IMAGES,
     help="Separate pages from a PDF file into grammar pages and exercise pages.",
 )
-def separate_page_images() -> None:
+def separate_page_images(settings: Settings) -> None:
     """Split unit pages into grammar and exercise images."""
-    settings = _ready("separate-page-images")
     handler = PDFHandler()
     handler.separate_page_images(
         file_path=settings.paths.source_dir / settings.book.filename,
@@ -206,16 +266,15 @@ def separate_page_images() -> None:
     )
 
 
-@app.command(
-    name="ocr-grammar-images",
+@stage_command(
+    OCR_GRAMMAR_IMAGES,
     help=(
         "Extract text from grammar page images via OCR "
         "and save to data/grammar (resumable)."
     ),
 )
-def ocr_grammar_images() -> None:
+def ocr_grammar_images(settings: Settings) -> None:
     """Run OCR on grammar page images; save .md to data/grammar. Skips existing."""
-    settings = _ready("ocr-grammar-images")
     extractor = ImageOcrExtractor(
         api_key=secret_value(settings.ocr.api_key),
         model=settings.ocr.model,
@@ -232,13 +291,11 @@ def ocr_grammar_images() -> None:
     )
 
 
-@app.command(
-    name="organize-exercises",
-    help="Organize exercise images into numbered folders.",
+@stage_command(
+    ORGANIZE_EXERCISES, help="Organize exercise images into numbered folders."
 )
-def organize_exercises() -> None:
+def organize_exercises(settings: Settings) -> None:
     """Organize exercise images into separate folders."""
-    settings = _ready("organize-exercises")
     organizer = ExerciseOrganizer()
     created = organizer.organize(
         file_path=settings.paths.exercises_pages_dir,
@@ -251,70 +308,68 @@ def organize_exercises() -> None:
     )
 
 
-@app.command(
-    name="extract-answers",
-    help="Extract answers from exercise images using LLM.",
-)
-def extract_answers() -> None:
+@stage_command(EXTRACT_ANSWERS, help="Extract answers from exercise images using LLM.")
+def extract_answers(settings: Settings) -> None:
     """Extract answers from exercise images using LLM.
 
     Processes all questions per exercise in a single LLM call.
     Outputs to answers_full.json. Resumes from last stopped unit.
     """
-    extractor = AnswersExtractor(
-        _ready("extract-answers").paths, AnswersAgent(_chat_model())
-    )
+    extractor = AnswersExtractor(settings.paths, AnswersAgent(_chat_model()))
     output_path = asyncio.run(extractor.extract())
     logger.info("answers_extracted", output_path=str(output_path))
 
 
-@app.command(
-    name="extract-rules",
-    help="Extract grammar rules from exercises using LLM.",
-)
-def extract_rules() -> None:
+@stage_command(EXTRACT_RULES, help="Extract grammar rules from exercises using LLM.")
+def extract_rules(settings: Settings) -> None:
     """Extract grammar rules from exercises using LLM.
 
     Processes all questions per exercise in a single LLM call.
     Outputs to rules.json. Resumes from last stopped unit.
     """
-    extractor = RulesExtractor(_ready("extract-rules").paths, RulesAgent(_chat_model()))
+    extractor = RulesExtractor(settings.paths, RulesAgent(_chat_model()))
     output_path = asyncio.run(extractor.extract())
     logger.info("rules_extracted", output_path=str(output_path))
 
 
-@app.command()
+@stage_command(
+    POPULATE,
+    help="Build the exercise database from everything the stages extracted.",
+)
 def populate(
+    settings: Settings,
     force: bool = typer.Option(
         False,
         "--force",
         help="Delete an existing database and rebuild it from scratch.",
     ),
-) -> None:
+) -> int:
     """Build the exercise database from everything the stages extracted.
 
-    Raises:
-        Exit: With the script's own exit code when the import fails.
+    Returns:
+        The importer's exit code.
     """
-    code = populate_module.main(force=force, paths=_ready("populate").paths)
-    if code:
-        raise typer.Exit(code=code)
+    return populate_module.main(force=force, paths=settings.paths)
 
 
-@app.command()
-def validate() -> None:
+@stage_command(
+    VALIDATE, help="Check the exercise database for missing and inconsistent rows."
+)
+def validate(settings: Settings) -> int:
     """Check the exercise database for missing and inconsistent rows.
 
-    Raises:
-        Exit: With code 1 when the database has errors.
+    Returns:
+        The report's exit code, non-zero when the database has errors.
     """
-    code = validate_module.main(_ready("validate").paths.database_path)
-    if code:
-        raise typer.Exit(code=code)
+    return validate_module.main(settings.paths.database_path)
 
 
-@app.command()
+@stage_command(
+    BUNDLE,
+    help="Build the compact exercise database that ships inside the Android app.",
+)
 def bundle(
+    settings: Settings,
     output: Path = typer.Option(
         MOBILE_CONTENT_PATH,
         "--output",
@@ -336,7 +391,7 @@ def bundle(
     Raises:
         Exit: With code 1 when the source database is missing.
     """
-    db_path = source or get_settings().paths.database_path
+    db_path = source or settings.paths.database_path
     typer.echo(f"Reading {db_path}")
 
     try:

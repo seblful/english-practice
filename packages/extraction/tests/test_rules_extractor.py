@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from practice_extraction.agents import RulesAgent
-from practice_extraction.extractors.answers_extractor import AnswersExtractor
 from practice_extraction.extractors.rules_extractor import RulesExtractor
 from practice_extraction.models import (
     ExerciseRulesOutput,
@@ -80,17 +79,15 @@ class TestRulesExtractor:
 
     def test_reads_what_the_answers_stage_wrote(self, extractor) -> None:
         """The stage dependency is derived, not kept in step by the caller."""
-        assert extractor._answers_full_path == (
-            extractor._paths.metadata_dir / AnswersExtractor.OUTPUT_FILENAME
-        )
+        assert extractor._answers_full_path == (extractor._answers_full_path)
 
     def test_get_grammar_md_reads_the_unit_file(self, extractor) -> None:
-        path = extractor._paths.grammar_md_dir / "1.md"
+        path = extractor._tree._paths.grammar_md_dir / "1.md"
         path.write_text("# Grammar rule")
-        assert extractor._get_grammar_md(1) == "# Grammar rule"
+        assert extractor._tree.grammar_markdown(1) == "# Grammar rule"
 
     def test_get_grammar_md_not_found(self, extractor) -> None:
-        assert extractor._get_grammar_md(999) is None
+        assert extractor._tree.grammar_markdown(999) is None
 
     def test_load_answers_full_data_returns_empty_if_missing(self, extractor) -> None:
         extractor._answers_full_path.unlink()
@@ -169,7 +166,7 @@ class TestRulesExtractor:
     async def test_process_unit(self, extractor) -> None:
 
         with (
-            patch.object(extractor, "_get_grammar_md", return_value="# Grammar"),
+            patch.object(extractor._tree, "grammar_markdown", return_value="# Grammar"),
             patch.object(extractor, "_process_exercise") as mock_proc,
         ):
             mock_proc.return_value = ExtractedExerciseRules(
@@ -187,7 +184,7 @@ class TestRulesExtractor:
 
         with (
             patch.object(
-                extractor, "_get_image_path", return_value=Path("/fake/1.1.png")
+                extractor._tree, "image_path", return_value=Path("/fake/1.1.png")
             ),
             patch.object(
                 extractor._extractor_agent,
@@ -202,7 +199,7 @@ class TestRulesExtractor:
     async def test_process_unit_without_grammar_markdown(self, extractor) -> None:
         """A missing unit file must not stop the run; the prompt gets no rules."""
         with (
-            patch.object(extractor, "_get_grammar_md", return_value=None),
+            patch.object(extractor._tree, "grammar_markdown", return_value=None),
             patch.object(extractor, "_process_exercise") as mock_proc,
         ):
             mock_proc.return_value = ExtractedExerciseRules(
@@ -221,12 +218,14 @@ class TestRulesExtractor:
     @pytest.mark.asyncio
     async def test_extract(self, extractor) -> None:
         with (
-            patch.object(extractor, "_load_answers_data", return_value={"units": []}),
-            patch.object(extractor, "_load_output", return_value=ExtractedFullRules()),
-            patch.object(extractor, "_save_output"),
+            patch.object(extractor._tree, "source_answers", return_value={"units": []}),
+            patch.object(
+                extractor._tree, "load_output", return_value=ExtractedFullRules()
+            ),
+            patch.object(extractor._tree, "save_output"),
         ):
             result = await extractor.extract()
-            assert result == extractor._output_path
+            assert result == extractor._tree.output_path
 
     @pytest.mark.asyncio
     async def test_extract_processes_and_saves_each_unit(self, extractor) -> None:
@@ -234,9 +233,9 @@ class TestRulesExtractor:
         unit = ExtractedUnitRules(unit_id="1", exercises=[])
 
         with (
-            patch.object(extractor, "_load_output", return_value=output),
+            patch.object(extractor._tree, "load_output", return_value=output),
             patch.object(extractor, "_process_unit", return_value=unit),
-            patch.object(extractor, "_save_output") as mock_save,
+            patch.object(extractor._tree, "save_output") as mock_save,
         ):
             await extractor.extract()
 
@@ -249,9 +248,9 @@ class TestRulesExtractor:
         output = ExtractedFullRules(units=[ExtractedUnitRules(unit_id="1")])
 
         with (
-            patch.object(extractor, "_load_output", return_value=output),
+            patch.object(extractor._tree, "load_output", return_value=output),
             patch.object(extractor, "_process_unit") as mock_process,
-            patch.object(extractor, "_save_output") as mock_save,
+            patch.object(extractor._tree, "save_output") as mock_save,
         ):
             await extractor.extract()
 

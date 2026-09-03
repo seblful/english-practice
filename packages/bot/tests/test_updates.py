@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock
 
 from telegram import InaccessibleMessage, Update
 
+from practice_bot import formatter
 from practice_bot.updates import Interaction
 
 
@@ -71,3 +72,34 @@ class TestText:
 
         assert who is not None
         assert who.callback_data == ""
+
+
+class TestSaying:
+    """A reply carries its own parse mode, so no call site has to remember it."""
+
+    async def test_marked_up_text_is_sent_as_html(self, mock_update: Mock) -> None:
+        who = Interaction.from_update(mock_update)
+        assert who is not None
+
+        await who.say(formatter.topic_line("Present Tenses"))
+
+        assert mock_update.message.reply_text.await_args.kwargs["parse_mode"] == "HTML"
+
+    async def test_a_plain_constant_is_sent_as_plain_text(
+        self, mock_update: Mock
+    ) -> None:
+        """Adding the parse mode to a constant containing `<` gets a 400."""
+        who = Interaction.from_update(mock_update)
+        assert who is not None
+
+        await who.say("Choose next exercise:")
+
+        assert "parse_mode" not in mock_update.message.reply_text.await_args.kwargs
+
+    async def test_the_caller_can_still_say_otherwise(self, mock_update: Mock) -> None:
+        who = Interaction.from_update(mock_update)
+        assert who is not None
+
+        await who.say(formatter.topic_line("Present Tenses"), parse_mode=None)
+
+        assert mock_update.message.reply_text.await_args.kwargs["parse_mode"] is None

@@ -6,13 +6,13 @@ connection pool for the whole app — and what lets a test hand a screen a fake
 without patching module globals.
 
 Changing a setting has to reach the pool: the proxy and the timeout are baked
-into an :class:`~practice_app.llm.LLMClient` when it is built, so
-:meth:`Services.update_config` closes the old one instead of leaving requests
-going through a proxy the user has just turned off.
+into an :class:`~practice_app.llm.LLMClient` when it is built, so a client
+whose settings have been typed over is retired rather than left answering with
+them. That is why :attr:`Services.config` is read-only and every edit arrives
+through :meth:`Services.stage` or :meth:`Services.update_config` — the screen
+that edits settings used to assign the attribute, and the client went on
+holding whichever object it was built from.
 """
-
-from collections.abc import Callable, Coroutine
-from typing import Any
 
 import httpx
 from practice_core.content import ContentLibrary
@@ -24,8 +24,6 @@ from practice_app.providers import ModelInfo, Provider
 from practice_app.stats import StatsStore
 
 __all__ = ["Services"]
-
-ConfigListener = Callable[[AppConfig], Coroutine[Any, Any, None] | None]
 
 
 class Services:
@@ -52,10 +50,12 @@ class Services:
         self.config_store = config_store
         self.content = content
         self.stats = stats
-        self.config = config if config is not None else config_store.load()
+        self._config = config if config is not None else config_store.load()
         self._transport = transport
         self._client: LLMClient | None = None
-        self._listeners: list[ConfigListener] = []
+        # Clients whose settings have been typed over. Closing a pool is a
+        # coroutine and staging is not, so they wait here for the next await.
+        self._retired: list[LLMClient] = []
         # Catalogues are per provider and cost a round trip, so a fetched one
         # is kept for as long as the app runs.
         self._catalogues: dict[Provider, list[ModelInfo]] = {}
@@ -66,9 +66,17 @@ class Services:
 
     @property
     def client(self) -> LLMClient:
-        """Return the provider client, building it on first use."""
+        """Return a provider client built from the settings now in force.
+
+        The key, the proxy and the timeout are baked in when a client is
+        built, so one left standing after an edit answers with the settings
+        the user has just typed over -- which is how "Test connection" came to
+        report on the previous API key.
+        """
+        if self._client is not None and self._client.config is not self._config:
+            self._retire_client()
         if self._client is None:
-            self._client = LLMClient(self.config, transport=self._transport)
+            self._client = LLMClient(self._config, transport=self._transport)
         return self._client
 
     @property
@@ -122,35 +130,49 @@ class Services:
     # Settings
     # ------------------------------------------------------------------
 
-    def on_config_change(self, listener: ConfigListener) -> None:
-        """Register a callback to run after settings are saved.
+    @property
+    def config(self) -> AppConfig:
+        """Return the settings in force, staged edits included."""
+        return self._config
+
+    def stage(self, config: AppConfig) -> None:
+        """Hold an edit without saving it.
+
+        This is the only way in. The settings screen used to reach the
+        attribute directly, and did it two ways: three fields replaced the
+        object, which left the live client holding the old one, and four
+        mutated the proxy in place, which put a half-typed host into the pool
+        the app was already making requests through.
 
         Args:
-            listener: Called with the new settings. May be a coroutine
-                function, in which case the caller awaits it.
+            config: The settings to hold. Saved by :meth:`update_config`.
         """
-        self._listeners.append(listener)
+        self._config = config
 
     async def update_config(self, config: AppConfig) -> None:
-        """Save new settings and rebuild anything that depended on the old.
+        """Save new settings and retire anything built from the old.
 
         Args:
             config: The settings to store.
         """
-        self.config = config
+        self.stage(config)
         self.config_store.save(config)
-
-        client, self._client = self._client, None
-        if client is not None:
-            await client.aclose()
-
-        for listener in self._listeners:
-            result = listener(config)
-            if result is not None:
-                await result
+        self._retire_client()
+        await self._close_retired()
 
     async def aclose(self) -> None:
-        """Release the provider connection pool."""
+        """Release every provider connection pool this object opened."""
+        self._retire_client()
+        await self._close_retired()
+
+    def _retire_client(self) -> None:
+        """Set the current client aside for closing."""
         if self._client is not None:
-            await self._client.aclose()
+            self._retired.append(self._client)
             self._client = None
+
+    async def _close_retired(self) -> None:
+        """Close the pools of clients whose settings have been typed over."""
+        retired, self._retired = self._retired, []
+        for client in retired:
+            await client.aclose()

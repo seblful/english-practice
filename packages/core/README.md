@@ -11,8 +11,9 @@ they draw a screen — deliberately does not.
 | Module | What it is |
 | :----- | :--------- |
 | `models.py` | Units, exercises, questions, answers — frozen, and validated on the way out of SQLite. |
+| `sqlite.py` | `SqliteStore`: running a statement against a SQLite file, off the event loop. Held by the library above, and by the bot's own table of authorized users. |
 | `schema.py` + `schema/content.sql` | The content tables. The pipeline builds a database from this, the bundler re-encodes one, and both front ends' tests build a scratch copy. |
-| `content.py` | `ContentLibrary`: the async queries, including `draw_question`, which picks an exercise, a question and its picture together. |
+| `content.py` | `ContentLibrary`: the async queries, including `draw`, which hands back a question ready to be asked — exercise, picture and the book's answers together. |
 | `prompts.py` + `prompts/evaluate.j2` | The grading prompt. The one prompt that must not be written twice. |
 | `grading.py` | The grading call's input and output. The checks that keep a reply usable live on the output model itself, so neither front end can skip them. |
 | `feedback.py` | The plain-text half of showing an answer, shared so both front ends say the same thing. |

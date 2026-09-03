@@ -56,8 +56,10 @@ class TestAnswersExtractor:
         assert extractor._extractor_agent is agent
 
     def test_writes_beside_the_source_units(self, extractor) -> None:
-        assert extractor._output_path.name == "answers_full.json"
-        assert extractor._output_path.parent == extractor._answers_path.parent
+        assert extractor._tree.output_path.name == "answers_full.json"
+        assert (
+            extractor._tree.output_path.parent == extractor._tree._answers_path.parent
+        )
 
     @pytest.mark.asyncio
     async def test_process_unit_returns_extracted_unit(self, extractor) -> None:
@@ -98,7 +100,7 @@ class TestAnswersExtractor:
 
         with (
             patch.object(
-                extractor, "_get_image_path", return_value=Path("/fake/1.1.png")
+                extractor._tree, "image_path", return_value=Path("/fake/1.1.png")
             ),
             patch.object(
                 extractor._extractor_agent,
@@ -203,11 +205,11 @@ class TestAnswersExtractor:
     @pytest.mark.asyncio
     async def test_extract_calls_super(self, extractor) -> None:
         with (
-            patch.object(extractor, "_load_answers_data", return_value={"units": []}),
+            patch.object(extractor._tree, "source_answers", return_value={"units": []}),
             patch.object(
-                extractor, "_load_output", return_value=ExtractedFullAnswers()
+                extractor._tree, "load_output", return_value=ExtractedFullAnswers()
             ),
-            patch.object(extractor, "_save_output"),
+            patch.object(extractor._tree, "save_output"),
         ):
             result = await extractor.extract()
-            assert result == extractor._output_path
+            assert result == extractor._tree.output_path

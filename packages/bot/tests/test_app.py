@@ -69,7 +69,7 @@ class TestBuildApplication:
 
         context = BotContext(application=application)
         assert context.dependencies is stub_dependencies
-        assert context.repository is stub_dependencies.repository
+        assert context.content is stub_dependencies.content
 
     def test_uses_the_custom_context_type(
         self, runnable_settings: Settings, stub_dependencies: BotDependencies
@@ -116,7 +116,8 @@ class TestBuildDependencies:
         dependencies = build_dependencies(runnable_settings)
 
         assert dependencies.admin_user_id == 7
-        assert dependencies.repository.db_path == runnable_settings.paths.database_path
+        assert dependencies.users.db_path == runnable_settings.paths.database_path
+        assert dependencies.content.db_path == runnable_settings.paths.database_path
         assert dependencies.access_control_enabled is True
 
 
@@ -172,14 +173,14 @@ class TestPrepare:
         application.bot.set_chat_menu_button.assert_awaited_once()
 
     async def test_creates_the_bot_own_tables(
-        self, stub_dependencies: BotDependencies, mock_repository: AsyncMock
+        self, stub_dependencies: BotDependencies, mock_users: AsyncMock
     ) -> None:
         """The pipeline builds the content tables; `authorized_users` is ours."""
         application = self._application(stub_dependencies)
 
         await _prepare(application)
 
-        mock_repository.ensure_schema.assert_awaited_once()
+        mock_users.ensure_schema.assert_awaited_once()
 
 
 class TestRun:

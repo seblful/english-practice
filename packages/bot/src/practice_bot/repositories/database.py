@@ -1,26 +1,28 @@
-"""SQLite access for the bot: shared content, plus who may use the bot.
-
-Reading the book is :class:`~practice_core.content.ContentLibrary`, shared with
-the Android app — so ``list_topics``, ``random_exercise``, ``draw_question``,
-``get_exercise_image`` and ``list_answers`` are inherited rather than written
-twice, and a query the app depends on cannot drift here.
+"""Who may use the bot.
 
 Authorization is the bot's alone: the app has one user, on their own phone,
 with nobody to approve them. It is also the only thing the bot writes, which is
-why this repository opens the database read-write while the app opens it
-read-only — and why the table lives in this package's own ``schema/auth.sql``
-rather than in the content schema the pipeline builds.
+why this opens the database read-write while the app opens it read-only — and
+why the table lives in this package's own ``schema/auth.sql`` rather than in
+the content schema the pipeline builds.
+
+The book itself is :class:`~practice_core.content.ContentLibrary`, handed to
+the handlers beside this one. This used to *inherit* that class to get at the
+plumbing for running a statement, so a table that has nothing to do with the
+book arrived with every content query attached — and the bot's tests re-tested
+thirteen of them against a second copy of the app's seed data. What both
+actually share is :class:`~practice_core.sqlite.SqliteStore`, and this holds
+one.
 """
 
 from pathlib import Path
 
-from practice_core.content import ContentLibrary
 from practice_core.errors import ContentError
 from practice_core.resources import read_packaged_text
+from practice_core.sqlite import SqliteStore
 from practice_runtime.logging import get_logger
 
 from practice_bot.models.auth import AuthStatus, PendingUser
-from practice_bot.settings import get_settings
 
 logger = get_logger(__name__)
 
@@ -29,20 +31,20 @@ SCHEMA_DIR = "schema"
 AUTH_SCHEMA = "auth.sql"
 
 
-class DatabaseRepository(ContentLibrary):
-    """Reads practice content and records who may use the bot."""
+class AuthRepository:
+    """Records who may use the bot."""
 
-    def __init__(self, db_path: Path | None = None) -> None:
+    def __init__(self, db_path: Path) -> None:
         """Initialize the repository.
 
         Args:
-            db_path: SQLite file to use. Defaults to the configured database.
+            db_path: SQLite file holding the ``authorized_users`` table. The
+                default used to be read from process-wide settings inside this
+                constructor, which made the repository unbuildable in a test
+                without an environment; the program passes it now.
         """
-        super().__init__(db_path or get_settings().paths.database_path, read_only=False)
-
-    # ------------------------------------------------------------------
-    # Authorization
-    # ------------------------------------------------------------------
+        self._store = SqliteStore(db_path, read_only=False)
+        self.db_path = db_path
 
     async def ensure_schema(self) -> None:
         """Create the bot's own tables if the database does not have them.
@@ -61,7 +63,7 @@ class DatabaseRepository(ContentLibrary):
         except (FileNotFoundError, ModuleNotFoundError) as exc:
             raise ContentError(f"{AUTH_SCHEMA} is not packaged") from exc
 
-        await self._script(schema)
+        await self._store.script(schema)
         logger.debug("auth_schema_ensured", database=str(self.db_path))
 
     async def get_auth_status(self, telegram_id: int) -> AuthStatus | None:
@@ -73,7 +75,7 @@ class DatabaseRepository(ContentLibrary):
         Returns:
             The stored status, or ``None`` when the user is unknown.
         """
-        row = await self._row(
+        row = await self._store.row(
             "SELECT status FROM authorized_users WHERE telegram_id = ?",
             (telegram_id,),
         )
@@ -95,7 +97,7 @@ class DatabaseRepository(ContentLibrary):
             full_name: Name reported by Telegram.
             telegram_username: Telegram @username, when the user has one.
         """
-        await self._execute(
+        await self._store.execute(
             """
             INSERT OR IGNORE INTO authorized_users
             (telegram_id, full_name, telegram_username)
@@ -117,7 +119,7 @@ class DatabaseRepository(ContentLibrary):
             status: The decision to record.
             handled_by: Telegram ID of the admin who decided.
         """
-        await self._execute(
+        await self._store.execute(
             """
             UPDATE authorized_users
             SET status = ?, handled_at = CURRENT_TIMESTAMP, handled_by = ?
@@ -139,7 +141,7 @@ class DatabaseRepository(ContentLibrary):
             full_name: Name reported by Telegram, refreshed on re-application.
             telegram_username: Telegram @username, when the user has one.
         """
-        await self._execute(
+        await self._store.execute(
             """
             UPDATE authorized_users
             SET status = 'pending', full_name = ?, telegram_username = ?,
@@ -155,7 +157,7 @@ class DatabaseRepository(ContentLibrary):
         Returns:
             The pending access requests.
         """
-        rows = await self._rows(
+        rows = await self._store.rows(
             """
             SELECT telegram_id, full_name, telegram_username, created_at
             FROM authorized_users

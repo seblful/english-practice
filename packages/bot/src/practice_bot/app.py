@@ -9,6 +9,7 @@ import os
 from datetime import timedelta
 from typing import Any
 
+from practice_core.content import ContentLibrary
 from practice_runtime.errors import ConfigurationError
 from practice_runtime.llm import get_llm
 from practice_runtime.logging import get_logger
@@ -25,7 +26,7 @@ from practice_bot.context import (
     load_dependencies,
 )
 from practice_bot.handlers import build_handlers, report_error
-from practice_bot.repositories.database import DatabaseRepository
+from practice_bot.repositories.database import AuthRepository
 from practice_bot.services.agent_service import AgentService
 from practice_bot.settings import Settings, get_settings
 from practice_bot.states import SessionStore
@@ -66,7 +67,8 @@ def build_dependencies(settings: Settings) -> BotDependencies:
         process.
     """
     return BotDependencies(
-        repository=DatabaseRepository(settings.paths.database_path),
+        content=ContentLibrary(settings.paths.database_path),
+        users=AuthRepository(settings.paths.database_path),
         agents=AgentService(
             get_llm(settings.llm),
             max_history_messages=settings.bot.max_history_messages,
@@ -88,7 +90,7 @@ async def _prepare(application: BotApplication) -> None:
     Args:
         application: The initialised application.
     """
-    await load_dependencies(application.bot_data).repository.ensure_schema()
+    await load_dependencies(application.bot_data).users.ensure_schema()
     await application.bot.set_my_commands(commands.menu())
     await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
 

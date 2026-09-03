@@ -96,7 +96,7 @@ class TestHelpCommand:
         self, mock_update: Mock, mock_context: Mock, set_admin: Callable[[int], None]
     ) -> None:
         set_admin(ADMIN_ID)
-        mock_context.repository.get_auth_status.return_value = "approved"
+        mock_context.users.get_auth_status.return_value = "approved"
 
         await menu.help_command(mock_update, mock_context)
 

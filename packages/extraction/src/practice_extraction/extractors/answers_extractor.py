@@ -17,15 +17,13 @@ from practice_extraction.models import (
 )
 from practice_extraction.stages import ANSWERS_FULL_FILENAME
 
-from .base_extractor import BaseExtractor
+from .unit_store import UnitStore
 
 logger = get_logger(__name__)
 
 
-class AnswersExtractor(BaseExtractor):
+class AnswersExtractor:
     """Extract full answers from exercise images using LLM."""
-
-    OUTPUT_FILENAME = ANSWERS_FULL_FILENAME
 
     def __init__(self, paths: PathSettings, agent: AnswersAgent) -> None:
         """Initialize the full answer extractor.
@@ -36,13 +34,13 @@ class AnswersExtractor(BaseExtractor):
                 client. Required rather than built here: a client owns a
                 connection pool, and one per stage is one too many.
         """
-        super().__init__(paths)
+        self._tree = UnitStore(paths, ANSWERS_FULL_FILENAME)
         self._extractor_agent = agent
 
     async def _process_unit(self, unit: dict) -> ExtractedUnitAnswers:
         """Process all exercises in a unit."""
         unit_id = unit["unit_id"]
-        topic_name = self._get_topic_name(unit_id)
+        topic_name = self._tree.topic_name(unit_id)
 
         exercises = [
             await self._process_exercise(ex, topic_name)
@@ -58,7 +56,7 @@ class AnswersExtractor(BaseExtractor):
     ) -> ExtractedExerciseAnswers:
         """Process a single exercise."""
         exercise_id = exercise["exercise_id"]
-        image_path = self._get_image_path(exercise_id)
+        image_path = self._tree.image_path(exercise_id)
 
         questions_input = [
             AnswersQuestion(question_id=q["question_id"], short_answer=q["answer"])
@@ -129,4 +127,4 @@ class AnswersExtractor(BaseExtractor):
 
     async def extract(self) -> Path:
         """Extract full answers from all exercises, returning the file written."""
-        return await self._extract_units(ExtractedFullAnswers)
+        return await self._tree.extract_units(ExtractedFullAnswers, self._process_unit)

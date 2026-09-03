@@ -1,5 +1,6 @@
 """Handling a text message: an answer to grade, or a question to explain."""
 
+from practice_core.lesson import ActiveExercise
 from practice_core.reveal import Reveal
 from practice_runtime.errors import AgentError
 from practice_runtime.logging import get_logger
@@ -7,7 +8,7 @@ from practice_runtime.logging import get_logger
 from practice_bot import formatter, keyboards
 from practice_bot.context import BotContext
 from practice_bot.handlers.access import handler
-from practice_bot.states import ActiveExercise, UserSession
+from practice_bot.states import UserSession
 from practice_bot.updates import Interaction
 
 logger = get_logger(__name__)
@@ -37,21 +38,16 @@ async def _reveal(
         reveal: What to show for the question just answered.
     """
     if reveal.has_answer:
-        await who.message.reply_text(
-            formatter.short_answers(reveal.answers), parse_mode="HTML"
-        )
+        await who.say(formatter.short_answers(reveal.answers))
         if reveal.show_full_answer:
-            await who.message.reply_text(
-                formatter.full_answers(reveal.answers), parse_mode="HTML"
-            )
+            await who.say(formatter.full_answers(reveal.answers))
 
     if reveal.rule is not None:
-        await who.message.reply_text(
+        await who.say(
             formatter.rule_block(reveal.unit_reference, reveal.rule),
-            parse_mode="HTML",
         )
 
-    await who.message.reply_text(
+    await who.say(
         NEXT_EXERCISE_PROMPT,
         reply_markup=keyboards.main_menu_keyboard(session.has_previous_topic),
     )
@@ -77,8 +73,6 @@ async def _grade(
         session: The user's session.
         active: The exercise being answered.
     """
-    active.answers = tuple(await context.repository.list_answers(active.question.id))
-
     try:
         evaluation = await context.agents.grader.evaluate(
             active.question,
@@ -94,12 +88,16 @@ async def _grade(
             question_id=active.question.id,
             error=str(exc),
         )
-        await who.message.reply_text(GRADING_FAILED)
+        # The answer goes on screen, so the question counts as revealed --
+        # but no verdict is claimed, which is what leaves it open for another
+        # attempt. The bot used to set neither, and `is_revealed` then said no
+        # with the book's answer in the chat.
+        active.give_up()
+        await who.say(GRADING_FAILED)
         await _reveal(who, session, active.reveal(show_rule=session.show_rule))
         return
 
-    active.evaluation = evaluation
-    active.answered = True
+    active.record(evaluation)
     logger.info(
         "answer_graded",
         user_id=who.user.id,
@@ -107,9 +105,7 @@ async def _grade(
         is_correct=evaluation.is_correct,
     )
 
-    await who.message.reply_text(
-        formatter.evaluation(evaluation.is_correct), parse_mode="HTML"
-    )
+    await who.say(formatter.evaluation(evaluation.is_correct))
     await _reveal(who, session, active.reveal(show_rule=session.show_rule))
 
 
@@ -134,12 +130,10 @@ async def _explain(
         )
     except AgentError as exc:
         logger.warning("assist_failed", user_id=who.user.id, error=str(exc))
-        await who.message.reply_text(ASSIST_FAILED)
+        await who.say(ASSIST_FAILED)
         return
 
-    await who.message.reply_text(
-        formatter.assistant_answer(result.answer), parse_mode="HTML"
-    )
+    await who.say(formatter.assistant_answer(result.answer))
 
 
 @handler()
@@ -154,23 +148,18 @@ async def text_message(who: Interaction, context: BotContext) -> None:
     active = session.active
 
     if active is None:
-        await who.message.reply_text(NO_EXERCISE_HINT)
+        await who.say(NO_EXERCISE_HINT)
         return
 
     if not who.text:
-        await who.message.reply_text(EMPTY_ANSWER_HINT)
+        await who.say(EMPTY_ANSWER_HINT)
         return
 
     if active.answered or active.grading:
         await _explain(who, context, active)
         return
 
-    # Claimed before the first await. Updates run concurrently, so leaving the
-    # claim to `_grade` -- which only sets `answered` once the verdict is back
-    # -- let two messages past this check and billed two gradings for one
-    # answer.
-    active.grading = True
-    try:
+    # Claimed before the first await: updates run concurrently, so two
+    # messages sent at once would otherwise both be graded.
+    with active.being_graded():
         await _grade(who, context, session, active)
-    finally:
-        active.grading = False

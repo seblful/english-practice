@@ -12,9 +12,14 @@ the lesson's own bar, which asks first.
 
 Back is answered here too. Android's gesture would otherwise close the app
 from whatever the user was in the middle of, so the root view is told it may
-not be popped and this asks the practice screen first: it uses the gesture to
-shut its own picture, or to ask whether to leave a lesson, and only a Back on
-the home tab with nothing open is allowed to end the app.
+not be popped and this asks the screen that is showing first: the practice
+screen uses the gesture to shut its own picture, or to ask whether to leave a
+lesson, and only a Back on the home tab with nothing open is allowed to end
+the app.
+
+The three panes are held as :class:`~practice_app.ui.screen.Screen` and
+nothing more, so opening a tab, reloading it, titling it and offering it the
+Back gesture are all one line rather than one branch per screen.
 """
 
 from collections.abc import Sequence
@@ -26,6 +31,7 @@ from practice_app.config import ThemeChoice
 from practice_app.services import Services
 from practice_app.ui.page import ShellPage
 from practice_app.ui.practice_view import PracticeScreen
+from practice_app.ui.screen import Screen
 from practice_app.ui.settings_view import SettingsScreen
 from practice_app.ui.stats_view import StatsScreen
 from practice_app.ui.theme import GAP, build_theme, theme_mode
@@ -35,8 +41,6 @@ __all__ = ["PracticeApp"]
 PRACTICE_TAB = 0
 STATS_TAB = 1
 SETTINGS_TAB = 2
-
-_TAB_TITLES = ("Practice", "Progress", "Settings")
 
 # The app bar already supplies the top inset, so a screen only needs breathing
 # room under it.
@@ -53,18 +57,17 @@ _THEME_ICONS = {
 }
 
 
-def _padded(screen: ft.Control) -> ft.Control:
-    """Return a screen with the page margins around it.
-
-    The practice screen is not wrapped: its progress bar and its verdict sheet
-    run edge to edge, so it owns its own padding.
+def _pane(screen: Screen) -> ft.Control:
+    """Return a screen ready to sit in the body.
 
     Args:
-        screen: The screen to inset.
+        screen: The screen to place.
 
     Returns:
-        The screen in a padded container.
+        The screen, inset by the page margins unless it says it owns them.
     """
+    if not screen.inset:
+        return screen
     return ft.Container(
         content=screen,
         padding=ft.Padding.only(left=GAP, right=GAP, top=_BODY_TOP_GAP),
@@ -96,7 +99,11 @@ class PracticeApp:
         self.settings = SettingsScreen(
             page, services, on_changed=self._settings_changed
         )
-        self._panes = (self.practice, _padded(self.stats), _padded(self.settings))
+        # The shell knows its panes only as `Screen`. Naming each one in an
+        # `if` chain is what made a fourth tab six edits, and what let one
+        # reload be called without awaiting it.
+        self.screens: tuple[Screen, ...] = (self.practice, self.stats, self.settings)
+        self._panes = tuple(_pane(screen) for screen in self.screens)
 
         self._body = ft.Container(content=self._panes[self._index], expand=True)
         self._theme_button = ft.IconButton(
@@ -119,7 +126,7 @@ class PracticeApp:
         page.padding = 0
 
         page.appbar = ft.AppBar(
-            title=ft.Text(_TAB_TITLES[self._index]),
+            title=ft.Text(self.screens[self._index].tab_title),
             actions=[self._theme_button],
         )
         page.navigation_bar = ft.NavigationBar(
@@ -127,14 +134,9 @@ class PracticeApp:
             on_change=self._change_tab,
             destinations=[
                 ft.NavigationBarDestination(
-                    icon=ft.Icons.SCHOOL_ROUNDED, label="Practice"
-                ),
-                ft.NavigationBarDestination(
-                    icon=ft.Icons.INSIGHTS_ROUNDED, label="Progress"
-                ),
-                ft.NavigationBarDestination(
-                    icon=ft.Icons.SETTINGS_ROUNDED, label="Settings"
-                ),
+                    icon=screen.tab_icon, label=screen.tab_label
+                )
+                for screen in self.screens
             ],
         )
         # Android's Back is not the app's to spend: the practice screen may
@@ -145,13 +147,17 @@ class PracticeApp:
         root.can_pop = False
         root.on_confirm_pop = self._on_confirm_pop
 
+        # The one shutdown a phone app gets. Without it the provider's
+        # connection pool is opened for the life of the process and released
+        # by nothing -- `Services.aclose` existed and had no caller.
+        page.on_disconnect = self._shutdown
+
         page.add(ft.SafeArea(content=self._body, expand=True))
 
         # All three are cheap local reads, and doing them now means the first
         # visit to any tab is already populated.
-        await self.practice.load()
-        await self.stats.refresh()
-        await self.settings.refresh()
+        for screen in self.screens:
+            await screen.reload()
 
     # ------------------------------------------------------------------
     # Navigation
@@ -179,15 +185,11 @@ class PracticeApp:
         self._body.content = self._panes[index]
         if self._page.navigation_bar is not None:
             self._page.navigation_bar.selected_index = index
+        screen = self.screens[index]
         if self._page.appbar is not None:
-            self._page.appbar.title = ft.Text(_TAB_TITLES[index])
+            self._page.appbar.title = ft.Text(screen.tab_title)
 
-        if index == PRACTICE_TAB:
-            await self.practice.load()
-        elif index == STATS_TAB:
-            await self.stats.refresh()
-        else:
-            await self.settings.refresh()
+        await screen.reload()
 
         # The screen above pushed itself, which cancelled the automatic push
         # this handler would otherwise have got. The title and the swapped
@@ -211,7 +213,7 @@ class PracticeApp:
             else is a step back inside the app, and closing it instead is what
             lost a half-finished lesson to a stray swipe.
         """
-        if self.practice.handle_back():
+        if self.screens[self._index].handle_back():
             return False
         if self._index != PRACTICE_TAB:
             await self.select_tab(PRACTICE_TAB)
@@ -252,4 +254,10 @@ class PracticeApp:
     def _settings_changed(self) -> None:
         """React to a saved setting: re-theme, and re-check the practice tab."""
         self._apply_theme()
-        self.practice.refresh()
+        # The practice screen by name, because it is the one whose "not
+        # configured yet" notice a saved setting can remove.
+        self.practice.repaint()
+
+    async def _shutdown(self) -> None:
+        """Release what the app opened, the page having gone away."""
+        await self._services.aclose()

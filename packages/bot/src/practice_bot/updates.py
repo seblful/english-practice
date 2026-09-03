@@ -1,8 +1,11 @@
 """The part of an update a handler actually needs."""
 
 from dataclasses import dataclass
+from typing import Any
 
 from telegram import CallbackQuery, Message, Update, User
+
+from practice_bot.formatter import Html
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +45,27 @@ class Interaction:
             return None
 
         return cls(user=user, message=message, query=query)
+
+    async def say(self, text: str, **kwargs: Any) -> Message:
+        """Reply, in HTML when the text is marked up as HTML.
+
+        The parse mode is read off the value rather than remembered at the
+        call site. Thirty reply sites each decided it for themselves, eleven
+        of them said HTML, and two of those had a test that would have noticed
+        if they stopped -- so a formatted reply that lost its parse mode put a
+        literal ``<b>`` on the user's screen and nothing failed.
+
+        Args:
+            text: What to send. :class:`~practice_bot.formatter.Html` carries
+                its own parse mode; anything else is sent as plain text.
+            kwargs: Passed to Telegram, for keyboards and the like.
+
+        Returns:
+            The message Telegram accepted.
+        """
+        if isinstance(text, Html):
+            kwargs.setdefault("parse_mode", "HTML")
+        return await self.message.reply_text(text, **kwargs)
 
     @property
     def callback_data(self) -> str:

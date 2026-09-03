@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
 from practice_core import content
+from practice_core.content import ContentLibrary
 from practice_runtime.settings import DashscopeSettings, LLMSettings, PathSettings
 from pydantic import SecretStr
 from telegram import CallbackQuery, Chat, Message, MessageEntity, Update, User
@@ -27,7 +28,7 @@ from telegram.ext import ExtBot
 from practice_bot.app import BotApplication, build_application
 from practice_bot.context import BotContext, BotDependencies
 from practice_bot.models.agents import AssistantOutput, EvaluateAnswerOutput
-from practice_bot.repositories.database import DatabaseRepository
+from practice_bot.repositories.database import AuthRepository
 from practice_bot.services.agent_service import AgentService
 from practice_bot.settings import Settings, TelegramSettings
 from practice_bot.states import SessionStore
@@ -74,7 +75,8 @@ def application(
         paths=PathSettings(database_path=seeded_db_path),
     )
     dependencies = BotDependencies(
-        repository=DatabaseRepository(seeded_db_path),
+        content=ContentLibrary(seeded_db_path),
+        users=AuthRepository(seeded_db_path),
         agents=agents,
         sessions=SessionStore(),
         admin_user_id=None,

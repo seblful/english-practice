@@ -1,29 +1,22 @@
-"""SQLite access to the practice content.
+"""Reading the book: topics, exercises, questions, answers and images.
 
-Every public method is ``async`` but SQLite is synchronous, so each query is
-handed to a worker thread: a single exercise image is tens to hundreds of
-kilobytes, and reading one on the event loop stalls every other chat the bot is
-holding — and drops frames mid-animation on a phone.
-
-Connections are opened per query and always closed. ``with sqlite3.connect(...)``
-commits a transaction but, unlike most context managers, does *not* close the
-connection.
+Every public method is ``async``. Running the statement off the event loop is
+:class:`~practice_core.sqlite.SqliteStore`'s job, and this holds one rather
+than being one -- the bot keeps its own table of authorized users in the same
+file, and it used to reach that plumbing by subclassing this class, so a table
+that has nothing to do with the book came with every content query attached.
 
 The app opens the database read-only, because it ships inside the APK and
-nothing may write to it; the bot opens it read-write, because it also keeps the
-table of who is allowed to use it. That is the only difference, and it is a
-constructor flag.
+nothing may write to it; the bot opens it read-write. That is the only
+difference, and it is a constructor flag.
 """
 
-import asyncio
 import random
 import sqlite3
-from collections.abc import Callable, Iterator, Sequence
-from contextlib import closing, contextmanager
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
 
-from practice_core.errors import ContentError
+from practice_core.lesson import ActiveExercise, topic_label
 from practice_core.models import (
     ContentCounts,
     Exercise,
@@ -32,11 +25,9 @@ from practice_core.models import (
     Topic,
     Unit,
 )
+from practice_core.sqlite import SqliteStore
 
-__all__ = ["ContentLibrary", "DrawnQuestion"]
-
-# Waiting beats failing when another writer holds the lock: bot writes are tiny.
-BUSY_TIMEOUT_SECONDS = 5.0
+__all__ = ["ContentLibrary"]
 
 _EXERCISE_COLUMNS = """
     e.id, e.exercise_id, e.exercise_number,
@@ -50,11 +41,6 @@ _EXERCISE_COLUMNS = """
         LIMIT 1
     ) AS topic_name
 """
-
-SqlParams = Sequence[Any]
-
-# An exercise, the question drawn from it, and its picture.
-type DrawnQuestion = tuple[Exercise, Question, bytes | None]
 
 
 def _to_exercise(row: sqlite3.Row, questions: Sequence[Question] = ()) -> Exercise:
@@ -93,107 +79,17 @@ class ContentLibrary:
             read_only: Open the file read-only, and refuse to create it. The
                 app sets this; the bot does not, because it also writes.
         """
-        self.db_path = db_path
-        self.read_only = read_only
+        self._store = SqliteStore(db_path, read_only=read_only)
 
-    # ------------------------------------------------------------------
-    # Plumbing
-    # ------------------------------------------------------------------
+    @property
+    def db_path(self) -> Path:
+        """Return the file this library reads."""
+        return self._store.db_path
 
-    @contextmanager
-    def _connect(self) -> Iterator[sqlite3.Connection]:
-        """Yield a connection that commits on success and always closes.
-
-        Yields:
-            A connection with row access by column name.
-
-        Raises:
-            ContentError: If the database cannot be opened. Read-only mode
-                checks for the file first: SQLite's own message for a missing
-                file is "unable to open database file", which tells a user
-                nothing about what to do next.
-        """
-        if self.read_only and not self.db_path.exists():
-            raise ContentError(f"The exercise database is missing at {self.db_path}.")
-
-        try:
-            with closing(self._open()) as conn:
-                conn.row_factory = sqlite3.Row
-                conn.execute("PRAGMA foreign_keys = ON")
-                with conn:  # commits on success, rolls back on exception
-                    yield conn
-        except sqlite3.Error as exc:
-            raise ContentError(
-                f"The exercise database could not be read: {exc}"
-            ) from exc
-
-    def _open(self) -> sqlite3.Connection:
-        """Open the database, honouring :attr:`read_only`."""
-        if self.read_only:
-            return sqlite3.connect(
-                f"file:{self.db_path.as_posix()}?mode=ro",
-                uri=True,
-                timeout=BUSY_TIMEOUT_SECONDS,
-            )
-        return sqlite3.connect(self.db_path, timeout=BUSY_TIMEOUT_SECONDS)
-
-    def _query_sync(self, sql: str, params: SqlParams = ()) -> list[sqlite3.Row]:
-        """Run a read query and return every row."""
-        with self._connect() as conn:
-            return conn.execute(sql, tuple(params)).fetchall()
-
-    def _execute_sync(self, sql: str, params: SqlParams = ()) -> None:
-        """Run a write statement."""
-        with self._connect() as conn:
-            conn.execute(sql, tuple(params))
-
-    def _script_sync(self, sql: str) -> None:
-        """Run a multi-statement script."""
-        with self._connect() as conn:
-            conn.executescript(sql)
-
-    async def _rows(self, sql: str, params: SqlParams = ()) -> list[sqlite3.Row]:
-        """Run a read query off the event loop.
-
-        Args:
-            sql: The statement to run.
-            params: Bound parameters.
-
-        Returns:
-            Every matching row.
-        """
-        return await asyncio.to_thread(self._query_sync, sql, params)
-
-    async def _row(self, sql: str, params: SqlParams = ()) -> sqlite3.Row | None:
-        """Run a read query off the event loop and return the first row.
-
-        Args:
-            sql: The statement to run.
-            params: Bound parameters.
-
-        Returns:
-            The first row, or ``None`` when there is none.
-        """
-        rows = await self._rows(sql, params)
-        return rows[0] if rows else None
-
-    async def _execute(self, sql: str, params: SqlParams = ()) -> None:
-        """Run a write statement off the event loop.
-
-        Args:
-            sql: The statement to run.
-            params: Bound parameters.
-        """
-        await asyncio.to_thread(self._execute_sync, sql, params)
-
-    async def _script(self, sql: str) -> None:
-        """Run a multi-statement script off the event loop.
-
-        Args:
-            sql: The statements to run, semicolon-separated. Callers pass
-                schema text, which is why this takes no parameters.
-        """
-        await asyncio.to_thread(self._script_sync, sql)
+    @property
+    def read_only(self) -> bool:
+        """Whether this library refuses to write."""
+        return self._store.read_only
 
     # ------------------------------------------------------------------
     # Content
@@ -205,7 +101,7 @@ class ContentLibrary:
         Returns:
             The row counts, for an "about" screen or a health check.
         """
-        row = await self._row(
+        row = await self._store.row(
             """
             SELECT
                 (SELECT COUNT(*) FROM topics) AS topics,
@@ -224,7 +120,7 @@ class ContentLibrary:
         Returns:
             All topics in the database.
         """
-        rows = await self._rows(
+        rows = await self._store.rows(
             """
             SELECT t.id, t.name, COUNT(ut.unit_id) AS unit_count
             FROM topics t
@@ -244,7 +140,7 @@ class ContentLibrary:
         Returns:
             The topic, or ``None`` when no such topic exists.
         """
-        row = await self._row(
+        row = await self._store.row(
             """
             SELECT t.id, t.name, COUNT(ut.unit_id) AS unit_count
             FROM topics t
@@ -281,7 +177,7 @@ class ContentLibrary:
             if topic_id is not None
             else ""
         )
-        row = await self._row(
+        row = await self._store.row(
             f"""
             SELECT {_EXERCISE_COLUMNS}
             FROM exercises e
@@ -306,7 +202,7 @@ class ContentLibrary:
         Returns:
             The questions, ordered as they are printed.
         """
-        rows = await self._rows(
+        rows = await self._store.rows(
             """
             SELECT id, question_id, is_open_ended,
                    section_letter, rule, display_order
@@ -330,7 +226,7 @@ class ContentLibrary:
             :mod:`practice_extraction.validate` reports them — so it counts as
             absent instead of reaching a screen as an empty frame.
         """
-        row = await self._row(
+        row = await self._store.row(
             "SELECT image_data FROM exercise_images WHERE exercise_id = ?",
             (exercise_id,),
         )
@@ -348,7 +244,7 @@ class ContentLibrary:
         Returns:
             The answers in insertion order; the first is the canonical one.
         """
-        rows = await self._rows(
+        rows = await self._store.rows(
             """
             SELECT short_answer, full_answer
             FROM question_answers
@@ -359,25 +255,32 @@ class ContentLibrary:
         )
         return [QuestionAnswer.model_validate(dict(row)) for row in rows]
 
-    async def draw_question(
+    async def draw(
         self,
         topic_id: int | None = None,
         *,
+        topic_name: str | None = None,
         choose: Callable[[Sequence[Question]], Question] | None = None,
-    ) -> DrawnQuestion | None:
-        """Draw an exercise, pick one of its questions, and load its image.
+    ) -> ActiveExercise | None:
+        """Draw a question a student can be asked, ready to be answered.
 
-        Doing all three together is what keeps a caller from holding a
-        half-drawn exercise: either there is something to practise or there is
-        not.
+        Everything the question needs travels with it: the exercise it came
+        from, its picture, the book's answers, and what to call the topic on
+        screen. This used to hand back three of those as a tuple and leave the
+        answers to the caller, so both front ends assembled the state
+        themselves and the bot's copy went out with none -- an exercise whose
+        reveal would have printed nothing had anything else reached it first.
 
         Args:
             topic_id: Restrict the draw to this topic, or ``None`` for any.
+            topic_name: What the student called the topic they asked for.
+                Ignored when no topic was asked for, so the label falls back
+                to the unit -- the rule was spelled once per front end.
             choose: Random source for picking the question, injectable so a
                 test can make the draw deterministic.
 
         Returns:
-            The exercise, the question to answer, and the exercise image, or
+            The question and everything needed to ask and grade it, or
             ``None`` when the filter matches nothing to practise.
         """
         exercise = await self.random_exercise(topic_id)
@@ -385,4 +288,14 @@ class ContentLibrary:
             return None
         picker = choose or random.choice
         question = picker(exercise.questions)
-        return exercise, question, await self.get_exercise_image(exercise.id)
+        return ActiveExercise(
+            exercise=exercise,
+            question=question,
+            topic_id=topic_id,
+            topic_name=topic_label(
+                topic_name=topic_name if topic_id is not None else None,
+                unit=exercise.unit,
+            ),
+            image=await self.get_exercise_image(exercise.id),
+            answers=tuple(await self.list_answers(question.id)),
+        )

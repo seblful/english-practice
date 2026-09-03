@@ -27,12 +27,12 @@ async def pending_command(who: Interaction, context: BotContext) -> None:
         who: The admin behind the update.
         context: The handler context.
     """
-    pending = await context.repository.list_pending_users()
+    pending = await context.users.list_pending_users()
     if not pending:
-        await who.message.reply_text(NO_PENDING_MESSAGE)
+        await who.say(NO_PENDING_MESSAGE)
         return
 
-    await who.message.reply_text(
+    await who.say(
         f"📋 Pending users ({len(pending)}):",
         reply_markup=keyboards.pending_users_keyboard(pending),
     )
@@ -52,7 +52,7 @@ async def admin_action(who: Interaction, context: BotContext) -> None:
         return
 
     approved = action.decision is AdminDecision.APPROVE
-    await context.repository.set_auth_status(
+    await context.users.set_auth_status(
         action.user_id,
         "approved" if approved else "rejected",
         who.user.id,
@@ -69,16 +69,16 @@ async def admin_action(who: Interaction, context: BotContext) -> None:
     )
 
     verdict = "✅ approved" if approved else "❌ rejected"
-    await who.message.reply_text(f"User {action.user_id} has been {verdict}.")
+    await who.say(f"User {action.user_id} has been {verdict}.")
     await notify_user(
         context,
         action.user_id,
         APPROVED_NOTICE if approved else REJECTED_NOTICE,
     )
 
-    remaining = await context.repository.list_pending_users()
+    remaining = await context.users.list_pending_users()
     if remaining:
-        await who.message.reply_text(
+        await who.say(
             f"📋 Remaining pending ({len(remaining)}):",
             reply_markup=keyboards.pending_users_keyboard(remaining),
         )

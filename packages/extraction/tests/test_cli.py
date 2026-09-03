@@ -23,7 +23,12 @@ from practice_extraction.constants import (
     START_UNIT_PAGE,
 )
 from practice_extraction.settings import Settings
-from practice_extraction.stages import STAGE_BY_NAME
+from practice_extraction.stages import (
+    MOBILE_CONTENT_PATH,
+    STAGE_BY_NAME,
+    STAGES,
+    register,
+)
 from tests.conftest import extraction_paths
 
 runner = CliRunner()
@@ -307,6 +312,16 @@ class TestValidate:
 class TestBundle:
     """The compact copy of the database that ships inside the APK."""
 
+    @pytest.fixture(autouse=True)
+    def _database(self, settings: Settings) -> None:
+        """The database `bundle` reads.
+
+        It is `bundle`'s declared input, and it is now enforced like every
+        other stage's: this was the one command that never called the gate.
+        """
+        settings.paths.database_path.parent.mkdir(parents=True, exist_ok=True)
+        settings.paths.database_path.write_bytes(b"")
+
     def test_reports_the_file_it_wrote_and_what_it_saved(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -361,7 +376,7 @@ class TestBundle:
         assert seen["source"] == settings.paths.database_path
 
     def test_a_missing_source_is_explained(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, settings: Settings, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         def explode(*_args: object, **_kwargs: object) -> BundleResult:
             raise ContentError("No exercise database at nowhere.db.")
@@ -377,11 +392,38 @@ class TestBundle:
 
     def test_writes_inside_the_app_package_by_default(self) -> None:
         """The app reads this file out of its own package, by this name."""
-        default = cli.MOBILE_CONTENT_PATH
+        default = MOBILE_CONTENT_PATH
 
         assert default.name == "english_practice.db"
         assert default.parent.name == "content"
         assert default.parent.parent.name == "practice_app"
+
+
+class TestStageRegistration:
+    """Every stage has a command, and every command is a stage.
+
+    The two halves used to be joined by a string typed twice -- once in the
+    ``Stage`` record, once in the ``@app.command(name=...)`` above the body --
+    and nothing checked that they matched, or that a stage had a command at
+    all. `bundle` slipped through: it declared an input and never consulted
+    the gate that enforces one.
+    """
+
+    def test_every_stage_declares_what_it_does(self) -> None:
+        assert [stage.name for stage in STAGES if stage.runner is None] == []
+
+    def test_every_stage_is_reachable_as_a_command(self) -> None:
+        registered = {
+            command.name
+            for command in cli.app.registered_commands
+            if command.name is not None
+        }
+
+        assert {stage.name for stage in STAGES} <= registered
+
+    def test_a_runner_cannot_be_declared_twice(self) -> None:
+        with pytest.raises(ConfigurationError, match="already has a runner"):
+            register(STAGES[0], lambda _settings: 0)
 
 
 class TestTheStageGate:

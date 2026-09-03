@@ -4,11 +4,33 @@ Everything here escapes the values it interpolates. Answers and unit titles come
 from the book, and names come from Telegram, so an ampersand or a stray ``<``
 is ordinary content — under ``parse_mode="HTML"`` it would otherwise make
 Telegram reject the whole message.
+
+And everything here returns :class:`Html` rather than ``str``, so the parse
+mode travels with the text. It used to be a bare string, indistinguishable
+from the plain constants beside it, and every reply site had to remember on
+its own which kind it was holding: forgetting put a literal ``<b>`` on the
+user's screen, and adding it to a constant containing ``<`` got a 400 back
+from Telegram that only the error handler saw.
 """
 
 import html
 import re
 from collections.abc import Sequence
+
+__all__ = [
+    "Html",
+    "access_request",
+    "assistant_answer",
+    "escape",
+    "evaluation",
+    "full_answers",
+    "question_prompt",
+    "rich",
+    "rule_block",
+    "short_answers",
+    "topic_line",
+    "unit_info",
+]
 
 from practice_core.feedback import full_answer_text, short_answer_text, to_markdown
 from practice_core.feedback import verdict_phrase as _verdict_phrase
@@ -23,6 +45,19 @@ _BOLD = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
 _ITALIC = re.compile(r"\*(.+?)\*", re.DOTALL)
 
 
+class Html(str):
+    """Text already marked up for Telegram's HTML parse mode.
+
+    A ``str`` subclass rather than a wrapper, so it goes straight to Telegram
+    and every ``str`` operation still works -- what it adds is that a reply
+    helper can *tell*, which is the whole point: the obligation to pass
+    ``parse_mode="HTML"`` is carried by the value instead of remembered at
+    thirty call sites.
+    """
+
+    __slots__ = ()
+
+
 def escape(text: str) -> str:
     """Escape text for Telegram's HTML parse mode.
 
@@ -35,7 +70,7 @@ def escape(text: str) -> str:
     return html.escape(text, quote=False)
 
 
-def rich(text: str) -> str:
+def rich(text: str) -> Html:
     """Escape text, then render its markdown emphasis and bullets as HTML.
 
     The book's answers and the assistant's replies use ``**bold**`` and
@@ -50,10 +85,10 @@ def rich(text: str) -> str:
     """
     result = _DASH_BULLET.sub("• ", to_markdown(escape(text)))
     result = _BOLD.sub(r"<b>\1</b>", result)
-    return _ITALIC.sub(r"<i>\1</i>", result)
+    return Html(_ITALIC.sub(r"<i>\1</i>", result))
 
 
-def topic_line(topic_name: str) -> str:
+def topic_line(topic_name: str) -> Html:
     """Announce the topic of the exercise being sent.
 
     Args:
@@ -62,10 +97,10 @@ def topic_line(topic_name: str) -> str:
     Returns:
         The message text.
     """
-    return f"📚 Topic: <b>{escape(topic_name)}</b>"
+    return Html(f"📚 Topic: <b>{escape(topic_name)}</b>")
 
 
-def question_prompt(question_number: str) -> str:
+def question_prompt(question_number: str) -> Html:
     """Ask the user to answer one numbered question.
 
     Args:
@@ -74,10 +109,10 @@ def question_prompt(question_number: str) -> str:
     Returns:
         The message text.
     """
-    return f"Answer question <b>{escape(question_number)}</b>:"
+    return Html(f"Answer question <b>{escape(question_number)}</b>:")
 
 
-def evaluation(is_correct: bool) -> str:
+def evaluation(is_correct: bool) -> Html:
     """Give varied feedback on an answer.
 
     The phrases come from :mod:`practice_core.feedback`, shared with the
@@ -90,10 +125,10 @@ def evaluation(is_correct: bool) -> str:
         The message text.
     """
     mark = "✅" if is_correct else "❌"
-    return f"{mark} <b>{escape(_verdict_phrase(is_correct))}</b>"
+    return Html(f"{mark} <b>{escape(_verdict_phrase(is_correct))}</b>")
 
 
-def short_answers(answers: Sequence[QuestionAnswer]) -> str:
+def short_answers(answers: Sequence[QuestionAnswer]) -> Html:
     """Show the accepted short answers on one line.
 
     Args:
@@ -102,10 +137,10 @@ def short_answers(answers: Sequence[QuestionAnswer]) -> str:
     Returns:
         The message text.
     """
-    return f"Correct Answer:\n<b>{rich(short_answer_text(answers))}</b>"
+    return Html(f"Correct Answer:\n<b>{rich(short_answer_text(answers))}</b>")
 
 
-def full_answers(answers: Sequence[QuestionAnswer]) -> str:
+def full_answers(answers: Sequence[QuestionAnswer]) -> Html:
     """Show the accepted full sentences as a preformatted block.
 
     Args:
@@ -114,10 +149,10 @@ def full_answers(answers: Sequence[QuestionAnswer]) -> str:
     Returns:
         The message text.
     """
-    return f"Full Answer:\n<pre>{rich(full_answer_text(answers))}</pre>"
+    return Html(f"Full Answer:\n<pre>{rich(full_answer_text(answers))}</pre>")
 
 
-def rule_block(unit_reference: str, rule: str) -> str:
+def rule_block(unit_reference: str, rule: str) -> Html:
     """Quote the grammar rule behind a question.
 
     Args:
@@ -129,10 +164,10 @@ def rule_block(unit_reference: str, rule: str) -> str:
         The message text.
     """
     reference = escape(unit_reference)
-    return f"📋 Rule: <b>{reference}</b>\n<blockquote>{rich(rule)}</blockquote>"
+    return Html(f"📋 Rule: <b>{reference}</b>\n<blockquote>{rich(rule)}</blockquote>")
 
 
-def unit_info(unit_number: int, title: str) -> str:
+def unit_info(unit_number: int, title: str) -> Html:
     """Name the unit an exercise comes from.
 
     Args:
@@ -142,10 +177,10 @@ def unit_info(unit_number: int, title: str) -> str:
     Returns:
         The message text.
     """
-    return f"📌 Unit <b>{unit_number}</b>\n<b>{escape(title)}</b>"
+    return Html(f"📌 Unit <b>{unit_number}</b>\n<b>{escape(title)}</b>")
 
 
-def assistant_answer(answer: str) -> str:
+def assistant_answer(answer: str) -> Html:
     """Present the assistant's reply to a follow-up question.
 
     Args:
@@ -154,10 +189,10 @@ def assistant_answer(answer: str) -> str:
     Returns:
         The message text.
     """
-    return f"💬 {rich(answer)}"
+    return Html(f"💬 {rich(answer)}")
 
 
-def access_request(full_name: str, username: str | None, telegram_id: int) -> str:
+def access_request(full_name: str, username: str | None, telegram_id: int) -> Html:
     """Tell the admin that somebody asked for access.
 
     Args:
@@ -169,7 +204,7 @@ def access_request(full_name: str, username: str | None, telegram_id: int) -> st
         The message text.
     """
     mention = f"@{escape(username)}" if username else "No username"
-    return (
+    return Html(
         "👤 <b>New user requested access</b>\n"
         f"Name: {escape(full_name)}\n"
         f"Username: {mention}\n"

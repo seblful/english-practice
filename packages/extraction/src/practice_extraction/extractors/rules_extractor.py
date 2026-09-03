@@ -17,18 +17,15 @@ from practice_extraction.models import (
     ExtractedUnitRules,
     RulesQuestion,
 )
-from practice_extraction.stages import RULES_FILENAME
+from practice_extraction.stages import ANSWERS_FULL_FILENAME, RULES_FILENAME
 
-from .answers_extractor import AnswersExtractor
-from .base_extractor import BaseExtractor
+from .unit_store import UnitStore
 
 logger = get_logger(__name__)
 
 
-class RulesExtractor(BaseExtractor):
+class RulesExtractor:
     """Extract grammar rules from exercise images using LLM."""
-
-    OUTPUT_FILENAME = RULES_FILENAME
 
     def __init__(self, paths: PathSettings, agent: RulesAgent) -> None:
         """Initialize the grammar rule extractor.
@@ -39,16 +36,13 @@ class RulesExtractor(BaseExtractor):
                 client. Required rather than built here: a client owns a
                 connection pool, and one per stage is one too many.
         """
-        super().__init__(paths)
+        self._tree = UnitStore(paths, RULES_FILENAME)
         self._extractor_agent = agent
-        # This stage reads what the answers stage wrote, so it takes the name
-        # from that class rather than from a path the caller keeps in step.
-        self._answers_full_path = paths.metadata_dir / AnswersExtractor.OUTPUT_FILENAME
-
-    def _get_grammar_md(self, unit_number: int) -> str | None:
-        """Get grammar markdown content for a unit."""
-        path = self._paths.grammar_md_dir / f"{unit_number}.md"
-        return path.read_text(encoding="utf-8") if path.exists() else None
+        # This stage reads what the answers stage wrote. Both names come from
+        # `stages`, which is where the pipeline's filenames are declared --
+        # this used to reach into the other extractor for its class attribute,
+        # so two stages of the pipeline knew about each other.
+        self._answers_full_path = paths.metadata_dir / ANSWERS_FULL_FILENAME
 
     def _load_answers_full_data(self) -> dict[str, Any]:
         """Load answers_full data from JSON file."""
@@ -74,14 +68,14 @@ class RulesExtractor(BaseExtractor):
 
     async def extract(self) -> Path:
         """Extract grammar rules from all exercises, returning the file written."""
-        return await self._extract_units(ExtractedFullRules)
+        return await self._tree.extract_units(ExtractedFullRules, self._process_unit)
 
     async def _process_unit(self, unit: dict) -> ExtractedUnitRules:
         """Process all exercises in a unit."""
         unit_id = unit["unit_id"]
         unit_number = int(unit_id)
-        rules_md = self._get_grammar_md(unit_number)
-        topic_name = self._get_topic_name(unit_id)
+        rules_md = self._tree.grammar_markdown(unit_number)
+        topic_name = self._tree.topic_name(unit_id)
 
         if not rules_md:
             logger.warning("grammar_markdown_missing", unit_number=unit_number)
@@ -104,7 +98,7 @@ class RulesExtractor(BaseExtractor):
     ) -> ExtractedExerciseRules:
         """Process a single exercise."""
         exercise_id = exercise["exercise_id"]
-        image_path = self._get_image_path(exercise_id)
+        image_path = self._tree.image_path(exercise_id)
 
         questions_input = self._prepare_questions(exercise)
 

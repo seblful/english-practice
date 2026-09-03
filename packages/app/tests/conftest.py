@@ -93,6 +93,7 @@ class FakePage:
     padding: Any = None
     appbar: Any = None
     navigation_bar: Any = None
+    on_disconnect: Any = None
     controls: list[Any] = field(default_factory=list)
     views: list[FakeView] = field(default_factory=lambda: [FakeView()])
 

@@ -27,6 +27,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 __all__ = [
     "BASE_DIR",
+    "LAYOUT",
     "AppSettings",
     "BaseAppSettings",
     "DashscopeSettings",
@@ -88,6 +89,31 @@ BASE_DIR = project_root()
 
 #: The database every front end opens, inside whatever content tree is set.
 DATABASE_FILENAME = "english_practice.db"
+
+#: What a path field holds until the layout below fills it in. A field's
+#: default cannot see its siblings, so the tree cannot be spelled in the class
+#: body without stating it a second time -- which is what this replaces: the
+#: defaults were expressions over the import-time ``BASE_DIR`` and a validator
+#: restated all ten to undo them, so ``data_dir=`` moved a directory whose
+#: children stayed in the developer's real ``data/`` tree whenever the two
+#: lists drifted.
+_DERIVED = Path()
+
+#: The content tree, declared once: each entry is a field, the field it hangs
+#: off, and the name it adds. Order is dependency order -- every parent is
+#: settled by an entry above it.
+LAYOUT: tuple[tuple[str, str, str], ...] = (
+    ("source_dir", "data_dir", "source"),
+    ("content_dir", "data_dir", "content"),
+    ("snippets_dir", "source_dir", "snippets"),
+    ("images_dir", "source_dir", "images"),
+    ("grammar_pages_dir", "images_dir", "grammar"),
+    ("exercises_pages_dir", "images_dir", "exercises"),
+    ("grammar_md_dir", "content_dir", "grammar"),
+    ("exercises_dir", "content_dir", "exercises"),
+    ("metadata_dir", "content_dir", "metadata"),
+    ("database_path", "content_dir", DATABASE_FILENAME),
+)
 
 
 def secret_value(secret: SecretStr | None) -> str | None:
@@ -187,57 +213,36 @@ class PathSettings(BaseSettings):
     )
 
     data_dir: Path = BASE_DIR / "data"
-    source_dir: Path = data_dir / "source"
-    content_dir: Path = data_dir / "content"
-    snippets_dir: Path = source_dir / "snippets"
-    images_dir: Path = source_dir / "images"
-    grammar_pages_dir: Path = images_dir / "grammar"
-    exercises_pages_dir: Path = images_dir / "exercises"
-    grammar_md_dir: Path = content_dir / "grammar"
-    exercises_dir: Path = content_dir / "exercises"
-    metadata_dir: Path = content_dir / "metadata"
+    source_dir: Path = _DERIVED
+    content_dir: Path = _DERIVED
+    snippets_dir: Path = _DERIVED
+    images_dir: Path = _DERIVED
+    grammar_pages_dir: Path = _DERIVED
+    exercises_pages_dir: Path = _DERIVED
+    grammar_md_dir: Path = _DERIVED
+    exercises_dir: Path = _DERIVED
+    metadata_dir: Path = _DERIVED
 
     # DATABASE_PATH is accepted as a legacy alias: this group was unprefixed
     # before, and existing .env files set the bare name.
     database_path: Path = Field(
-        default=content_dir / DATABASE_FILENAME,
+        default=_DERIVED,
         validation_alias=AliasChoices("PATHS_DATABASE_PATH", "DATABASE_PATH"),
         description="SQLite database file",
     )
 
     @model_validator(mode="after")
-    def _reroot_paths_left_at_their_defaults(self) -> "PathSettings":
-        """Re-derive every path the caller did not set from the one above it.
-
-        The defaults are class-body expressions, so they are computed once
-        against the ``BASE_DIR`` this module found at import. Passing
-        ``content_dir=`` alone therefore moved that one directory and left the
-        other nine pointing into the real ``data/`` tree -- which is why
-        relocating the layout for a test meant restating ten fields, and
-        forgetting one silently pointed it at the developer's own database.
+    def _derive_unset_paths(self) -> "PathSettings":
+        """Build every path the caller did not set from the one above it.
 
         A field the caller or the environment set is left exactly as given.
 
         Returns:
-            The settings, with unset paths re-rooted.
+            The settings, with the rest of the tree hung off ``data_dir``.
         """
-        derived = {
-            "source_dir": lambda: self.data_dir / "source",
-            "content_dir": lambda: self.data_dir / "content",
-            "snippets_dir": lambda: self.source_dir / "snippets",
-            "images_dir": lambda: self.source_dir / "images",
-            "grammar_pages_dir": lambda: self.images_dir / "grammar",
-            "exercises_pages_dir": lambda: self.images_dir / "exercises",
-            "grammar_md_dir": lambda: self.content_dir / "grammar",
-            "exercises_dir": lambda: self.content_dir / "exercises",
-            "metadata_dir": lambda: self.content_dir / "metadata",
-            "database_path": lambda: self.content_dir / DATABASE_FILENAME,
-        }
-        # Insertion order is the dependency order: each entry is derived from
-        # values the entries above it have already settled.
-        for name, derive in derived.items():
+        for name, parent, segment in LAYOUT:
             if name not in self.model_fields_set:
-                setattr(self, name, derive())
+                setattr(self, name, getattr(self, parent) / segment)
         return self
 
     def create_directories(self) -> None:

@@ -71,9 +71,14 @@ def _as_str(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class ProxyConfig:
-    """An optional HTTP or SOCKS5 proxy, with optional credentials."""
+    """An optional HTTP or SOCKS5 proxy, with optional credentials.
+
+    Frozen because the live provider client bakes this in when its connection
+    pool is built. The settings screen used to edit it in place, so a host
+    typed one letter at a time reached the pool one letter at a time.
+    """
 
     enabled: bool = False
     scheme: str = "http"

@@ -1,12 +1,12 @@
 """Tests for topic selection and sending exercises."""
 
+from dataclasses import replace
 from unittest.mock import Mock
 
-from practice_core.lesson import RANDOM_TOPIC_LABEL
+from practice_core.lesson import RANDOM_TOPIC_LABEL, ActiveExercise, topic_label
 from practice_core.models import Exercise, Question, Topic, Unit
 
 from practice_bot.handlers import exercises
-from practice_bot.states import ActiveExercise
 from practice_bot.updates import Interaction
 from tests.conftest import USER_ID, replies
 
@@ -28,7 +28,7 @@ class TestTopicSelection:
 
         await exercises.topic_selection(mock_callback_update, mock_context)
 
-        mock_context.repository.list_topics.assert_awaited_once()
+        mock_context.content.list_topics.assert_awaited_once()
         text = replies(mock_callback_update.callback_query.message)[0]
         assert "Select a topic" in text
 
@@ -39,28 +39,28 @@ class TestTopicSelection:
 
         await exercises.topic_selection(mock_callback_update, mock_context)
 
-        mock_context.repository.draw_question.assert_awaited_once_with(None)
+        mock_context.content.draw.assert_awaited_once_with(None, topic_name=None)
 
     async def test_specific_topic_is_resolved_then_drawn(
         self, mock_callback_update: Mock, mock_context: Mock
     ) -> None:
         mock_callback_update.callback_query.data = "topic:2"
-        mock_context.repository.get_topic.return_value = Topic(id=2, name="Past Tenses")
+        mock_context.content.get_topic.return_value = Topic(id=2, name="Past Tenses")
 
         await exercises.topic_selection(mock_callback_update, mock_context)
 
-        mock_context.repository.get_topic.assert_awaited_once_with(2)
-        mock_context.repository.draw_question.assert_awaited_once_with(2)
+        mock_context.content.get_topic.assert_awaited_once_with(2)
+        mock_context.content.draw.assert_awaited_once_with(2, topic_name="Past Tenses")
 
     async def test_unknown_topic_is_reported(
         self, mock_callback_update: Mock, mock_context: Mock
     ) -> None:
         mock_callback_update.callback_query.data = "topic:404"
-        mock_context.repository.get_topic.return_value = None
+        mock_context.content.get_topic.return_value = None
 
         await exercises.topic_selection(mock_callback_update, mock_context)
 
-        mock_context.repository.draw_question.assert_not_called()
+        mock_context.content.draw.assert_not_called()
         assert exercises.NO_EXERCISES_MESSAGE in replies(
             mock_callback_update.callback_query.message
         )
@@ -73,7 +73,7 @@ class TestTopicSelection:
 
         await exercises.topic_selection(mock_callback_update, mock_context)
 
-        mock_context.repository.get_topic.assert_awaited_once_with(1)
+        mock_context.content.get_topic.assert_awaited_once_with(1)
 
     async def test_same_topic_without_a_previous_one_draws_at_random(
         self, mock_callback_update: Mock, mock_context: Mock
@@ -82,8 +82,8 @@ class TestTopicSelection:
 
         await exercises.topic_selection(mock_callback_update, mock_context)
 
-        mock_context.repository.get_topic.assert_not_called()
-        mock_context.repository.draw_question.assert_awaited_once_with(None)
+        mock_context.content.get_topic.assert_not_called()
+        mock_context.content.draw.assert_awaited_once_with(None, topic_name=None)
 
     async def test_stale_payload_is_ignored(
         self, mock_callback_update: Mock, mock_context: Mock
@@ -93,7 +93,7 @@ class TestTopicSelection:
 
         await exercises.topic_selection(mock_callback_update, mock_context)
 
-        mock_context.repository.draw_question.assert_not_called()
+        mock_context.content.draw.assert_not_called()
         mock_callback_update.callback_query.message.reply_text.assert_not_called()
 
 
@@ -138,7 +138,7 @@ class TestSendExercise:
         assert active is not None
         assert active.image == b"fake_image_bytes"
         # The draw already read the blob; the handler must not read it again.
-        mock_context.repository.get_exercise_image.assert_not_called()
+        mock_context.content.get_exercise_image.assert_not_called()
 
     async def test_resets_the_assistant_transcript(
         self, mock_update: Mock, mock_context: Mock
@@ -165,16 +165,20 @@ class TestSendExercise:
     async def test_random_draw_without_a_topic_falls_back_to_a_label(
         self, mock_update: Mock, mock_context: Mock, question: Question
     ) -> None:
-        mock_context.repository.draw_question.return_value = (
-            Exercise(
-                id=9,
-                exercise_id="9.1",
-                exercise_number=1,
-                unit=Unit(id=9, unit_number=9, title="Untagged", topic_name=None),
-                questions=(question,),
-            ),
-            question,
-            b"fake_image_bytes",
+        untagged = Exercise(
+            id=9,
+            exercise_id="9.1",
+            exercise_number=1,
+            unit=Unit(id=9, unit_number=9, title="Untagged", topic_name=None),
+            questions=(question,),
+        )
+        mock_context.content.draw.side_effect = None
+        mock_context.content.draw.return_value = ActiveExercise(
+            exercise=untagged,
+            question=question,
+            topic_id=None,
+            topic_name=topic_label(topic_name=None, unit=untagged.unit),
+            image=b"fake_image_bytes",
         )
 
         await exercises.send_exercise(
@@ -188,7 +192,8 @@ class TestSendExercise:
     async def test_no_exercise_available(
         self, mock_update: Mock, mock_context: Mock, topics: list[Topic]
     ) -> None:
-        mock_context.repository.draw_question.return_value = None
+        mock_context.content.draw.side_effect = None
+        mock_context.content.draw.return_value = None
 
         await exercises.send_exercise(
             _interaction(mock_update), mock_context, topic=topics[1]
@@ -201,24 +206,22 @@ class TestSendExercise:
         self, mock_update: Mock, mock_context: Mock
     ) -> None:
         """The shared draw already skips exercises with no questions."""
-        mock_context.repository.draw_question.return_value = None
+        mock_context.content.draw.side_effect = None
+        mock_context.content.draw.return_value = None
 
         await exercises.send_exercise(
             _interaction(mock_update), mock_context, topic=None
         )
 
         assert replies(mock_update.message) == [exercises.NO_EXERCISES_MESSAGE]
-        assert mock_context.repository.draw_question.await_count == 1
+        assert mock_context.content.draw.await_count == 1
 
     async def test_missing_image_falls_back_to_text(
         self, mock_update: Mock, mock_context: Mock
     ) -> None:
-        exercise, question, _ = mock_context.repository.draw_question.return_value
-        mock_context.repository.draw_question.return_value = (
-            exercise,
-            question,
-            None,
-        )
+        drawn = await mock_context.content.draw()
+        mock_context.content.draw.side_effect = None
+        mock_context.content.draw.return_value = replace(drawn, image=None)
 
         await exercises.send_exercise(
             _interaction(mock_update), mock_context, topic=None
@@ -250,7 +253,7 @@ class TestExerciseAction:
         text = replies(mock_callback_update.callback_query.message)[0]
         assert "Unit" in text
         assert "Present Continuous" in text
-        mock_context.repository.draw_question.assert_not_called()
+        mock_context.content.draw.assert_not_called()
 
     async def test_without_an_active_exercise(
         self, mock_callback_update: Mock, mock_context: Mock

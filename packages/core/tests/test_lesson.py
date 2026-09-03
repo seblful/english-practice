@@ -6,6 +6,8 @@ duty, so the rule that a revealed answer never counts as correct was enforced
 by whoever remembered to pass ``correct=False``.
 """
 
+from dataclasses import replace
+
 import pytest
 
 from practice_core.errors import PracticeError
@@ -40,8 +42,12 @@ def lesson(active: ActiveExercise) -> Lesson:
 
 
 def _answer(lesson: Lesson, active: ActiveExercise, *, correct: bool) -> None:
-    """Draw a question and grade it, the way a front end drives a run."""
-    lesson.advance(active)
+    """Draw a question and grade it, the way a front end drives a run.
+
+    A fresh copy each time, because a run draws a fresh question each time and
+    a question may only be settled once.
+    """
+    lesson.advance(replace(active))
     lesson.check(EvaluateAnswerOutput(is_correct=correct))
 
 
@@ -93,19 +99,59 @@ class TestCheck:
         assert returned.evaluation is verdict
         assert returned.is_revealed is True
 
-    def test_a_graded_answer_is_not_marked_ungraded(self, lesson: Lesson) -> None:
-        """A retry after a failure must not leave the earlier flag standing."""
-        lesson.grading_failed()
-        lesson.check(EvaluateAnswerOutput(is_correct=True))
+    def test_a_settled_question_refuses_a_second_outcome(self, lesson: Lesson) -> None:
+        """One question, one of the run's slots.
 
-        assert lesson.active is not None
-        assert lesson.active.ungraded is False
+        Nothing enforced this: a failed grading followed by a verdict spent
+        two of the ten, so the bar and the counter reported a lesson longer
+        than the one the student sat. The app was safe only because the screen
+        hides the Check button once an answer is revealed.
+        """
+        lesson.grading_failed()
+
+        with pytest.raises(PracticeError, match="already has an outcome"):
+            lesson.check(EvaluateAnswerOutput(is_correct=True))
+
+        assert lesson.outcomes == [False]
+
+    def test_a_verdict_clears_an_earlier_failure_on_the_same_question(
+        self, active: ActiveExercise
+    ) -> None:
+        """The transition owns both fields, so neither can be left standing."""
+        active.give_up()
+        active.record(EvaluateAnswerOutput(is_correct=True))
+
+        assert active.ungraded is False
+        assert active.answered is True
 
     def test_checking_with_nothing_on_screen(self) -> None:
         empty = Lesson(topic_id=None, topic_name="Mixed")
 
         with pytest.raises(PracticeError, match="no question is on screen"):
             empty.check(EvaluateAnswerOutput(is_correct=True))
+
+
+class TestBeingGraded:
+    """The claim that stops one answer being graded twice."""
+
+    def test_the_claim_is_held_for_the_length_of_the_call(
+        self, active: ActiveExercise
+    ) -> None:
+        assert active.grading is False
+
+        with active.being_graded():
+            assert active.grading is True
+
+        assert active.grading is False
+
+    def test_the_claim_is_released_when_the_grading_fails(
+        self, active: ActiveExercise
+    ) -> None:
+        """A failed grading leaves the question open for another attempt."""
+        with pytest.raises(RuntimeError), active.being_graded():
+            raise RuntimeError("provider down")
+
+        assert active.grading is False
 
 
 class TestRevealAndFailure:
@@ -118,8 +164,11 @@ class TestRevealAndFailure:
         assert lesson.answered == 1
         assert lesson.correct == 0
 
-    def test_a_run_of_reveals_is_not_a_perfect_lesson(self, lesson: Lesson) -> None:
+    def test_a_run_of_reveals_is_not_a_perfect_lesson(
+        self, lesson: Lesson, active: ActiveExercise
+    ) -> None:
         for _ in range(3):
+            lesson.advance(replace(active))
             lesson.reveal_answer()
 
         assert lesson.accuracy == 0.0

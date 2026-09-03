@@ -35,7 +35,7 @@ async def report_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     try:
-        await who.message.reply_text(UNEXPECTED_ERROR)
+        await who.say(UNEXPECTED_ERROR)
     except Exception as exc:
         # Telling the user failed too; there is nowhere left to escalate.
         logger.warning("error_notice_failed", error=str(exc))
