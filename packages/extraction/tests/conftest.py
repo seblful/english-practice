@@ -43,9 +43,10 @@ def _quiet_logging() -> None:
 def extraction_paths(root: Path) -> PathSettings:
     """Return a content layout rooted at ``root``, with the directories made.
 
-    Every directory is passed explicitly: ``PathSettings`` computes its
-    defaults at class definition, so setting ``content_dir`` alone would leave
-    the others pointing at the real ``data/`` tree.
+    One field moves the whole tree: every other path derives from it. This
+    used to restate five of them, because the defaults were computed once at
+    class definition and setting ``content_dir`` alone left the rest pointing
+    into the real ``data/``.
 
     Args:
         root: The scratch directory to root the layout at.
@@ -53,14 +54,7 @@ def extraction_paths(root: Path) -> PathSettings:
     Returns:
         The layout, with the directories the stages write into created.
     """
-    content_dir = root / "content"
-    paths = PathSettings(
-        content_dir=content_dir,
-        metadata_dir=content_dir / "metadata",
-        exercises_dir=content_dir / "exercises",
-        grammar_md_dir=content_dir / "grammar",
-        database_path=content_dir / "english_practice.db",
-    )
+    paths = PathSettings(data_dir=root)
     for directory in (
         paths.metadata_dir,
         paths.exercises_dir,

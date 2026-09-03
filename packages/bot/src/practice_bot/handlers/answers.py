@@ -1,9 +1,6 @@
 """Handling a text message: an answer to grade, or a question to explain."""
 
-from collections.abc import Sequence
-
-from practice_core.grading import answers_to_show
-from practice_core.models import QuestionAnswer
+from practice_core.reveal import Reveal
 from practice_runtime.errors import AgentError
 from practice_runtime.logging import get_logger
 
@@ -25,31 +22,32 @@ NEXT_EXERCISE_PROMPT = "Choose next exercise:"
 async def _reveal(
     who: Interaction,
     session: UserSession,
-    active: ActiveExercise,
-    answers: Sequence[QuestionAnswer],
+    reveal: Reveal,
 ) -> None:
     """Show the book's answer, the rule behind it, and the next-exercise menu.
+
+    What is in the reveal -- which answers, whether the book's whole sentence
+    adds anything to the short form, whether there is a rule to quote -- was
+    decided by :func:`practice_core.reveal.reveal_for`, shared with the app.
+    This function renders it in Telegram's HTML and nothing more.
 
     Args:
         who: The user behind the update.
         session: The user's session.
-        active: The exercise being answered.
-        answers: The answers to reveal; may be empty for an open-ended question.
+        reveal: What to show for the question just answered.
     """
-    if answers:
+    if reveal.has_answer:
         await who.message.reply_text(
-            formatter.short_answers(answers), parse_mode="HTML"
+            formatter.short_answers(reveal.answers), parse_mode="HTML"
         )
-        await who.message.reply_text(formatter.full_answers(answers), parse_mode="HTML")
+        if reveal.show_full_answer:
+            await who.message.reply_text(
+                formatter.full_answers(reveal.answers), parse_mode="HTML"
+            )
 
-    question = active.question
-    if session.show_rule and question.rule:
+    if reveal.rule is not None:
         await who.message.reply_text(
-            formatter.rule_block(
-                active.exercise.unit.unit_number,
-                question.section_letter,
-                question.rule,
-            ),
+            formatter.rule_block(reveal.unit_reference, reveal.rule),
             parse_mode="HTML",
         )
 
@@ -69,6 +67,9 @@ async def _grade(
 
     A failed grading deliberately leaves the question unanswered, so the next
     message is treated as another attempt rather than as a follow-up question.
+    The app cannot offer that -- a run there has a fixed length, so the
+    question is spent -- which is why the two policies live in the front ends
+    and only the reveal itself is shared.
 
     Args:
         who: The user behind the update.
@@ -76,17 +77,15 @@ async def _grade(
         session: The user's session.
         active: The exercise being answered.
     """
-    answers = await context.repository.list_answers(active.question.id)
+    active.answers = tuple(await context.repository.list_answers(active.question.id))
 
     try:
-        evaluation = await context.agents.evaluate_answer(
-            image_data=active.image,
-            question_number=active.question.question_id,
+        evaluation = await context.agents.grader.evaluate(
+            active.question,
             user_input=who.text,
-            answers=answers,
-            is_open_ended=active.question.is_open_ended,
+            answers=active.answers,
             topic_name=active.topic_name,
-            rule=active.question.rule,
+            image=active.image,
         )
     except AgentError as exc:
         logger.warning(
@@ -96,9 +95,10 @@ async def _grade(
             error=str(exc),
         )
         await who.message.reply_text(GRADING_FAILED)
-        await _reveal(who, session, active, answers[:1])
+        await _reveal(who, session, active.reveal(show_rule=session.show_rule))
         return
 
+    active.evaluation = evaluation
     active.answered = True
     logger.info(
         "answer_graded",
@@ -110,7 +110,7 @@ async def _grade(
     await who.message.reply_text(
         formatter.evaluation(evaluation.is_correct), parse_mode="HTML"
     )
-    await _reveal(who, session, active, answers_to_show(answers, evaluation.answer_idx))
+    await _reveal(who, session, active.reveal(show_rule=session.show_rule))
 
 
 async def _explain(
@@ -127,7 +127,7 @@ async def _explain(
         result = await context.agents.assist(
             user_id=who.user.id,
             exercise_id=active.exercise.id,
-            image_data=active.image,
+            image=active.image,
             question_number=active.question.question_id,
             user_input=who.text,
             topic_name=active.topic_name,

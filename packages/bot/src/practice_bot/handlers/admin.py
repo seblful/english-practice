@@ -3,7 +3,7 @@
 from practice_runtime.logging import get_logger
 
 from practice_bot import keyboards
-from practice_bot.callbacks import AdminAction, AdminDecision
+from practice_bot.callbacks import ADMIN, AdminDecision
 from practice_bot.context import BotContext
 from practice_bot.handlers.access import (
     APPROVED_NOTICE,
@@ -46,7 +46,7 @@ async def admin_action(who: Interaction, context: BotContext) -> None:
         who: The admin behind the update.
         context: The handler context.
     """
-    action = AdminAction.parse(who.callback_data)
+    action = ADMIN.parse(who.callback_data)
     if action is None:
         logger.warning("unparsable_admin_callback", data=who.callback_data)
         return

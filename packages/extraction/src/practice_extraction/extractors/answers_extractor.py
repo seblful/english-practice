@@ -15,6 +15,7 @@ from practice_extraction.models import (
     ExtractedQuestionAnswers,
     ExtractedUnitAnswers,
 )
+from practice_extraction.stages import ANSWERS_FULL_FILENAME
 
 from .base_extractor import BaseExtractor
 
@@ -24,7 +25,7 @@ logger = get_logger(__name__)
 class AnswersExtractor(BaseExtractor):
     """Extract full answers from exercise images using LLM."""
 
-    OUTPUT_FILENAME = "answers_full.json"
+    OUTPUT_FILENAME = ANSWERS_FULL_FILENAME
 
     def __init__(self, paths: PathSettings, agent: AnswersAgent) -> None:
         """Initialize the full answer extractor.

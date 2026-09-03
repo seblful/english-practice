@@ -2,6 +2,7 @@
 
 from unittest.mock import Mock
 
+from practice_core.lesson import RANDOM_TOPIC_LABEL
 from practice_core.models import Exercise, Question, Topic, Unit
 
 from practice_bot.handlers import exercises
@@ -182,7 +183,7 @@ class TestSendExercise:
 
         active = mock_context.sessions.get(USER_ID).active
         assert active is not None
-        assert active.topic_name == exercises.RANDOM_TOPIC_LABEL
+        assert active.topic_name == RANDOM_TOPIC_LABEL
 
     async def test_no_exercise_available(
         self, mock_update: Mock, mock_context: Mock, topics: list[Topic]

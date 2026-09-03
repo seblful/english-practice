@@ -1,15 +1,19 @@
 """Tests for the shared grading contract."""
 
+import json
+
 import pytest
+from pydantic import ValidationError
 
 from practice_core.errors import GradingError
 from practice_core.grading import (
+    EvaluateAnswerInput,
     EvaluateAnswerOutput,
     answers_to_show,
     extract_json,
     parse_evaluation,
 )
-from practice_core.models import QuestionAnswer
+from practice_core.models import Exercise, Question, QuestionAnswer
 
 
 class TestAnswersToShow:
@@ -94,3 +98,85 @@ class TestParseEvaluation:
     def test_a_verdict_that_is_not_a_boolean(self) -> None:
         with pytest.raises(GradingError, match="did not say"):
             parse_evaluation('{"is_correct": "yes"}')
+
+
+class TestTheGateOnDirectConstruction:
+    """The bot never calls ``parse_evaluation``: LangChain builds the model.
+
+    So every rule that keeps a reply usable has to hold when the class is
+    constructed directly, or the two front ends read the same reply
+    differently -- which is the one thing this module exists to prevent.
+    """
+
+    def test_nonsense_indexes_are_dropped(self) -> None:
+        built = EvaluateAnswerOutput(is_correct=True, answer_idx=[0, "1", -2, True, 3])  # type: ignore[list-item]
+
+        assert built.answer_idx == [0, 3]
+
+    def test_an_index_list_that_is_not_a_list(self) -> None:
+        assert EvaluateAnswerOutput(is_correct=False, answer_idx=7).answer_idx == []  # type: ignore[arg-type]
+
+    def test_a_verdict_that_is_not_a_boolean_is_refused(self) -> None:
+        """Pydantic would read ``"yes"`` as ``True`` without the validator."""
+        with pytest.raises(ValidationError, match="did not say"):
+            EvaluateAnswerOutput(is_correct="yes")  # type: ignore[arg-type]
+
+    def test_a_truthy_integer_is_refused(self) -> None:
+        with pytest.raises(ValidationError, match="did not say"):
+            EvaluateAnswerOutput(is_correct=1)  # type: ignore[arg-type]
+
+    def test_both_paths_agree_on_one_reply(self, answers: list[QuestionAnswer]) -> None:
+        """The app parses text, the bot gets a dict -- one verdict either way."""
+        payload = {"is_correct": True, "answer_idx": [True, -1, 1]}
+
+        assert parse_evaluation(json.dumps(payload)) == EvaluateAnswerOutput(
+            **payload  # type: ignore[arg-type]
+        )
+
+
+class TestFromPayload:
+    def test_reads_a_decoded_object(self) -> None:
+        built = EvaluateAnswerOutput.from_payload({"is_correct": False})
+
+        assert built == EvaluateAnswerOutput(is_correct=False)
+
+    def test_extra_keys_are_ignored(self) -> None:
+        built = EvaluateAnswerOutput.from_payload({"is_correct": True, "why": "ok"})
+
+        assert built.is_correct is True
+
+    def test_a_missing_verdict_becomes_a_grading_error(self) -> None:
+        with pytest.raises(GradingError, match="did not say"):
+            EvaluateAnswerOutput.from_payload({"answer_idx": [0]})
+
+
+class TestEvaluateAnswerInputForQuestion:
+    def test_reads_the_prompt_context_off_the_question(
+        self, question: Question, answers: list[QuestionAnswer]
+    ) -> None:
+        context = EvaluateAnswerInput.for_question(
+            question,
+            user_input="is doing",
+            answers=answers,
+            topic_name="Present Tenses",
+        )
+
+        assert context == EvaluateAnswerInput(
+            question_number=question.question_id,
+            user_input="is doing",
+            answers=answers,
+            is_open_ended=question.is_open_ended,
+            topic_name="Present Tenses",
+            rule=question.rule,
+        )
+
+    def test_an_open_ended_question_carries_its_flag(self, exercise: Exercise) -> None:
+        """The prompt branches on it, so it must not be dropped on the way."""
+        open_ended = Question(id=9, question_id="3", is_open_ended=True)
+
+        context = EvaluateAnswerInput.for_question(
+            open_ended, user_input="anything", answers=[], topic_name="Any"
+        )
+
+        assert context.is_open_ended is True
+        assert context.rule is None

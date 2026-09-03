@@ -11,11 +11,12 @@ prompts live with the bot and the pipeline's with the pipeline while the
 rendering rules stay shared.
 """
 
-import base64
+from pathlib import Path
 from typing import Any, ClassVar, TypeVar, cast
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
+from practice_core.images import data_uri
 from practice_core.templates import render_packaged_template
 from pydantic import BaseModel
 
@@ -86,27 +87,49 @@ class BaseAgent:
         )
 
     @staticmethod
-    def _build_message(prompt: str, image_data: bytes | None = None) -> HumanMessage:
+    def _read_image(image: bytes | Path | None) -> bytes | None:
+        """Return the image bytes to attach, if there are any.
+
+        Taking a path as well as bytes is what stops every caller holding a
+        file from writing the same read-if-it-exists dance -- two of the
+        pipeline's stages had it verbatim.
+
+        Args:
+            image: Raw bytes, a path to read them from, or ``None``.
+
+        Returns:
+            The bytes, or ``None`` when there is no image or the path is not
+            there. A missing crop is a gap in the pipeline's output, not a
+            reason to abandon the unit.
+        """
+        if image is None:
+            return None
+        if isinstance(image, Path):
+            return image.read_bytes() if image.exists() else None
+        return image
+
+    @classmethod
+    def _build_message(
+        cls, prompt: str, image: bytes | Path | None = None
+    ) -> HumanMessage:
         """Build a multimodal user message.
 
         Args:
             prompt: The text prompt.
-            image_data: Optional raw image bytes to attach. Every image in this
-                application is a PNG, from ``exercise_images``.
+            image: Optional image to attach, as raw bytes or as a path to
+                read. Its format is read off the bytes by
+                :func:`practice_core.images.data_uri`: ``exercise_images``
+                holds PNG in the master database and WebP in the bundle the
+                APK ships, so it cannot be assumed here.
 
         Returns:
             A message carrying the text and, when given, the inline image.
         """
         content: list[str | dict[str, Any]] = [{"type": "text", "text": prompt}]
 
-        if image_data is not None:
-            encoded = base64.b64encode(image_data).decode("utf-8")
-            content.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{encoded}"},
-                }
-            )
+        data = cls._read_image(image)
+        if data is not None:
+            content.append({"type": "image_url", "image_url": {"url": data_uri(data)}})
 
         return HumanMessage(content=content)
 
@@ -115,14 +138,15 @@ class BaseAgent:
         self,
         prompt: str,
         output_model: type[T],
-        image_data: bytes | None = None,
+        image: bytes | Path | None = None,
     ) -> T:
         """Invoke the LLM and parse the reply into ``output_model``.
 
         Args:
             prompt: The rendered prompt.
             output_model: Pydantic model the provider must fill in.
-            image_data: Optional raw image bytes to attach.
+            image: Optional image to attach, as raw bytes or as a path to read
+                them from.
 
         Returns:
             The parsed result.
@@ -131,7 +155,7 @@ class BaseAgent:
             AgentError: If the call fails or the reply cannot be parsed. The
                 provider's own exception is kept as the cause.
         """
-        message = self._build_message(prompt, image_data)
+        message = self._build_message(prompt, image)
         structured_llm = self.llm.with_structured_output(output_model)
 
         try:

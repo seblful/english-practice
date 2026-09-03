@@ -1,15 +1,18 @@
 """Evaluate agent: decides whether the student's answer is correct.
 
-The prompt is not this agent's own. It comes from
-:func:`practice_core.prompts.render_evaluate_prompt`, shared with the Android
-app, so a change to the grading rules reaches both front ends at once — the one
-place where a divergence would show up as different marks for the same answer.
+Neither the prompt nor the context it renders from is this agent's own. Both
+come from :mod:`practice_core`, shared with the Android app, so a change to the
+grading rules reaches both front ends at once -- the one place where a
+divergence would show up as different marks for the same answer.
+
+What is left here is the call, which is why this class holds one method and no
+prompt of its own.
 """
 
 from collections.abc import Sequence
 
 from practice_core.grading import EvaluateAnswerInput, EvaluateAnswerOutput
-from practice_core.models import QuestionAnswer
+from practice_core.models import Question, QuestionAnswer
 from practice_core.prompts import render_evaluate_prompt
 from practice_runtime.agents import BaseAgent
 from practice_runtime.tracing import traced
@@ -23,26 +26,24 @@ class EvaluateAnswerAgent(BaseAgent):
     @traced(name="evaluate_answer")
     async def evaluate(
         self,
+        question: Question,
         *,
-        image_data: bytes | None,
-        question_number: str,
         user_input: str,
         answers: Sequence[QuestionAnswer],
-        is_open_ended: bool,
         topic_name: str,
-        rule: str | None = None,
+        image: bytes | None = None,
     ) -> EvaluateAnswerOutput:
         """Grade the student's answer.
 
         Args:
-            image_data: Raw exercise image bytes, if the exercise has one.
-            question_number: The question number/ID.
+            question: The question being answered. Its number, its rule and
+                whether it is open-ended all come off it, rather than being
+                taken apart by the caller and passed back in one at a time.
             user_input: The student's answer.
             answers: Expected answers in display order; ``answer_idx`` in the
                 result indexes into this sequence.
-            is_open_ended: Whether the question allows free-form responses.
             topic_name: The topic name, for context.
-            rule: The grammar rule for this question, when known.
+            image: Raw exercise image bytes, if the exercise has one.
 
         Returns:
             Whether the answer is correct, and which expected answers matched.
@@ -50,17 +51,15 @@ class EvaluateAnswerAgent(BaseAgent):
         Raises:
             AgentError: If the LLM call fails or cannot be parsed.
         """
-        context = EvaluateAnswerInput(
-            question_number=question_number,
+        context = EvaluateAnswerInput.for_question(
+            question,
             user_input=user_input,
-            answers=list(answers),
-            is_open_ended=is_open_ended,
+            answers=answers,
             topic_name=topic_name,
-            rule=rule,
         )
 
         return await self.invoke_structured(
             prompt=render_evaluate_prompt(context),
             output_model=EvaluateAnswerOutput,
-            image_data=image_data,
+            image=image,
         )

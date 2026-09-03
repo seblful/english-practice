@@ -11,15 +11,16 @@ from pydantic import BaseModel
 from tqdm import tqdm
 
 from practice_extraction.models import ExtractedUnitsRoot
+from practice_extraction.stages import SOURCE_ANSWERS_FILENAME, TOPIC_MAP_FILENAME
 
 RootT = TypeVar("RootT", bound=ExtractedUnitsRoot[Any])
 
 # Exercise ids are "<unit>.<number>", so they split into exactly two parts.
 _EXERCISE_ID_PARTS = 2
 
-# The hand-made file every extraction stage reads its unit list from.
-SOURCE_ANSWERS_FILENAME = "answers.json"
-_TOPIC_MAP_FILENAME = "topic_to_unit.json"
+# Both names come from `practice_extraction.stages`, which is the one place
+# the pipeline's filenames are written: they used to be re-declared as
+# literals here and again in the importer.
 
 logger = get_logger(__name__)
 
@@ -57,7 +58,7 @@ class BaseExtractor:
 
     def _load_unit_topic_map(self) -> dict[str, str]:
         """Load mapping from unit_id to topic name."""
-        topic_to_unit_path = self._paths.metadata_dir / _TOPIC_MAP_FILENAME
+        topic_to_unit_path = self._paths.metadata_dir / TOPIC_MAP_FILENAME
         if not topic_to_unit_path.exists():
             return {}
 

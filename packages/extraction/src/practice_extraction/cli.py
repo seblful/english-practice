@@ -38,7 +38,8 @@ from practice_extraction.extractors import (
     PDFHandler,
     RulesExtractor,
 )
-from practice_extraction.settings import get_settings
+from practice_extraction.settings import Settings, get_settings
+from practice_extraction.stages import STAGE_BY_NAME, STAGES
 
 logger = get_logger(__name__)
 
@@ -66,6 +67,33 @@ def _chat_model() -> BaseChatModel:
         raise typer.Exit(code=1) from exc
 
 
+def _ready(name: str) -> Settings:
+    """Return the settings, refusing to run a stage whose inputs are absent.
+
+    A stage that runs without its inputs does not fail loudly. The rules
+    extractor read a missing file, got an empty mapping, spent an LLM call per
+    exercise on prompts with no answers in them, and cached every unit it
+    ruined -- so the useful moment to stop is before the first call.
+
+    Args:
+        name: The stage about to run.
+
+    Returns:
+        The settings, when the stage can run.
+
+    Raises:
+        Exit: With code 1, listing what is missing and which stage makes it.
+    """
+    settings = get_settings()
+    missing = STAGE_BY_NAME[name].missing_inputs(settings)
+    if missing:
+        typer.secho(f"{name} cannot run yet:", fg=typer.colors.RED)
+        for problem in missing:
+            typer.echo(f"  - {problem}")
+        raise typer.Exit(code=1)
+    return settings
+
+
 @app.callback()
 def prepare(ctx: typer.Context) -> None:
     """Configure logging and create the directories the pipeline writes into."""
@@ -86,19 +114,40 @@ class SectionType(StrEnum):
 
 @app.command()
 def check() -> None:
-    """Report what a full pipeline run is still missing.
+    """Report what a full pipeline run is still missing, stage by stage.
 
     Raises:
         Exit: With code 1 when something required is missing.
     """
-    problems = get_settings().missing_required()
+    settings = get_settings()
+    problems = settings.missing_required()
     if problems:
         typer.secho("A full run is not possible yet:", fg=typer.colors.RED)
         for problem in problems:
             typer.echo(f"  - {problem}")
-        raise typer.Exit(code=1)
+    else:
+        typer.secho("Configuration looks good.", fg=typer.colors.GREEN)
 
-    typer.secho("Configuration looks good.", fg=typer.colors.GREEN)
+    # Printed either way. Which stages can run is the more useful half of the
+    # answer, and it was unreachable while a missing API key returned first.
+    typer.echo("")
+    typer.echo("Stages:")
+    for stage in STAGES:
+        # What a stage produced is checked before what it needs: a finished
+        # stage stays finished even once its inputs have been cleared away.
+        if stage.writes and stage.is_done(settings):
+            typer.secho(f"  {stage.name}: done", fg=typer.colors.GREEN)
+            continue
+        missing = stage.missing_inputs(settings)
+        if missing:
+            typer.secho(f"  {stage.name}: waiting", fg=typer.colors.YELLOW)
+            for problem in missing:
+                typer.echo(f"      - {problem}")
+        else:
+            typer.secho(f"  {stage.name}: ready", fg=typer.colors.CYAN)
+
+    if problems:
+        raise typer.Exit(code=1)
 
 
 @app.command(
@@ -111,7 +160,7 @@ def cut_pdf(
     ),
 ) -> None:
     """Cut the given section out of the source PDF."""
-    settings = get_settings()
+    settings = _ready("cut-pdf")
     page_ranges = {
         SectionType.contents: (START_CONTENT_PAGE, END_CONTENT_PAGE),
         SectionType.units: (START_UNIT_PAGE, END_UNIT_PAGE),
@@ -144,7 +193,7 @@ def cut_pdf(
 )
 def separate_page_images() -> None:
     """Split unit pages into grammar and exercise images."""
-    settings = get_settings()
+    settings = _ready("separate-page-images")
     handler = PDFHandler()
     handler.separate_page_images(
         file_path=settings.paths.source_dir / settings.book.filename,
@@ -165,7 +214,7 @@ def separate_page_images() -> None:
 )
 def ocr_grammar_images() -> None:
     """Run OCR on grammar page images; save .md to data/grammar. Skips existing."""
-    settings = get_settings()
+    settings = _ready("ocr-grammar-images")
     extractor = ImageOcrExtractor(
         api_key=secret_value(settings.ocr.api_key),
         model=settings.ocr.model,
@@ -188,7 +237,7 @@ def ocr_grammar_images() -> None:
 )
 def organize_exercises() -> None:
     """Organize exercise images into separate folders."""
-    settings = get_settings()
+    settings = _ready("organize-exercises")
     organizer = ExerciseOrganizer()
     created = organizer.organize(
         file_path=settings.paths.exercises_pages_dir,
@@ -211,7 +260,9 @@ def extract_answers() -> None:
     Processes all questions per exercise in a single LLM call.
     Outputs to answers_full.json. Resumes from last stopped unit.
     """
-    extractor = AnswersExtractor(get_settings().paths, AnswersAgent(_chat_model()))
+    extractor = AnswersExtractor(
+        _ready("extract-answers").paths, AnswersAgent(_chat_model())
+    )
     output_path = asyncio.run(extractor.extract())
     logger.info("answers_extracted", output_path=str(output_path))
 
@@ -226,7 +277,7 @@ def extract_rules() -> None:
     Processes all questions per exercise in a single LLM call.
     Outputs to rules.json. Resumes from last stopped unit.
     """
-    extractor = RulesExtractor(get_settings().paths, RulesAgent(_chat_model()))
+    extractor = RulesExtractor(_ready("extract-rules").paths, RulesAgent(_chat_model()))
     output_path = asyncio.run(extractor.extract())
     logger.info("rules_extracted", output_path=str(output_path))
 
@@ -244,7 +295,7 @@ def populate(
     Raises:
         Exit: With the script's own exit code when the import fails.
     """
-    code = populate_module.main(force=force, paths=get_settings().paths)
+    code = populate_module.main(force=force, paths=_ready("populate").paths)
     if code:
         raise typer.Exit(code=code)
 
@@ -256,7 +307,7 @@ def validate() -> None:
     Raises:
         Exit: With code 1 when the database has errors.
     """
-    code = validate_module.main(get_settings().paths.database_path)
+    code = validate_module.main(_ready("validate").paths.database_path)
     if code:
         raise typer.Exit(code=code)
 

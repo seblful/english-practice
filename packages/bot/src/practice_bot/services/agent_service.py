@@ -1,13 +1,10 @@
 """Orchestrates the LLM agents and the conversation state they need."""
 
-from collections.abc import Sequence
-
 from langchain_core.language_models.chat_models import BaseChatModel
-from practice_core.models import QuestionAnswer
 
 from practice_bot.agents.assistant import AssistantAgent
 from practice_bot.agents.evaluate import EvaluateAnswerAgent
-from practice_bot.models.agents import AssistantOutput, EvaluateAnswerOutput
+from practice_bot.models.agents import AssistantOutput
 from practice_bot.services.chat_history import (
     DEFAULT_MAX_MESSAGES,
     ChatHistoryManager,
@@ -40,51 +37,24 @@ class AgentService:
         self._assistant_agent = AssistantAgent(self._llm)
         self._history = ChatHistoryManager(max_messages=max_history_messages)
 
-    async def evaluate_answer(
-        self,
-        *,
-        image_data: bytes | None,
-        question_number: str,
-        user_input: str,
-        answers: Sequence[QuestionAnswer],
-        is_open_ended: bool,
-        topic_name: str,
-        rule: str | None = None,
-    ) -> EvaluateAnswerOutput:
-        """Grade the student's answer for one question.
+    @property
+    def grader(self) -> EvaluateAnswerAgent:
+        """The agent that grades an answer.
 
-        Args:
-            image_data: Raw exercise image bytes, if the exercise has one.
-            question_number: The question number/ID.
-            user_input: The student's answer.
-            answers: Expected answers in display order; ``answer_idx`` in the
-                result indexes into this sequence.
-            is_open_ended: Whether the question allows free-form responses.
-            topic_name: The topic name, for context.
-            rule: The grammar rule for this question, when known.
-
-        Returns:
-            Whether the answer is correct, and which expected answers matched.
-
-        Raises:
-            AgentError: If the LLM call fails or cannot be parsed.
+        Handed out rather than wrapped. Wrapping it meant restating its
+        seven-field interface here, which put the same parameter list in four
+        files between the handler and the prompt -- and this class made no
+        decision about any of them. What it does own is below: the assistant's
+        transcripts, which is why ``assist`` is a method and this is not.
         """
-        return await self._evaluate_agent.evaluate(
-            image_data=image_data,
-            question_number=question_number,
-            user_input=user_input,
-            answers=answers,
-            is_open_ended=is_open_ended,
-            topic_name=topic_name,
-            rule=rule,
-        )
+        return self._evaluate_agent
 
     async def assist(
         self,
         *,
         user_id: int,
         exercise_id: int,
-        image_data: bytes | None,
+        image: bytes | None,
         question_number: str,
         user_input: str,
         topic_name: str,
@@ -94,7 +64,7 @@ class AgentService:
         Args:
             user_id: The user's Telegram ID.
             exercise_id: Exercise the conversation is about.
-            image_data: Raw exercise image bytes, if the exercise has one.
+            image: Raw exercise image bytes, if the exercise has one.
             question_number: The question number/ID.
             user_input: The student's question.
             topic_name: The topic name, for context.
@@ -107,7 +77,7 @@ class AgentService:
                 recorded in that case, so a retry sees the same history.
         """
         result = await self._assistant_agent.assist(
-            image_data=image_data,
+            image=image,
             question_number=question_number,
             user_input=user_input,
             topic_name=topic_name,

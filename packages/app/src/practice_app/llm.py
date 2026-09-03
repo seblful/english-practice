@@ -13,12 +13,12 @@ five HTTP calls, which is what this module is.
 
 import asyncio
 import base64
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Final
 
 import httpx
-from practice_core.grading import extract_json
+from practice_core.images import data_uri, image_media_type
 
 from practice_app.config import AppConfig
 from practice_app.errors import ConfigurationError, ProviderError
@@ -29,7 +29,16 @@ from practice_app.providers import (
     thinking_token_headroom,
 )
 
-__all__ = ["HttpCall", "LLMClient"]
+__all__ = [
+    "DEFAULT_ADAPTERS",
+    "GeminiAdapter",
+    "HttpCall",
+    "LLMClient",
+    "OpenAIAdapter",
+    "OpenRouterAdapter",
+    "ProviderAdapter",
+    "adapter_for",
+]
 
 _OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 _OPENAI_BASE = "https://api.openai.com/v1"
@@ -76,45 +85,6 @@ _OPENAI_VISION_MARKERS: Final = (
     "o3",
     "o4",
 )
-
-_IMAGE_MIME_BY_MAGIC: Final = (
-    (b"\x89PNG\r\n\x1a\n", "image/png"),
-    (b"\xff\xd8\xff", "image/jpeg"),
-    (b"GIF8", "image/gif"),
-)
-
-
-def _image_mime(data: bytes) -> str:
-    """Return the media type of an exercise image.
-
-    The bundled database stores WebP, while the repository's master database
-    stores PNG, and the app is meant to run against either.
-
-    Args:
-        data: The raw image bytes.
-
-    Returns:
-        An IANA media type.
-    """
-    for magic, mime in _IMAGE_MIME_BY_MAGIC:
-        if data.startswith(magic):
-            return mime
-    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
-        return "image/webp"
-    return "image/webp"
-
-
-def _data_uri(data: bytes) -> str:
-    """Return an image as a ``data:`` URI.
-
-    Args:
-        data: The raw image bytes.
-
-    Returns:
-        The URI, ready to drop into an OpenAI-style ``image_url``.
-    """
-    encoded = base64.b64encode(data).decode("ascii")
-    return f"data:{_image_mime(data)};base64,{encoded}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,9 +234,7 @@ class _OpenAICompatibleAdapter(ProviderAdapter):
         """
         content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
         if image is not None:
-            content.append(
-                {"type": "image_url", "image_url": {"url": _data_uri(image)}}
-            )
+            content.append({"type": "image_url", "image_url": {"url": data_uri(image)}})
 
         active = config.active
         body: dict[str, Any] = {
@@ -558,7 +526,7 @@ class GeminiAdapter(ProviderAdapter):
             parts.append(
                 {
                     "inline_data": {
-                        "mime_type": _image_mime(image),
+                        "mime_type": image_media_type(image),
                         "data": base64.b64encode(image).decode("ascii"),
                     }
                 }
@@ -627,7 +595,11 @@ class GeminiAdapter(ProviderAdapter):
         raise ProviderError("The model returned an empty reply.")
 
 
-_ADAPTERS: Final[dict[Provider, ProviderAdapter]] = {
+#: The adapters the app ships. Passed to :class:`LLMClient` by default, and
+#: replaceable there: four adapters already satisfy :class:`ProviderAdapter`,
+#: so the seam is a real one rather than a hypothetical, and a test has no
+#: business reaching for a module-level dict to use it.
+DEFAULT_ADAPTERS: Final[Mapping[Provider, ProviderAdapter]] = {
     Provider.OPENROUTER: OpenRouterAdapter(),
     Provider.OPENAI: OpenAIAdapter(),
     Provider.GEMINI: GeminiAdapter(),
@@ -635,7 +607,7 @@ _ADAPTERS: Final[dict[Provider, ProviderAdapter]] = {
 
 
 def adapter_for(provider: Provider) -> ProviderAdapter:
-    """Return the adapter that speaks to one provider.
+    """Return the shipped adapter that speaks to one provider.
 
     Args:
         provider: The provider to address.
@@ -643,7 +615,7 @@ def adapter_for(provider: Provider) -> ProviderAdapter:
     Returns:
         Its adapter.
     """
-    return _ADAPTERS[provider]
+    return DEFAULT_ADAPTERS[provider]
 
 
 class LLMClient:
@@ -660,6 +632,7 @@ class LLMClient:
         *,
         transport: httpx.AsyncBaseTransport | None = None,
         sleep: Callable[[float], Awaitable[None]] | None = None,
+        adapters: Mapping[Provider, ProviderAdapter] | None = None,
     ) -> None:
         """Initialize the client.
 
@@ -669,11 +642,20 @@ class LLMClient:
                 a mock here; the app never sets it.
             sleep: Coroutine used to wait between retries, injectable so tests
                 do not actually wait.
+            adapters: What to speak to each provider with. Defaults to
+                :data:`DEFAULT_ADAPTERS`. Substituting one adapter is what a
+                test wants when the subject is retrying, pooling or error
+                mapping rather than a particular provider's request shape.
         """
         self.config = config
         self._transport = transport
         self._sleep = sleep or asyncio.sleep
+        self._adapters = adapters or DEFAULT_ADAPTERS
         self._client: httpx.AsyncClient | None = None
+
+    def _adapter(self) -> ProviderAdapter:
+        """Return the adapter for the configured provider."""
+        return self._adapters[self.config.provider]
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -808,29 +790,28 @@ class LLMClient:
 
         match response.status_code:
             case 401 | 403:
-                return ProviderError(
-                    f"{label} rejected the API key. Check it in Settings.{suffix}"
-                )
+                text = f"{label} rejected the API key. Check it in Settings.{suffix}"
             case 402:
-                return ProviderError(
-                    f"{label} reports no credit left on this account.{suffix}"
-                )
+                text = f"{label} reports no credit left on this account.{suffix}"
             case 404:
-                return ProviderError(
+                text = (
                     f"{label} does not know the model "
                     f"'{self.config.active.model}'. Pick another one.{suffix}"
                 )
             case 429:
-                return ProviderError(
-                    f"{label} is rate-limiting this key. Try again shortly.{suffix}"
-                )
+                text = f"{label} is rate-limiting this key. Try again shortly.{suffix}"
             case status if status >= _SERVER_ERROR:
-                return ProviderError(f"{label} is having trouble right now.{suffix}")
+                text = f"{label} is having trouble right now.{suffix}"
             case _:
-                return ProviderError(
+                text = (
                     f"{label} refused the request "
                     f"(HTTP {response.status_code}).{suffix}"
                 )
+
+        # Closed here, once. The provider's own detail is appended after the
+        # sentence and rarely ends in a stop of its own, which had every screen
+        # that shows one of these re-punctuating it on the way to the user.
+        return ProviderError(text if text.endswith((".", "!", "?")) else f"{text}.")
 
     # ------------------------------------------------------------------
     # Operations
@@ -853,7 +834,7 @@ class LLMClient:
                 f"Enter your {provider.label} API key to load its models."
             )
 
-        adapter = adapter_for(provider)
+        adapter = self._adapter()
         payload = await self._send(adapter.models_call(api_key), adapter)
         models = adapter.parse_models(payload)
         if not models:
@@ -878,7 +859,7 @@ class LLMClient:
         if problems:
             raise ConfigurationError(problems[0])
 
-        adapter = adapter_for(self.config.provider)
+        adapter = self._adapter()
         payload = await self._send(
             adapter.chat_call(self.config, prompt, image), adapter
         )
@@ -896,9 +877,9 @@ class LLMClient:
                 nothing — which is what an over-restricted token budget or a
                 content filter looks like from here.
         """
-        reply = await self.complete(
-            'Reply with the JSON object {"ok": true} and nothing else.'
-        )
-        # The reply's shape does not matter; that one arrived at all does.
-        extract_json(reply)
+        # The reply's shape does not matter, only that one arrived: `complete`
+        # already raises when the provider answers with nothing. Parsing it
+        # here made this module depend on the grading contract to run a
+        # settings check, which is a coupling with nothing behind it.
+        await self.complete('Reply with the JSON object {"ok": true} and nothing else.')
         return f"{self.config.provider.label} answered as {self.config.active.model}."

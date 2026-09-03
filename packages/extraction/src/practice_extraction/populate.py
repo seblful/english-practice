@@ -3,7 +3,8 @@
 The last stage of the pipeline, and the only one that writes SQLite. Every
 directory it reads comes from the one
 :class:`~practice_runtime.settings.PathSettings` the rest of the project uses,
-and the tables come from :func:`practice_core.schema.create_content_schema` — so
+and the tables, with their constraints enforced, come from
+:func:`practice_core.schema.connect_content` — so
 the file this builds is by construction the file the bot opens and the bundler
 re-encodes.
 """
@@ -13,16 +14,20 @@ import sqlite3
 import traceback
 from pathlib import Path
 
-from practice_core.schema import create_content_schema
+from practice_core.schema import connect_content
 from practice_runtime.settings import PathSettings
 from tqdm import tqdm
 
 from practice_extraction.settings import get_settings
+from practice_extraction.stages import (
+    ANSWERS_FULL_FILENAME,
+    RULES_FILENAME,
+    TOPIC_MAP_FILENAME,
+    UNIT_TITLES_FILENAME,
+)
 
-UNIT_TITLES_FILENAME = "unit_to_title.json"
-ANSWERS_FILENAME = "answers_full.json"
-RULES_FILENAME = "rules.json"
-TOPICS_FILENAME = "topic_to_unit.json"
+# The four names below used to be fresh literals here, two of them already
+# declared by the stages that write the files.
 
 _SUMMARY_TABLES = (
     "units",
@@ -40,12 +45,7 @@ def init_database(db_path: Path) -> None:
     Args:
         db_path: Where to create the file.
     """
-    conn = sqlite3.connect(db_path)
-    try:
-        create_content_schema(conn)
-        conn.commit()
-    finally:
-        conn.close()
+    connect_content(db_path, create=True).close()
     print(f"Database initialized at: {db_path}")
 
 
@@ -99,12 +99,12 @@ def _load_import_metadata(paths: PathSettings) -> tuple[dict, dict]:
     Raises:
         FileNotFoundError: If either file is missing.
     """
-    answers_full_path = paths.metadata_dir / ANSWERS_FILENAME
+    answers_full_path = paths.metadata_dir / ANSWERS_FULL_FILENAME
     rules_path = paths.metadata_dir / RULES_FILENAME
 
     if not answers_full_path.exists():
         raise FileNotFoundError(
-            f"{ANSWERS_FILENAME} not found at {answers_full_path}. "
+            f"{ANSWERS_FULL_FILENAME} not found at {answers_full_path}. "
             "Run extraction first."
         )
 
@@ -289,7 +289,7 @@ def import_topics(conn: sqlite3.Connection, paths: PathSettings) -> None:
         conn: An open connection to the database being built.
         paths: Where the extracted content lives.
     """
-    topics_path = paths.metadata_dir / TOPICS_FILENAME
+    topics_path = paths.metadata_dir / TOPIC_MAP_FILENAME
     with topics_path.open(encoding="utf-8") as f:
         topics_data = json.load(f)
 
@@ -350,9 +350,10 @@ def main(*, force: bool = False, paths: PathSettings | None = None) -> int:
     # Initialize database
     init_database(db_path)
 
-    # Connect and import data
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    # Every insert below goes through a connection that enforces the schema's
+    # own foreign keys, so a row pointing at nothing fails here rather than
+    # being found afterwards by a separate program re-checking the same rules.
+    conn = connect_content(db_path)
 
     try:
         import_units(conn, paths)

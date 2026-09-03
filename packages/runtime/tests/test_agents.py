@@ -7,6 +7,7 @@ resource-reading path a real agent uses.
 """
 
 import base64
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -90,21 +91,49 @@ class TestBuildMessage:
         assert len(parts) == 1
         assert parts[0]["text"] == "hello"
 
-    def test_with_image(self) -> None:
+    def test_with_image_bytes(self) -> None:
         agent = _TestAgent(MagicMock())
+        png = bytes.fromhex("89504e470d0a1a0a") + b"body"
 
-        parts = _parts(agent._build_message("hello", image_data=b"hi"))
+        parts = _parts(agent._build_message("hello", png))
 
         assert len(parts) == 2
-        encoded = base64.b64encode(b"hi").decode("utf-8")
+        encoded = base64.b64encode(png).decode("ascii")
         assert parts[1]["image_url"]["url"] == f"data:image/png;base64,{encoded}"
+
+    def test_the_format_is_read_off_the_bytes(self) -> None:
+        """The bundle the APK ships holds WebP, so PNG cannot be assumed."""
+        agent = _TestAgent(MagicMock())
+        webp = b"RIFF" + bytes.fromhex("24000000") + b"WEBP"
+
+        parts = _parts(agent._build_message("hello", webp))
+
+        assert parts[1]["image_url"]["url"].startswith("data:image/webp;base64,")
+
+    def test_with_an_image_path(self, tmp_path: Path) -> None:
+        """The pipeline holds files, and had this read written out per stage."""
+        agent = _TestAgent(MagicMock())
+        path = tmp_path / "1.1.png"
+        path.write_bytes(bytes.fromhex("89504e470d0a1a0a"))
+
+        parts = _parts(agent._build_message("hello", path))
+
+        assert parts[1]["image_url"]["url"].startswith("data:image/png;base64,")
+
+    def test_a_path_that_is_not_there_is_no_image(self, tmp_path: Path) -> None:
+        """A missing crop is a gap in the pipeline, not a reason to give up."""
+        agent = _TestAgent(MagicMock())
+
+        parts = _parts(agent._build_message("hello", tmp_path / "absent.png"))
+
+        assert len(parts) == 1
 
 
 class TestInvokeStructured:
     async def test_returns_the_parsed_model(self) -> None:
         agent = _TestAgent(_structured_llm(DummyModel(name="response")))
 
-        result = await agent.invoke_structured("test", DummyModel, image_data=b"img")
+        result = await agent.invoke_structured("test", DummyModel, image=b"img")
 
         assert result.name == "response"
 

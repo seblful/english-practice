@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import TracebackType
 
+from practice_core.schema import connect_content
+
 from practice_extraction.settings import get_settings
 
 # How many offending rows to list before collapsing into a "... and N more" line.
@@ -80,8 +82,10 @@ class DatabaseValidator:
     def __init__(self, db_path: Path):
         """Open a connection to the database at ``db_path``."""
         self.db_path = db_path
-        self.conn = sqlite3.connect(db_path)
-        self.conn.row_factory = sqlite3.Row
+        # Opened the way the pipeline writes it, so that
+        # `PRAGMA foreign_key_check` reports against the same rules the
+        # inserts were made under.
+        self.conn = connect_content(db_path)
         self.cursor = self.conn.cursor()
 
     def __enter__(self) -> "DatabaseValidator":
@@ -160,67 +164,6 @@ class DatabaseValidator:
             ],
         )
 
-    def validate_duplicates(self) -> CheckResult:
-        """Check for entries that should be unique but are not."""
-        return CheckResult(
-            title="[DUP] DUPLICATE DETECTION",
-            all_clear="No duplicates found",
-            issues=[
-                Issue(
-                    "Duplicate exercise_ids",
-                    self._labels(
-                        """
-                        SELECT exercise_id, COUNT(*) AS cnt
-                        FROM exercises
-                        GROUP BY exercise_id
-                        HAVING cnt > 1
-                        """,
-                        lambda r: str(r["exercise_id"]),
-                    ),
-                ),
-                Issue(
-                    "Duplicate question_ids",
-                    self._labels(
-                        """
-                        SELECT e.exercise_id AS exercise, q.question_id, COUNT(*) AS cnt
-                        FROM questions q
-                        JOIN exercises e ON q.exercise_id = e.id
-                        GROUP BY q.exercise_id, q.question_id
-                        HAVING cnt > 1
-                        """,
-                        lambda r: (
-                            f"Exercise {r['exercise']}, Question {r['question_id']}"
-                        ),
-                    ),
-                    sample=MAX_LISTED_DEFAULT,
-                ),
-                Issue(
-                    "Duplicate unit_numbers",
-                    self._labels(
-                        """
-                        SELECT unit_number, COUNT(*) AS cnt
-                        FROM units
-                        GROUP BY unit_number
-                        HAVING cnt > 1
-                        """,
-                        lambda r: str(r["unit_number"]),
-                    ),
-                ),
-                Issue(
-                    "Duplicate topic names",
-                    self._labels(
-                        """
-                        SELECT name, COUNT(*) AS cnt
-                        FROM topics
-                        GROUP BY name
-                        HAVING cnt > 1
-                        """,
-                        lambda r: str(r["name"]),
-                    ),
-                ),
-            ],
-        )
-
     def validate_orphaned_data(self) -> CheckResult:
         """Check for rows nothing points at, and rows that point at nothing."""
         return CheckResult(
@@ -292,109 +235,47 @@ class DatabaseValidator:
             ],
         )
 
-    def validate_referential_integrity(self) -> CheckResult:
-        """Check that every foreign key points at a row that exists."""
+    def validate_constraints(self) -> CheckResult:
+        """Ask SQLite whether the schema's own constraints hold.
+
+        This used to be two checks, ninety-odd lines, re-encoding seven
+        foreign keys as ``LEFT JOIN ... IS NULL`` queries and four ``UNIQUE``
+        constraints as ``GROUP BY ... HAVING COUNT(*) > 1``. That was a second
+        copy of `content.sql` written in Python, and it drifted: add a table to
+        the schema and nothing here noticed.
+
+        ``PRAGMA foreign_key_check`` runs the real thing against the real
+        schema. Uniqueness needs no check at all: SQLite enforces it on every
+        insert, whether or not foreign keys are on, so a duplicate cannot be
+        in a database built from this schema -- which the old check proved by
+        needing a constraint-free database to fire at all.
+
+        Returns:
+            One issue per row that points at something missing.
+        """
         return CheckResult(
-            title="[REF] REFERENTIAL INTEGRITY",
-            all_clear="All foreign keys valid",
+            title="[REF] SCHEMA CONSTRAINTS",
+            all_clear="Every foreign key resolves",
+            facts=[f"Foreign keys enforced: {self._foreign_keys_on()}"],
             issues=[
                 Issue(
-                    "Invalid exercise unit_ids",
-                    self._labels(
-                        """
-                        SELECT e.exercise_id, e.unit_id
-                        FROM exercises e
-                        LEFT JOIN units u ON e.unit_id = u.id
-                        WHERE u.id IS NULL
-                        """,
-                        lambda r: (
-                            f"Exercise {r['exercise_id']} -> Unit ID {r['unit_id']}"
-                        ),
-                    ),
-                ),
-                Issue(
-                    "Invalid question exercise_ids",
-                    self._labels(
-                        """
-                        SELECT q.id, q.exercise_id
-                        FROM questions q
-                        LEFT JOIN exercises e ON q.exercise_id = e.id
-                        WHERE e.id IS NULL
-                        """,
-                        lambda r: (
-                            f"Question {r['id']} -> Exercise ID {r['exercise_id']}"
-                        ),
-                    ),
-                ),
-                Issue(
-                    "Invalid unit_topic unit_ids",
-                    self._labels(
-                        """
-                        SELECT ut.unit_id, ut.topic_id
-                        FROM unit_topics ut
-                        LEFT JOIN units u ON ut.unit_id = u.id
-                        WHERE u.id IS NULL
-                        """,
-                        lambda r: f"Unit ID {r['unit_id']} -> Topic ID {r['topic_id']}",
-                    ),
-                ),
-                Issue(
-                    "Invalid unit_topic topic_ids",
-                    self._labels(
-                        """
-                        SELECT ut.unit_id, ut.topic_id
-                        FROM unit_topics ut
-                        LEFT JOIN topics t ON ut.topic_id = t.id
-                        WHERE t.id IS NULL
-                        """,
-                        lambda r: f"Unit ID {r['unit_id']} -> Topic ID {r['topic_id']}",
-                    ),
-                ),
-                Issue(
-                    "Invalid topic parents",
-                    self._labels(
-                        """
-                        SELECT t.id, t.name, t.parent_topic_id
-                        FROM topics t
-                        LEFT JOIN topics parent ON t.parent_topic_id = parent.id
-                        WHERE t.parent_topic_id IS NOT NULL AND parent.id IS NULL
-                        """,
-                        lambda r: (
-                            f"Topic '{r['name']}' (ID {r['id']}) "
-                            f"-> Parent ID {r['parent_topic_id']}"
-                        ),
-                    ),
-                ),
-                Issue(
-                    "Invalid question_answers",
-                    self._labels(
-                        """
-                        SELECT qa.id, qa.question_id
-                        FROM question_answers qa
-                        LEFT JOIN questions q ON qa.question_id = q.id
-                        WHERE q.id IS NULL
-                        """,
-                        lambda r: (
-                            f"Answer ID {r['id']} -> Question ID {r['question_id']}"
-                        ),
-                    ),
-                ),
-                Issue(
-                    "Invalid exercise_images",
-                    self._labels(
-                        """
-                        SELECT ei.id, ei.exercise_id
-                        FROM exercise_images ei
-                        LEFT JOIN exercises e ON ei.exercise_id = e.id
-                        WHERE e.id IS NULL
-                        """,
-                        lambda r: (
-                            f"Image ID {r['id']} -> Exercise ID {r['exercise_id']}"
-                        ),
-                    ),
+                    "Rows pointing at something that is not there",
+                    [
+                        f"{row['table']} rowid {row['rowid']} "
+                        f"-> {row['parent']} (fk {row['fkid']})"
+                        for row in self.cursor.execute(
+                            "PRAGMA foreign_key_check"
+                        ).fetchall()
+                    ],
+                    sample=MAX_LISTED_DEFAULT,
+                    show_remainder=True,
                 ),
             ],
         )
+
+    def _foreign_keys_on(self) -> bool:
+        """Return whether this connection is enforcing foreign keys."""
+        return bool(self._count("PRAGMA foreign_keys"))
 
     def run(self) -> list[CheckResult]:
         """Run every registered check, in order."""
@@ -404,9 +285,8 @@ class DatabaseValidator:
 # Every check the report runs. Adding one here is the whole registration.
 CHECKS: tuple[Callable[[DatabaseValidator], CheckResult], ...] = (
     DatabaseValidator.validate_image_blobs,
-    DatabaseValidator.validate_duplicates,
     DatabaseValidator.validate_orphaned_data,
-    DatabaseValidator.validate_referential_integrity,
+    DatabaseValidator.validate_constraints,
 )
 
 

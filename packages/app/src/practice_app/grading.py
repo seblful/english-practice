@@ -59,13 +59,11 @@ class Grader:
             ProviderError: If the call itself fails.
         """
         prompt = render_evaluate_prompt(
-            EvaluateAnswerInput(
-                question_number=question.question_id,
+            EvaluateAnswerInput.for_question(
+                question,
                 user_input=user_input,
-                answers=list(answers),
-                is_open_ended=question.is_open_ended,
+                answers=answers,
                 topic_name=topic_name,
-                rule=question.rule,
             )
         )
         return parse_evaluation(await self._client.complete(prompt, image))

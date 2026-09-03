@@ -51,7 +51,7 @@ def fake_bot() -> AsyncMock:
 def agents() -> AgentService:
     """An agent service whose LLM calls are stubbed."""
     service = AgentService(llm=Mock(spec=BaseChatModel))
-    service._evaluate_agent.evaluate = AsyncMock(  # type: ignore[method-assign]
+    service.grader.evaluate = AsyncMock(  # type: ignore[method-assign]
         return_value=EvaluateAnswerOutput(is_correct=True, answer_idx=[0])
     )
     service._assistant_agent.assist = AsyncMock(  # type: ignore[method-assign]
@@ -305,7 +305,7 @@ class TestErrorHandling:
         self, application: BotApplication, fake_bot: AsyncMock, agents: AgentService
     ) -> None:
         await _press(application, fake_bot, "topic:1")
-        agents._evaluate_agent.evaluate = AsyncMock(  # type: ignore[method-assign]
+        agents.grader.evaluate = AsyncMock(  # type: ignore[method-assign]
             side_effect=RuntimeError("not an AgentError")
         )
         fake_bot.reset_mock()

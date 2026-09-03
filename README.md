@@ -102,7 +102,9 @@ bot, and the bot creates it at startup.
 
 ## Extracting content from the PDF
 
-The pipeline that produced the database, in order — every stage resumable:
+The pipeline that produced the database. The order is declared in
+`stages.py`, so a stage whose inputs are absent refuses to run and says
+which stage would produce them:
 
 ```bash
 uv run practice-content check                  # what a full run is missing

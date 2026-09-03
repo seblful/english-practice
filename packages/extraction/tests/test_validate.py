@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from practice_core.schema import connect_content
 
 from practice_extraction.validate import (
     CHECKS,
@@ -101,52 +102,6 @@ class TestImageBlobs:
         assert result.issues[1].rows == ["Unit 1, Exercise 1.1"]
 
 
-class TestDuplicates:
-    """Tests for the duplicate check.
-
-    The current ``schema.sql`` makes every duplicate this check looks for
-    unreachable: ``units.unit_number``, ``exercises.exercise_id``,
-    ``topics.name`` and ``questions(exercise_id, question_id)`` are all UNIQUE.
-    The check earns its keep only against a database built by an older schema,
-    which is what the legacy fixture below stands in for.
-    """
-
-    def test_seeded_database_is_clean(self, validator: DatabaseValidator) -> None:
-        assert validator.validate_duplicates().passed is True
-
-    def test_reports_duplicates_in_a_database_without_the_constraints(
-        self, tmp_path: Path
-    ) -> None:
-        path = tmp_path / "legacy.db"
-        with closing(sqlite3.connect(path)) as conn, conn:
-            conn.executescript(
-                """
-                CREATE TABLE units (id INTEGER PRIMARY KEY, unit_number INTEGER,
-                                    title TEXT);
-                CREATE TABLE exercises (id INTEGER PRIMARY KEY, exercise_id TEXT,
-                                        unit_id INTEGER, exercise_number INTEGER);
-                CREATE TABLE questions (id INTEGER PRIMARY KEY, exercise_id INTEGER,
-                                        question_id TEXT);
-                CREATE TABLE topics (id INTEGER PRIMARY KEY, name TEXT);
-
-                INSERT INTO units VALUES (1, 1, 'A'), (2, 1, 'B');
-                INSERT INTO exercises VALUES (1, '1.1', 1, 1), (2, '1.1', 1, 2);
-                INSERT INTO questions VALUES (1, 1, '3'), (2, 1, '3');
-                INSERT INTO topics VALUES (1, 'Tenses'), (2, 'Tenses');
-                """
-            )
-
-        with DatabaseValidator(path) as validator:
-            result = validator.validate_duplicates()
-
-        assert [issue.rows for issue in result.issues] == [
-            ["1.1"],
-            ["Exercise 1.1, Question 3"],
-            ["1"],
-            ["Tenses"],
-        ]
-
-
 class TestOrphanedData:
     """Tests for the orphaned-data check."""
 
@@ -170,25 +125,46 @@ class TestOrphanedData:
         assert validator.validate_orphaned_data().issues[2].rows == []
 
 
-class TestReferentialIntegrity:
-    """Tests for the foreign-key check."""
+class TestSchemaConstraints:
+    """The check asks SQLite, rather than re-encoding the schema in Python."""
 
     def test_seeded_database_is_clean(self, validator: DatabaseValidator) -> None:
-        assert validator.validate_referential_integrity().passed is True
+        assert validator.validate_constraints().passed is True
 
     def test_reports_a_question_pointing_at_no_exercise(
         self, validator: DatabaseValidator, seeded_db_path: Path
     ) -> None:
-        """Foreign keys are per-connection, so a bad row can be written."""
+        """A bad row can still be written by a connection with the pragma off."""
         _execute(
             seeded_db_path,
             "INSERT INTO questions (id, exercise_id, question_id, display_order) "
             "VALUES (99, 404, '1', 1)",
         )
 
-        result = validator.validate_referential_integrity()
+        result = validator.validate_constraints()
 
-        assert result.issues[1].rows == ["Question 99 -> Exercise ID 404"]
+        assert result.issues[0].rows == ["questions rowid 99 -> exercises (fk 0)"]
+
+    def test_reports_the_pragma_it_ran_under(
+        self, validator: DatabaseValidator
+    ) -> None:
+        """The report says whether the rules were on, not just what it found."""
+        assert validator.validate_constraints().facts == ["Foreign keys enforced: True"]
+
+    def test_uniqueness_needs_no_check(self, seeded_db_path: Path) -> None:
+        """SQLite refuses a duplicate outright, so none can be in the file.
+
+        The old duplicate check needed a hand-built, constraint-free database
+        to fire at all -- which is what showed it was a copy of the schema
+        rather than a test of the data.
+        """
+        with (
+            closing(connect_content(seeded_db_path)) as conn,
+            pytest.raises(sqlite3.IntegrityError),
+        ):
+            conn.execute(
+                "INSERT INTO units (unit_number, title) VALUES (1, 'Duplicate')"
+            )
 
 
 class TestRun:
@@ -200,7 +176,6 @@ class TestRun:
         assert len(results) == len(CHECKS)
         assert [result.title.split()[0] for result in results] == [
             "[IMG]",
-            "[DUP]",
             "[DATA]",
             "[REF]",
         ]

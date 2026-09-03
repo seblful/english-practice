@@ -7,6 +7,7 @@ import pytest
 from pydantic import SecretStr
 
 from practice_runtime.settings import (
+    DATABASE_FILENAME,
     BaseAppSettings,
     DashscopeSettings,
     GeminiSettings,
@@ -246,3 +247,45 @@ class TestSettingsEnvVars:
         monkeypatch.setenv("SOME_UNRELATED_VARIABLE", "1")
 
         assert "SOME_UNRELATED_VARIABLE" not in settings_env_vars(BaseAppSettings)
+
+
+class TestRelocatingTheTree:
+    """One field moves the layout; the rest follow it."""
+
+    def test_setting_the_data_dir_moves_everything(self, tmp_path: Path) -> None:
+        """This used to move one directory and leave nine behind."""
+        paths = PathSettings(data_dir=tmp_path)
+
+        assert paths.source_dir == tmp_path / "source"
+        assert paths.content_dir == tmp_path / "content"
+        assert paths.images_dir == tmp_path / "source" / "images"
+        assert paths.grammar_pages_dir == tmp_path / "source" / "images" / "grammar"
+        assert paths.exercises_dir == tmp_path / "content" / "exercises"
+        assert paths.metadata_dir == tmp_path / "content" / "metadata"
+        assert paths.database_path.parent == tmp_path / "content"
+
+    def test_setting_the_content_dir_moves_what_sits_under_it(
+        self, tmp_path: Path
+    ) -> None:
+        paths = PathSettings(content_dir=tmp_path / "elsewhere")
+
+        assert paths.grammar_md_dir == tmp_path / "elsewhere" / "grammar"
+        assert paths.exercises_dir == tmp_path / "elsewhere" / "exercises"
+        assert paths.database_path == tmp_path / "elsewhere" / DATABASE_FILENAME
+
+    def test_a_path_given_explicitly_is_left_alone(self, tmp_path: Path) -> None:
+        elsewhere = tmp_path / "somewhere-else" / "db.sqlite"
+
+        paths = PathSettings(data_dir=tmp_path, database_path=elsewhere)
+
+        assert paths.database_path == elsewhere
+        assert paths.content_dir == tmp_path / "content"
+
+    def test_an_environment_variable_still_wins(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("PATHS_EXERCISES_DIR", str(tmp_path / "crops"))
+
+        paths = PathSettings(data_dir=tmp_path)
+
+        assert paths.exercises_dir == tmp_path / "crops"

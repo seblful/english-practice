@@ -26,4 +26,9 @@ __all__ = [
 
 
 class ProviderError(PracticeError):
-    """A call to the LLM provider failed or returned something unusable."""
+    """A call to the LLM provider failed or returned something unusable.
+
+    The message is a complete sentence, ending in its own full stop, so a
+    screen can put it straight after its own line without inspecting or
+    re-punctuating it.
+    """

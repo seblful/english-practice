@@ -72,7 +72,7 @@ class TestAssist:
             agent, "invoke_structured", return_value=expected
         ) as mock_invoke:
             result = await agent.assist(
-                image_data=b"img",
+                image=b"img",
                 question_number="1",
                 user_input="help me",
                 topic_name="Test",
@@ -80,7 +80,7 @@ class TestAssist:
 
         assert result == expected
         kwargs = mock_invoke.call_args.kwargs
-        assert kwargs["image_data"] == b"img"
+        assert kwargs["image"] == b"img"
         assert kwargs["output_model"] is AssistantOutput
 
     async def test_renders_the_history_it_is_given(self, agent: AssistantAgent) -> None:
@@ -89,7 +89,7 @@ class TestAssist:
             agent, "invoke_structured", return_value=AssistantOutput(answer="a")
         ) as mock_invoke:
             await agent.assist(
-                image_data=None,
+                image=None,
                 question_number="1",
                 user_input="and now?",
                 topic_name="Test",

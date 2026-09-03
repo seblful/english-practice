@@ -14,8 +14,11 @@ they draw a screen — deliberately does not.
 | `schema.py` + `schema/content.sql` | The content tables. The pipeline builds a database from this, the bundler re-encodes one, and both front ends' tests build a scratch copy. |
 | `content.py` | `ContentLibrary`: the async queries, including `draw_question`, which picks an exercise, a question and its picture together. |
 | `prompts.py` + `prompts/evaluate.j2` | The grading prompt. The one prompt that must not be written twice. |
-| `grading.py` | The grading call's input and output, and reading a verdict back out of a model's reply. |
+| `grading.py` | The grading call's input and output. The checks that keep a reply usable live on the output model itself, so neither front end can skip them. |
 | `feedback.py` | The plain-text half of showing an answer, shared so both front ends say the same thing. |
+| `reveal.py` | *Which* of the book's answers to show, and whether its whole sentence adds anything — one decision, two renderers. |
+| `lesson.py` | A run of questions: what is on screen, where it came from, and what a revealed answer earns. |
+| `images.py` | What format an exercise image is, read off the bytes: the master database holds PNG and the APK's bundle WebP. |
 | `templates.py` | Rendering a prompt that ships inside a package — used by this package's prompt and by every other one in the repository. |
 | `resources.py` | Reading a packaged file at all, which on Android means reading it out of a zip. |
 

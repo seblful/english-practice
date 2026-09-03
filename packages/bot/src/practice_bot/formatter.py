@@ -10,15 +10,15 @@ import html
 import re
 from collections.abc import Sequence
 
-from practice_core.feedback import full_answer_text, short_answer_text
+from practice_core.feedback import full_answer_text, short_answer_text, to_markdown
 from practice_core.feedback import verdict_phrase as _verdict_phrase
 from practice_core.models import QuestionAnswer
 
-_BULLET_PATTERNS = (
-    (re.compile(r"^- \[ \]", re.MULTILINE), "•"),
-    (re.compile(r"^\* ", re.MULTILINE), "• "),
-    (re.compile(r"^☐ ", re.MULTILINE), "• "),
-)
+# The book's own bullet glyphs are normalised to dashes by
+# `practice_core.feedback.to_markdown`, which is the one place that knows
+# what the pipeline leaves behind. All that is left here is Telegram's
+# preferred glyph.
+_DASH_BULLET = re.compile(r"^- ", re.MULTILINE)
 _BOLD = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
 _ITALIC = re.compile(r"\*(.+?)\*", re.DOTALL)
 
@@ -48,9 +48,7 @@ def rich(text: str) -> str:
     Returns:
         Telegram-ready HTML.
     """
-    result = escape(text)
-    for pattern, replacement in _BULLET_PATTERNS:
-        result = pattern.sub(replacement, result)
+    result = _DASH_BULLET.sub("• ", to_markdown(escape(text)))
     result = _BOLD.sub(r"<b>\1</b>", result)
     return _ITALIC.sub(r"<i>\1</i>", result)
 
@@ -119,18 +117,18 @@ def full_answers(answers: Sequence[QuestionAnswer]) -> str:
     return f"Full Answer:\n<pre>{rich(full_answer_text(answers))}</pre>"
 
 
-def rule_block(unit_number: int, section_letter: str | None, rule: str) -> str:
+def rule_block(unit_reference: str, rule: str) -> str:
     """Quote the grammar rule behind a question.
 
     Args:
-        unit_number: The unit number.
-        section_letter: The section letter within the unit, when known.
+        unit_reference: The unit and section the question came from, as
+            :attr:`practice_core.reveal.Reveal.unit_reference` spells it.
         rule: The rule text.
 
     Returns:
         The message text.
     """
-    reference = f"{unit_number}{escape(section_letter or '')}"
+    reference = escape(unit_reference)
     return f"📋 Rule: <b>{reference}</b>\n<blockquote>{rich(rule)}</blockquote>"
 
 

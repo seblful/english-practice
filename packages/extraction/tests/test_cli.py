@@ -23,19 +23,38 @@ from practice_extraction.constants import (
     START_UNIT_PAGE,
 )
 from practice_extraction.settings import Settings
+from practice_extraction.stages import STAGE_BY_NAME
 from tests.conftest import extraction_paths
 
 runner = CliRunner()
+
+
+@pytest.fixture
+def staged(settings: Settings) -> Callable[[str], None]:
+    """Return a helper that puts a stage's inputs in place.
+
+    The CLI now refuses a stage whose inputs are absent, so a test that drives
+    one has to say what it is standing on. That is the point of the check: a
+    stage used to run happily on an empty tree.
+    """
+
+    def stage(name: str) -> None:
+        for artifact in STAGE_BY_NAME[name].reads:
+            path = artifact.path(settings)
+            if path.suffix:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("{}", encoding="utf-8")
+            else:
+                path.mkdir(parents=True, exist_ok=True)
+                (path / "placeholder").write_text("x", encoding="utf-8")
+
+    return stage
 
 
 @pytest.fixture(autouse=True)
 def settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Settings:
     """Point the CLI at a temporary layout instead of the real ``data/``."""
     settings = Settings(paths=extraction_paths(tmp_path))
-    settings.paths.source_dir = tmp_path / "source"
-    settings.paths.grammar_pages_dir = tmp_path / "source" / "grammar"
-    settings.paths.exercises_pages_dir = tmp_path / "source" / "exercises"
-    settings.paths.snippets_dir = tmp_path / "source" / "snippets"
     settings.logging.log_file = tmp_path / "logs" / "app.log"
     monkeypatch.setattr(cli, "get_settings", lambda: settings)
     return settings
@@ -95,8 +114,14 @@ class TestCutPdf:
         ids=["units", "answers"],
     )
     def test_cuts_the_named_section(
-        self, settings: Settings, section: str, pages: tuple[int, int]
+        self,
+        settings: Settings,
+        staged: Callable[[str], None],
+        section: str,
+        pages: tuple[int, int],
     ) -> None:
+        staged("cut-pdf")
+
         with patch.object(cli, "PDFHandler") as handler:
             _invoke("cut-pdf", section)
 
@@ -113,7 +138,11 @@ class TestCutPdf:
 class TestSeparatePageImages:
     """Tests for splitting unit pages into grammar and exercise images."""
 
-    def test_passes_the_unit_page_range_and_dpi(self, settings: Settings) -> None:
+    def test_passes_the_unit_page_range_and_dpi(
+        self, settings: Settings, staged: Callable[[str], None]
+    ) -> None:
+        staged("separate-page-images")
+
         with patch.object(cli, "PDFHandler") as handler:
             _invoke("separate-page-images")
 
@@ -129,7 +158,11 @@ class TestSeparatePageImages:
 class TestOcrGrammarImages:
     """Tests for OCR-ing the grammar pages."""
 
-    def test_reads_the_pages_and_writes_the_markdown(self, settings: Settings) -> None:
+    def test_reads_the_pages_and_writes_the_markdown(
+        self, settings: Settings, staged: Callable[[str], None]
+    ) -> None:
+        staged("ocr-grammar-images")
+
         with patch.object(cli, "ImageOcrExtractor") as ocr:
             ocr.return_value.ocr_dir.return_value = [Path("1.md")]
             _invoke("ocr-grammar-images")
@@ -144,8 +177,10 @@ class TestOrganizeExercises:
     """Tests for slicing page images into per-exercise images."""
 
     def test_reads_the_page_images_and_writes_the_exercises(
-        self, settings: Settings
+        self, settings: Settings, staged: Callable[[str], None]
     ) -> None:
+        staged("organize-exercises")
+
         with patch.object(cli, "ExerciseOrganizer") as organizer:
             organizer.return_value.organize.return_value = [Path("1.1.png")]
             _invoke("organize-exercises")
@@ -158,7 +193,11 @@ class TestOrganizeExercises:
 class TestLlmStages:
     """The two LLM stages take the layout and the run's one client."""
 
-    def test_extract_answers_hands_over_the_paths(self, settings: Settings) -> None:
+    def test_extract_answers_hands_over_the_paths(
+        self, settings: Settings, staged: Callable[[str], None]
+    ) -> None:
+        staged("extract-answers")
+
         with patch.object(cli, "AnswersExtractor") as extractor:
             extractor.return_value.extract = MagicMock(
                 return_value=_awaitable(Path("answers_full.json"))
@@ -167,7 +206,11 @@ class TestLlmStages:
 
         assert extractor.call_args.args[0] is settings.paths
 
-    def test_extract_rules_hands_over_the_paths(self, settings: Settings) -> None:
+    def test_extract_rules_hands_over_the_paths(
+        self, settings: Settings, staged: Callable[[str], None]
+    ) -> None:
+        staged("extract-rules")
+
         with patch.object(cli, "RulesExtractor") as extractor:
             extractor.return_value.extract = MagicMock(
                 return_value=_awaitable(Path("rules.json"))
@@ -176,8 +219,12 @@ class TestLlmStages:
 
         assert extractor.call_args.args[0] is settings.paths
 
-    def test_the_two_stages_share_one_client(self, settings: Settings) -> None:
+    def test_the_two_stages_share_one_client(
+        self, settings: Settings, staged: Callable[[str], None]
+    ) -> None:
         """A client owns a connection pool, and a run makes thousands of calls."""
+        staged("extract-answers")
+
         with (
             patch.object(cli, "AnswersExtractor") as extractor,
             patch.object(cli, "AnswersAgent") as agent,
@@ -190,8 +237,10 @@ class TestLlmStages:
         assert agent.call_count == 1
 
     def test_a_provider_without_a_key_is_explained(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, staged: Callable[[str], None]
     ) -> None:
+        staged("extract-answers")
+
         def explode(_config: object) -> None:
             raise ConfigurationError("DASHSCOPE_API_KEY is not set")
 
@@ -206,13 +255,19 @@ class TestLlmStages:
 class TestPopulate:
     """The stage that writes the database the front ends read."""
 
-    def test_hands_over_the_configured_layout(self, settings: Settings) -> None:
+    def test_hands_over_the_configured_layout(
+        self, settings: Settings, staged: Callable[[str], None]
+    ) -> None:
+        staged("populate")
+
         with patch.object(cli.populate_module, "main", return_value=0) as main:
             _invoke("populate")
 
         assert main.call_args.kwargs == {"force": False, "paths": settings.paths}
 
-    def test_passes_force_through(self) -> None:
+    def test_passes_force_through(self, staged: Callable[[str], None]) -> None:
+        staged("populate")
+
         with patch.object(cli.populate_module, "main", return_value=0) as main:
             _invoke("populate", "--force")
 
@@ -228,13 +283,21 @@ class TestPopulate:
 class TestValidate:
     """The report on what is wrong with the database."""
 
-    def test_checks_the_configured_database(self, settings: Settings) -> None:
+    def test_checks_the_configured_database(
+        self, settings: Settings, staged: Callable[[str], None]
+    ) -> None:
+        staged("validate")
+
         with patch.object(cli.validate_module, "main", return_value=0) as main:
             _invoke("validate")
 
         assert main.call_args.args[0] == settings.paths.database_path
 
-    def test_errors_in_the_database_fail_the_command(self) -> None:
+    def test_errors_in_the_database_fail_the_command(
+        self, staged: Callable[[str], None]
+    ) -> None:
+        staged("validate")
+
         with patch.object(cli.validate_module, "main", return_value=1):
             result = runner.invoke(cli.app, ["validate"])
 
@@ -319,3 +382,76 @@ class TestBundle:
         assert default.name == "english_practice.db"
         assert default.parent.name == "content"
         assert default.parent.parent.name == "practice_app"
+
+
+class TestTheStageGate:
+    """A stage refuses to run on inputs that are not there.
+
+    `extract-rules` run early used to return an empty mapping, send 566
+    exercises to the model with no answers in the prompt, and cache every
+    ruined unit so a re-run skipped them.
+    """
+
+    def test_a_stage_without_its_inputs_exits_non_zero(self) -> None:
+        result = runner.invoke(cli.app, ["extract-rules"])
+
+        assert result.exit_code == 1
+        assert "extract-rules cannot run yet" in result.output
+
+    def test_it_says_which_stage_would_produce_what_is_missing(self) -> None:
+        result = runner.invoke(cli.app, ["extract-rules"])
+
+        assert "run: practice-content extract-answers" in result.output
+
+    def test_a_refused_stage_builds_no_client_and_spends_nothing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The useful moment to stop is before the first paid call."""
+        built = MagicMock()
+        monkeypatch.setattr(cli, "get_llm", built)
+
+        with patch.object(cli, "RulesExtractor") as extractor:
+            result = runner.invoke(cli.app, ["extract-rules"])
+
+        assert result.exit_code == 1
+        built.assert_not_called()
+        extractor.assert_not_called()
+
+    def test_a_staged_run_is_allowed_through(
+        self, staged: Callable[[str], None]
+    ) -> None:
+        staged("populate")
+
+        with patch.object(cli.populate_module, "main", return_value=0) as main:
+            result = runner.invoke(cli.app, ["populate"])
+
+        assert result.exit_code == 0
+        main.assert_called_once()
+
+    def test_check_reports_every_stage(self) -> None:
+        result = runner.invoke(cli.app, ["check"])
+
+        for stage_name in ("cut-pdf", "extract-rules", "populate", "bundle"):
+            assert stage_name in result.output
+
+    def test_check_marks_a_finished_stage_done_and_the_next_one_ready(
+        self, staged: Callable[[str], None]
+    ) -> None:
+        staged("populate")
+
+        result = runner.invoke(cli.app, ["check"])
+
+        # Everything populate reads is in place, so the stages that write those
+        # artifacts are done and populate itself is ready to run.
+        assert "extract-rules: done" in result.output
+        assert "populate: ready" in result.output
+
+    def test_a_failed_populate_fails_the_command(
+        self, staged: Callable[[str], None]
+    ) -> None:
+        staged("populate")
+
+        with patch.object(cli.populate_module, "main", return_value=1):
+            result = runner.invoke(cli.app, ["populate"])
+
+        assert result.exit_code == 1

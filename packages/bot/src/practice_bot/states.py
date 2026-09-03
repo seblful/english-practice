@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from practice_core.models import Exercise, Question
+from practice_core.lesson import ActiveExercise as SharedExercise
 
 DEFAULT_IDLE_TTL = timedelta(hours=12)
 
@@ -15,22 +15,18 @@ def _now() -> datetime:
 
 
 @dataclass(slots=True)
-class ActiveExercise:
+class ActiveExercise(SharedExercise):
     """The exercise and question a user is working on right now.
 
-    Grouping them makes the states that used to be spellable — a question
-    without its exercise, an exercise without its unit — impossible.
+    The exercise, the question, the image and the book's answers are
+    :class:`practice_core.lesson.ActiveExercise`, shared with the app, which
+    holds the same five fields for the same reasons.
 
-    The image travels with them: it is a few hundred kilobytes that cannot
-    change while the exercise is in front of the user, and every agent call
-    needs it, so it is read once here rather than per message.
+    What the bot adds is routing: once an answer has been graded, the next
+    message the user sends is a question *about* the exercise rather than
+    another attempt at it, and this is the flag that decides which.
     """
 
-    exercise: Exercise
-    question: Question
-    topic_id: int | None
-    topic_name: str
-    image: bytes | None = None
     answered: bool = False
 
 

@@ -2209,7 +2209,9 @@ class TestTheBackGesture:
         await app.select_tab(STATS_TAB)
         await app.select_tab(PRACTICE_TAB)
 
-        assert app.practice._session.active is not None
+        # Asserted through what the screen shows rather than through the
+        # session: the question is still up, so nothing was lost.
+        assert "1/10" in rendered(app.practice)
 
     async def test_a_lesson_takes_the_chrome_off_the_screen(
         self, page: FakePage, services: Services

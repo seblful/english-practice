@@ -57,7 +57,9 @@ class TestRulesAgent:
 
             assert result == expected
             mock_invoke.assert_called_once()
-            assert mock_invoke.call_args[1]["image_data"] == b"fake_png_data"
+            # The stage hands over the path. Reading it, and deciding what to do
+            # when it is not there, is the base agent's job now.
+            assert mock_invoke.call_args[1]["image"] == img_path
             assert mock_invoke.call_args[1]["output_model"] == ExerciseRulesOutput
 
     @pytest.mark.asyncio
@@ -78,4 +80,4 @@ class TestRulesAgent:
             )
 
             assert result == expected
-            assert mock_invoke.call_args[1]["image_data"] is None
+            assert mock_invoke.call_args[1]["image"] == missing_path

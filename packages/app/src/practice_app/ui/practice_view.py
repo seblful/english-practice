@@ -30,6 +30,8 @@ from practice_core.feedback import (
     to_markdown,
     verdict_phrase,
 )
+from practice_core.lesson import topic_label
+from practice_core.reveal import Reveal
 
 from practice_app.services import Services
 from practice_app.session import ActiveExercise, Lesson, PracticeSession
@@ -68,11 +70,7 @@ from practice_app.ui.theme import (
 if TYPE_CHECKING:  # pragma: no cover - the topics are only ever annotated here
     from practice_core.models import Topic
 
-__all__ = ["RANDOM_TOPIC_LABEL", "PracticeScreen"]
-
-# What a question drawn from every topic is filed under when the book does not
-# say which topic its unit belongs to.
-RANDOM_TOPIC_LABEL = "Random"
+__all__ = ["PracticeScreen"]
 
 _REVEALED_HEADLINE = "Here is the answer"
 
@@ -93,37 +91,6 @@ _ZOOM_PAN_MARGIN = 80
 # before the field starts scrolling instead of pushing the picture off screen.
 _ANSWER_MIN_LINES = 3
 _ANSWER_MAX_LINES = 6
-
-
-def _plain(text: str) -> str:
-    """Return text stripped of everything that is not a word.
-
-    Args:
-        text: Markdown from the book.
-
-    Returns:
-        The words alone: no emphasis, no end stop, one space between them, and
-        case folded, so two spellings of the same answer compare equal.
-    """
-    words = text.replace("*", "").replace("_", "").split()
-    return " ".join(words).strip(".").casefold()
-
-
-def _adds_context(full: str, short: str) -> bool:
-    """Return whether the book's whole sentence says more than the answer.
-
-    A question that asks for a complete sentence prints the same words in both
-    of the book's fields, and a sheet that shows them one under the other
-    reads as a rendering bug rather than as a correction.
-
-    Args:
-        full: The full answers, as markdown.
-        short: The short answers, on one line.
-
-    Returns:
-        Whether the sentence is worth printing under the answer.
-    """
-    return _plain(full) != _plain(short)
 
 
 class PracticeScreen(ft.Column):
@@ -592,8 +559,10 @@ class PracticeScreen(ft.Column):
         """Return the book's answer, on its own surface inside the sheet.
 
         A neutral card keeps the book's markdown readable whatever colour the
-        verdict has painted around it. A correct answer gets the short form
-        only: it is confirmation, and confirmation should be quick to dismiss.
+        verdict has painted around it. *What* goes in it -- which answers, and
+        whether the book's whole sentence adds anything to the short form --
+        is :func:`practice_core.reveal.reveal_for`'s decision, shared with the
+        bot so that one graded answer cannot read two ways.
 
         Args:
             active: The exercise that was just answered.
@@ -601,35 +570,33 @@ class PracticeScreen(ft.Column):
         Returns:
             The card.
         """
-        correct = active.evaluation is not None and active.evaluation.is_correct
-        answers = active.revealed_answers
+        reveal = active.reveal(show_rule=self._services.config.show_rules)
         children: list[ft.Control] = []
 
-        if answers:
-            short = short_answer_text(answers)
+        if reveal.has_answer:
             children.append(
                 ft.Text(
-                    short,
+                    short_answer_text(reveal.answers),
                     size=17,
                     weight=ft.FontWeight.W_700,
                     selectable=True,
                 )
             )
-            # A markdown renderer reads a single newline as a soft wrap, so
-            # two answers need a blank line between them.
-            full = full_answer_text(answers, separator="\n\n")
-            # A correct answer gets the short form only: it is confirmation,
-            # and confirmation should be quick to dismiss. The whole sentence
-            # is skipped as well when it says nothing the short form did not,
-            # which is what had a reveal printing the same words twice.
-            if not correct and _adds_context(full, short):
-                children.append(ft.Markdown(full, selectable=True))
+            if reveal.show_full_answer:
+                children.append(
+                    ft.Markdown(
+                        # A markdown renderer reads a single newline as a soft
+                        # wrap, so two answers need a blank line between them.
+                        full_answer_text(reveal.answers, separator="\n\n"),
+                        selectable=True,
+                    )
+                )
         else:
             children.append(
                 hint("This question is open-ended, so the book prints no answer.")
             )
 
-        children.extend(self._rule_controls(active))
+        children.extend(self._rule_controls(reveal))
 
         return ft.Container(
             content=ft.Column(
@@ -643,24 +610,24 @@ class PracticeScreen(ft.Column):
             border_radius=RADIUS_SMALL,
         )
 
-    def _rule_controls(self, active: ActiveExercise) -> list[ft.Control]:
+    def _rule_controls(self, reveal: Reveal) -> list[ft.Control]:
         """Return the rule behind the answer, folded away until it is asked for.
 
         Args:
-            active: The exercise that was just answered.
+            reveal: What was decided for the question just answered.
 
         Returns:
-            Nothing when there is no rule or the user has turned rules off; the
-            toggle, and the rule under it when it is open, otherwise.
+            Nothing when there is no rule to show; the toggle, and the rule
+            under it when it is open, otherwise.
         """
-        rule = active.question.rule
-        if not (self._services.config.show_rules and rule):
+        rule = reveal.rule
+        if rule is None:
             return []
 
         toggle = ft.Row(
             controls=[
                 link_action(
-                    f"Rule {active.unit_reference}",
+                    f"Rule {reveal.unit_reference}",
                     icon=(
                         ft.Icons.EXPAND_LESS_ROUNDED
                         if self._rule_open
@@ -969,10 +936,9 @@ class PracticeScreen(ft.Column):
         lesson = self._session.lesson
         if lesson is None or lesson.active is None:  # pragma: no cover - guarded
             return
-        lesson.active.ungraded = True
-        # Revealing spends the question but earns nothing: a run of reveals
-        # must not read back as a perfect lesson.
-        lesson.record(correct=False)
+        # Revealing spends the question but earns nothing, which is the
+        # lesson's rule to keep rather than this handler's to remember.
+        lesson.reveal_answer()
         self._verdict = _REVEALED_HEADLINE
         self.render()
         push(self)
@@ -1004,16 +970,12 @@ class PracticeScreen(ft.Column):
                 image=active.image,
             )
         except PracticeError as exc:
-            active.ungraded = True
+            lesson.grading_failed()
             self._verdict = _REVEALED_HEADLINE
-            # Some provider messages end in a full stop and some do not, so
-            # the sentence is closed here rather than trusting either.
-            self._grading_error = f"{_GRADING_FAILED} {str(exc).rstrip('.')}."
-            lesson.record(correct=False)
+            self._grading_error = f"{_GRADING_FAILED} {exc}"
         else:
-            active.evaluation = evaluation
+            lesson.check(evaluation)
             self._verdict = verdict_phrase(evaluation.is_correct)
-            lesson.record(correct=evaluation.is_correct)
             await self._services.stats.record(
                 Attempt(
                     topic_name=active.topic_name,
@@ -1035,13 +997,13 @@ class PracticeScreen(ft.Column):
             return
 
         if lesson.is_complete:
-            lesson.active = None
+            lesson.finish()
             await self._reload_stats()
         else:
             drawn = await self._draw(lesson.topic_id, lesson.topic_name)
             if drawn is None:
                 return
-            lesson.active = drawn
+            lesson.advance(drawn)
             self._answer.value = ""
             self._rule_open = False
             self._unit_open = False
@@ -1075,7 +1037,7 @@ class PracticeScreen(ft.Column):
         self._grading_error = None
         self._close_panes()
         lesson = self._session.begin(topic_id, topic_name)
-        lesson.active = drawn
+        lesson.advance(drawn)
 
         self._announce()
         self.render()
@@ -1115,10 +1077,9 @@ class PracticeScreen(ft.Column):
             exercise=exercise,
             question=question,
             topic_id=topic_id,
-            topic_name=(
-                topic_name
-                if topic_id is not None
-                else exercise.unit.topic_name or RANDOM_TOPIC_LABEL
+            topic_name=topic_label(
+                topic_name=topic_name if topic_id is not None else None,
+                unit=exercise.unit,
             ),
             image=image,
             answers=tuple(answers),

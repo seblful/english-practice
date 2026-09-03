@@ -1,13 +1,16 @@
-"""Inline keyboards.
+"""Inline keyboards: which buttons go together, and in what order.
 
-Buttons carry payloads built by :mod:`practice_bot.callbacks`, so a
-button can only ever emit something a handler is registered to parse.
+What each button *means* is :mod:`practice_bot.callbacks` -- its prefix, its
+payload, and the pattern that claims the press. This module only lays them
+out, and reaches for `callbacks.button` rather than spelling
+``callback_data=...payload()`` per row, so a button here cannot emit something
+no handler is registered to parse.
 """
 
 from collections.abc import Sequence
 
 from practice_core.models import Topic
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardMarkup
 
 from practice_bot.callbacks import (
     AdminAction,
@@ -16,6 +19,7 @@ from practice_bot.callbacks import (
     KeywordChoice,
     SpecificTopic,
     TopicSelection,
+    button,
 )
 from practice_bot.models.auth import PendingUser
 
@@ -31,28 +35,11 @@ def main_menu_keyboard(has_previous_topic: bool) -> InlineKeyboardMarkup:
         The keyboard.
     """
     rows = [
-        [
-            InlineKeyboardButton(
-                "🎲 Random",
-                callback_data=KeywordChoice(TopicSelection.RANDOM).payload(),
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "📚 New Topic",
-                callback_data=KeywordChoice(TopicSelection.NEW_TOPIC).payload(),
-            )
-        ],
+        [button("🎲 Random", KeywordChoice(TopicSelection.RANDOM))],
+        [button("📚 New Topic", KeywordChoice(TopicSelection.NEW_TOPIC))],
     ]
     if has_previous_topic:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    "🔄 Same Topic",
-                    callback_data=KeywordChoice(TopicSelection.SAME).payload(),
-                )
-            ]
-        )
+        rows.append([button("🔄 Same Topic", KeywordChoice(TopicSelection.SAME))])
     return InlineKeyboardMarkup(rows)
 
 
@@ -66,15 +53,7 @@ def topics_keyboard(topics: Sequence[Topic]) -> InlineKeyboardMarkup:
         The keyboard.
     """
     return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton(
-                    topic.name,
-                    callback_data=SpecificTopic(topic.id).payload(),
-                )
-            ]
-            for topic in topics
-        ]
+        [[button(topic.name, SpecificTopic(topic.id))] for topic in topics]
     )
 
 
@@ -84,16 +63,7 @@ def exercise_keyboard() -> InlineKeyboardMarkup:
     Returns:
         The keyboard.
     """
-    return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton(
-                    "📖 Show Unit",
-                    callback_data=ExerciseAction.SHOW_UNIT.payload(),
-                )
-            ]
-        ]
-    )
+    return InlineKeyboardMarkup([[button("📖 Show Unit", ExerciseAction.SHOW_UNIT)]])
 
 
 def access_request_keyboard(user_id: int) -> InlineKeyboardMarkup:
@@ -108,14 +78,8 @@ def access_request_keyboard(user_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton(
-                    "✅ Approve",
-                    callback_data=AdminAction(AdminDecision.APPROVE, user_id).payload(),
-                ),
-                InlineKeyboardButton(
-                    "❌ Reject",
-                    callback_data=AdminAction(AdminDecision.REJECT, user_id).payload(),
-                ),
+                button("✅ Approve", AdminAction(AdminDecision.APPROVE, user_id)),
+                button("❌ Reject", AdminAction(AdminDecision.REJECT, user_id)),
             ]
         ]
     )
@@ -133,17 +97,13 @@ def pending_users_keyboard(pending: Sequence[PendingUser]) -> InlineKeyboardMark
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton(
+                button(
                     f"✅ {user.label}",
-                    callback_data=AdminAction(
-                        AdminDecision.APPROVE, user.telegram_id
-                    ).payload(),
+                    AdminAction(AdminDecision.APPROVE, user.telegram_id),
                 ),
-                InlineKeyboardButton(
+                button(
                     "❌ Reject",
-                    callback_data=AdminAction(
-                        AdminDecision.REJECT, user.telegram_id
-                    ).payload(),
+                    AdminAction(AdminDecision.REJECT, user.telegram_id),
                 ),
             ]
             for user in pending

@@ -9,11 +9,18 @@ everywhere at once instead of a silent mismatch in one of them.
 
 import sqlite3
 from functools import lru_cache
+from pathlib import Path
 
 from practice_core.errors import ContentError
 from practice_core.resources import read_packaged_text
 
-__all__ = ["CONTENT_SCHEMA", "SCHEMA_ANCHOR", "content_schema", "create_content_schema"]
+__all__ = [
+    "CONTENT_SCHEMA",
+    "SCHEMA_ANCHOR",
+    "connect_content",
+    "content_schema",
+    "create_content_schema",
+]
 
 SCHEMA_ANCHOR = "practice_core"
 SCHEMA_DIR = "schema"
@@ -53,3 +60,40 @@ def create_content_schema(connection: sqlite3.Connection) -> None:
         connection.executescript(content_schema())
     except sqlite3.Error as exc:
         raise ContentError(f"could not create the content schema: {exc}") from exc
+
+
+def connect_content(db_path: Path, *, create: bool = False) -> sqlite3.Connection:
+    """Open a write connection to a content database, constraints enforced.
+
+    ``PRAGMA foreign_keys`` is per-connection and off by default, so running
+    the schema -- which sets it -- guarantees nothing about the connection the
+    next statement arrives on. Every writer therefore has to turn it on for
+    itself, and for a while none of them did: the pipeline inserted through a
+    connection where all seven foreign keys were suggestions, and a separate
+    program re-encoded the same constraints as ``LEFT JOIN ... IS NULL``
+    queries to find out afterwards what had got in.
+
+    Args:
+        db_path: The database to open.
+        create: Whether to create the content tables first, for a caller
+            building a database rather than adding to one.
+
+    Returns:
+        An open connection with row access by name and foreign keys enforced.
+        The caller owns it, and commits.
+
+    Raises:
+        ContentError: If the database cannot be opened, or the schema cannot
+            be created.
+    """
+    try:
+        connection = sqlite3.connect(db_path)
+    except sqlite3.Error as exc:
+        raise ContentError(f"could not open {db_path}: {exc}") from exc
+
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    if create:
+        create_content_schema(connection)
+        connection.commit()
+    return connection

@@ -11,17 +11,16 @@ from typing import Any
 
 import httpx
 import pytest
-from practice_core.errors import GradingError
 
 from practice_app.config import AppConfig, ProxyConfig
 from practice_app.errors import ConfigurationError, ProviderError
 from practice_app.llm import (
+    DEFAULT_ADAPTERS,
     GeminiAdapter,
+    HttpCall,
     LLMClient,
     OpenAIAdapter,
     OpenRouterAdapter,
-    _data_uri,
-    _image_mime,
     adapter_for,
 )
 from practice_app.providers import Provider, ThinkingLevel
@@ -36,27 +35,6 @@ def _config(config: AppConfig, provider: Provider, **active: Any) -> AppConfig:
 
 async def _noop(_: float) -> None:
     """Stand in for the retry delay."""
-
-
-class TestImageEncoding:
-    def test_recognizes_png(self) -> None:
-        assert _image_mime(PNG_BYTES) == "image/png"
-
-    def test_recognizes_jpeg(self) -> None:
-        assert _image_mime(b"\xff\xd8\xff\xe0rest") == "image/jpeg"
-
-    def test_recognizes_gif(self) -> None:
-        assert _image_mime(b"GIF89a") == "image/gif"
-
-    def test_recognizes_webp(self) -> None:
-        assert _image_mime(WEBP_BYTES) == "image/webp"
-
-    def test_anything_else_is_treated_as_webp(self) -> None:
-        """The bundle is WebP, so that is the safer guess than refusing."""
-        assert _image_mime(b"unknown") == "image/webp"
-
-    def test_a_data_uri_names_the_type(self) -> None:
-        assert _data_uri(PNG_BYTES).startswith("data:image/png;base64,")
 
 
 class TestAdapterLookup:
@@ -599,16 +577,31 @@ class TestCheck:
         assert "vendor/model" in message
         assert "OpenRouter" in message
 
-    async def test_a_reply_that_is_not_json_fails_the_check(
-        self, config: AppConfig
-    ) -> None:
+    async def test_any_reply_at_all_passes_the_check(self, config: AppConfig) -> None:
+        """The check asks whether the settings work, not whether JSON parses.
+
+        Reading the reply as a grading verdict made the transport module
+        depend on the grading contract to answer a settings question.
+        """
         transport = httpx.MockTransport(
             lambda _: httpx.Response(
                 200, json={"choices": [{"message": {"content": "sure thing!"}}]}
             )
         )
         async with LLMClient(config, transport=transport) as client:
-            with pytest.raises(GradingError):
+            message = await client.check()
+
+        assert "vendor/model" in message
+
+    async def test_an_empty_reply_fails_the_check(self, config: AppConfig) -> None:
+        """Which is what a throttled token budget or a filter looks like."""
+        transport = httpx.MockTransport(
+            lambda _: httpx.Response(
+                200, json={"choices": [{"message": {"content": ""}}]}
+            )
+        )
+        async with LLMClient(config, transport=transport) as client:
+            with pytest.raises(ProviderError):
                 await client.check()
 
 
@@ -712,3 +705,42 @@ class TestPoolLiveness:
         assert await client.complete("prompt") == "ok"
 
         await client.aclose()
+
+
+class TestTheAdapterSeam:
+    """The port is published, so a fake can stand at it.
+
+    Every test above builds a real client over an `httpx.MockTransport`,
+    because the only substitution point used to be the transport. The retry,
+    pooling and error-mapping behaviour that `LLMClient` actually owns can be
+    exercised without one.
+    """
+
+    async def test_a_substituted_adapter_is_the_one_asked(
+        self, config: AppConfig
+    ) -> None:
+        recorded: list[str] = []
+
+        class Recording(OpenRouterAdapter):
+            def chat_call(
+                self, config: AppConfig, prompt: str, image: bytes | None
+            ) -> HttpCall:
+                recorded.append(prompt)
+                return super().chat_call(config, prompt, image)
+
+        transport = httpx.MockTransport(
+            lambda _: httpx.Response(
+                200, json={"choices": [{"message": {"content": "graded"}}]}
+            )
+        )
+        async with LLMClient(
+            config,
+            transport=transport,
+            adapters={Provider.OPENROUTER: Recording()},
+        ) as client:
+            assert await client.complete("grade this") == "graded"
+
+        assert recorded == ["grade this"]
+
+    def test_the_shipped_registry_covers_every_provider(self) -> None:
+        assert set(DEFAULT_ADAPTERS) == set(Provider)

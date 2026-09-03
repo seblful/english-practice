@@ -3,6 +3,7 @@
 from unittest.mock import Mock
 
 import pytest
+from practice_core.grading import EvaluateAnswerOutput
 from practice_core.models import Exercise, QuestionAnswer
 from practice_runtime.errors import AgentError
 
@@ -34,7 +35,7 @@ class TestWithoutAnExercise:
         await answers_handler.text_message(mock_update, mock_context)
 
         assert replies(mock_update.message) == [answers_handler.NO_EXERCISE_HINT]
-        mock_context.agents.evaluate_answer.assert_not_called()
+        mock_context.agents.grader.evaluate.assert_not_called()
 
 
 class TestGrading:
@@ -49,13 +50,13 @@ class TestGrading:
     ) -> None:
         await answers_handler.text_message(mock_update, mock_context)
 
-        kwargs = mock_context.agents.evaluate_answer.await_args.kwargs
-        assert kwargs["user_input"] == "is doing"
-        assert kwargs["question_number"] == "1"
-        assert kwargs["answers"] == answers
-        assert kwargs["is_open_ended"] is False
-        assert kwargs["topic_name"] == "Present Tenses"
-        assert kwargs["rule"] == with_exercise.question.rule
+        call = mock_context.agents.grader.evaluate.await_args
+        # The question goes across whole: its number, its rule and whether it
+        # is open-ended are no longer taken apart and passed back one by one.
+        assert call.args == (with_exercise.question,)
+        assert call.kwargs["user_input"] == "is doing"
+        assert tuple(call.kwargs["answers"]) == tuple(answers)
+        assert call.kwargs["topic_name"] == "Present Tenses"
 
     async def test_grades_against_the_image_held_in_the_session(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
@@ -63,8 +64,8 @@ class TestGrading:
         """The blob was read when the exercise was sent; do not read it again."""
         await answers_handler.text_message(mock_update, mock_context)
 
-        kwargs = mock_context.agents.evaluate_answer.await_args.kwargs
-        assert kwargs["image_data"] == b"fake_image_bytes"
+        kwargs = mock_context.agents.grader.evaluate.await_args.kwargs
+        assert kwargs["image"] == b"fake_image_bytes"
         mock_context.repository.get_exercise_image.assert_not_called()
 
     async def test_marks_the_question_answered(
@@ -74,13 +75,33 @@ class TestGrading:
 
         assert with_exercise.answered is True
 
-    async def test_reports_the_verdict_and_the_answer(
+    async def test_a_correct_answer_gets_the_short_form_only(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
+        """Confirmation should be quick to dismiss.
+
+        This is the app's rule, and since the decision moved into
+        `practice_core.reveal` it is the bot's too -- the bot used to print the
+        book's whole sentence under every answer, right ones included.
+        """
         await answers_handler.text_message(mock_update, mock_context)
 
         texts = replies(mock_update.message)
         assert any("✅" in text for text in texts)
+        assert any("Correct Answer" in text for text in texts)
+        assert not any("Full Answer" in text for text in texts)
+
+    async def test_a_wrong_answer_gets_the_whole_sentence(
+        self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
+    ) -> None:
+        mock_context.agents.grader.evaluate.return_value = EvaluateAnswerOutput(
+            is_correct=False, answer_idx=[0]
+        )
+
+        await answers_handler.text_message(mock_update, mock_context)
+
+        texts = replies(mock_update.message)
+        assert any("❌" in text for text in texts)
         assert any("Correct Answer" in text for text in texts)
         assert any("Full Answer" in text for text in texts)
 
@@ -90,7 +111,7 @@ class TestGrading:
         mock_context: Mock,
         with_exercise: ActiveExercise,
     ) -> None:
-        mock_context.agents.evaluate_answer.return_value = Mock(
+        mock_context.agents.grader.evaluate.return_value = EvaluateAnswerOutput(
             is_correct=True, answer_idx=[1]
         )
 
@@ -103,7 +124,7 @@ class TestGrading:
     async def test_falls_back_to_the_canonical_answer_when_nothing_matched(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        mock_context.agents.evaluate_answer.return_value = Mock(
+        mock_context.agents.grader.evaluate.return_value = EvaluateAnswerOutput(
             is_correct=False, answer_idx=[]
         )
 
@@ -116,7 +137,7 @@ class TestGrading:
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
         """A grader that invents an index must not take the bot down."""
-        mock_context.agents.evaluate_answer.return_value = Mock(
+        mock_context.agents.grader.evaluate.return_value = EvaluateAnswerOutput(
             is_correct=True, answer_idx=[7, -1]
         )
 
@@ -129,7 +150,7 @@ class TestGrading:
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
         mock_context.repository.list_answers.return_value = []
-        mock_context.agents.evaluate_answer.return_value = Mock(
+        mock_context.agents.grader.evaluate.return_value = EvaluateAnswerOutput(
             is_correct=True, answer_idx=[]
         )
 
@@ -155,7 +176,7 @@ class TestGrading:
 
         await answers_handler.text_message(mock_update, mock_context)
 
-        mock_context.agents.evaluate_answer.assert_not_called()
+        mock_context.agents.grader.evaluate.assert_not_called()
         assert replies(mock_update.message) == [answers_handler.EMPTY_ANSWER_HINT]
 
 
@@ -202,7 +223,7 @@ class TestGradingFailure:
     async def test_reveals_the_answer_and_apologises(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        mock_context.agents.evaluate_answer.side_effect = AgentError("provider down")
+        mock_context.agents.grader.evaluate.side_effect = AgentError("provider down")
 
         await answers_handler.text_message(mock_update, mock_context)
 
@@ -214,7 +235,7 @@ class TestGradingFailure:
     async def test_leaves_the_question_open_for_another_attempt(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        mock_context.agents.evaluate_answer.side_effect = AgentError("provider down")
+        mock_context.agents.grader.evaluate.side_effect = AgentError("provider down")
 
         await answers_handler.text_message(mock_update, mock_context)
 
@@ -236,9 +257,9 @@ class TestFollowUp:
         assert kwargs["user_input"] == "why is it continuous?"
         assert kwargs["exercise_id"] == with_exercise.exercise.id
         assert kwargs["question_number"] == "1"
-        assert kwargs["image_data"] == b"fake_image_bytes"
+        assert kwargs["image"] == b"fake_image_bytes"
         mock_context.repository.get_exercise_image.assert_not_called()
-        mock_context.agents.evaluate_answer.assert_not_called()
+        mock_context.agents.grader.evaluate.assert_not_called()
 
     async def test_renders_the_reply_as_html(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise

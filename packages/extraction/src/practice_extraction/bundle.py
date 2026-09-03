@@ -20,7 +20,7 @@ from typing import Any
 
 from PIL import Image
 from practice_core.errors import ContentError
-from practice_core.schema import create_content_schema
+from practice_core.schema import connect_content
 from practice_runtime.logging import get_logger
 
 logger = get_logger(__name__)
@@ -207,12 +207,13 @@ def build_mobile_content(
         closing(
             sqlite3.connect(f"file:{source_path.as_posix()}?mode=ro", uri=True)
         ) as source,
-        closing(sqlite3.connect(target_path)) as target,
+        # The same schema the source was built from and the app queries, so a
+        # bundle can never be a table behind -- and the same enforcement, so a
+        # table left out of the copy shows up as a failed insert here rather
+        # than as a row the phone cannot resolve.
+        closing(connect_content(target_path, create=True)) as target,
     ):
         source.row_factory = sqlite3.Row
-        # The same schema the source was built from and the app queries, so a
-        # bundle can never be a table behind.
-        create_content_schema(target)
 
         with target:
             for table in _CONTENT_TABLES:

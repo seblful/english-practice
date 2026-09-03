@@ -7,13 +7,12 @@ from telegram import InlineKeyboardMarkup
 
 from practice_bot import keyboards
 from practice_bot.callbacks import (
-    ACTION_PATTERN,
-    ADMIN_PATTERN,
-    TOPIC_PATTERN,
+    ACTIONS,
+    ADMIN,
+    TOPICS,
     AdminAction,
     ExerciseAction,
     SpecificTopic,
-    parse_topic_choice,
 )
 from practice_bot.models.auth import PendingUser
 
@@ -46,8 +45,8 @@ class TestMainMenu:
         markup = keyboards.main_menu_keyboard(has_previous_topic=True)
 
         for payload in _payloads(markup):
-            assert parse_topic_choice(payload) is not None
-            assert re.match(TOPIC_PATTERN, payload)
+            assert TOPICS.parse(payload) is not None
+            assert re.match(TOPICS.pattern, payload)
 
 
 class TestTopicsKeyboard:
@@ -62,7 +61,7 @@ class TestTopicsKeyboard:
     def test_payloads_carry_topic_ids(self, topics: list[Topic]) -> None:
         payloads = _payloads(keyboards.topics_keyboard(topics))
 
-        parsed = [parse_topic_choice(payload) for payload in payloads]
+        parsed = [TOPICS.parse(payload) for payload in payloads]
         assert parsed == [SpecificTopic(1), SpecificTopic(2)]
 
     def test_empty_topic_list(self) -> None:
@@ -76,7 +75,7 @@ class TestExerciseKeyboard:
         payloads = _payloads(keyboards.exercise_keyboard())
 
         assert ExerciseAction.parse(payloads[0]) is ExerciseAction.SHOW_UNIT
-        assert re.match(ACTION_PATTERN, payloads[0])
+        assert re.match(ACTIONS.pattern, payloads[0])
 
 
 class TestAdminKeyboards:
@@ -103,4 +102,4 @@ class TestAdminKeyboards:
         assert markup.inline_keyboard[1][0].text == "✅ Bob"
         for payload in _payloads(markup):
             assert AdminAction.parse(payload) is not None
-            assert re.match(ADMIN_PATTERN, payload)
+            assert re.match(ADMIN.pattern, payload)

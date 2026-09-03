@@ -8,7 +8,11 @@ import pytest
 
 from practice_core.content import ContentLibrary
 from practice_core.errors import ContentError
-from practice_core.schema import content_schema, create_content_schema
+from practice_core.schema import (
+    connect_content,
+    content_schema,
+    create_content_schema,
+)
 
 # Every table `practice_core.content` queries.
 QUERIED_TABLES = frozenset(
@@ -95,3 +99,42 @@ class TestContentSchema:
                 content_schema()
         finally:
             content_schema.cache_clear()
+
+
+class TestConnectContent:
+    """The connection a writer gets has the schema's guarantees turned on."""
+
+    def test_foreign_keys_are_enforced(self, tmp_path: Path) -> None:
+        """Off by default, and per-connection: running the schema is not enough."""
+        with closing(connect_content(tmp_path / "new.db", create=True)) as conn:
+            assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+
+    def test_an_orphan_is_refused_at_the_write(self, tmp_path: Path) -> None:
+        """This is the check `validate` used to make after the fact."""
+        with (
+            closing(connect_content(tmp_path / "new.db", create=True)) as conn,
+            pytest.raises(sqlite3.IntegrityError),
+        ):
+            conn.execute(
+                "INSERT INTO exercises (exercise_id, unit_id, exercise_number) "
+                "VALUES ('9.9', 404, 1)"
+            )
+
+    def test_rows_come_back_by_name(self, tmp_path: Path) -> None:
+        with closing(connect_content(tmp_path / "new.db", create=True)) as conn:
+            conn.execute("INSERT INTO units (unit_number, title) VALUES (1, 'Present')")
+            row = conn.execute("SELECT title FROM units").fetchone()
+
+        assert row["title"] == "Present"
+
+    def test_opening_without_creating_leaves_the_tables_alone(
+        self, seeded_db_path: Path
+    ) -> None:
+        with closing(connect_content(seeded_db_path)) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM units").fetchone()[0]
+
+        assert count > 0
+
+    def test_a_path_that_cannot_be_opened(self, tmp_path: Path) -> None:
+        with pytest.raises(ContentError, match="could not open"):
+            connect_content(tmp_path / "no-such-dir" / "new.db")

@@ -33,13 +33,13 @@ class TestEscaping:
         assert "&lt;ok&gt;" in formatter.full_answers(answers)
 
     def test_rule_block_escapes_rule_and_section(self) -> None:
-        text = formatter.rule_block(5, "B", "Use <will> & 'going to'")
+        text = formatter.rule_block("5B", "Use <will> & 'going to'")
 
         assert "<b>5B</b>" in text
         assert "&lt;will&gt; &amp;" in text
 
     def test_rule_block_tolerates_missing_section_letter(self) -> None:
-        assert "<b>5</b>" in formatter.rule_block(5, None, "A rule")
+        assert "<b>5</b>" in formatter.rule_block("5", "A rule")
 
     def test_assistant_answer_escapes_reply(self) -> None:
         assert "&lt;script&gt;" in formatter.assistant_answer("<script>")

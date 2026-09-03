@@ -6,9 +6,10 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
-from practice_core.models import QuestionAnswer
+from practice_core.models import Question, QuestionAnswer
 from practice_runtime.errors import AgentError
 
+from practice_bot.agents.evaluate import EvaluateAnswerAgent
 from practice_bot.models.agents import (
     AssistantOutput,
     ChatMessage,
@@ -58,7 +59,7 @@ def _stub(monkeypatch: pytest.MonkeyPatch, max_history_messages: int = 20) -> St
         return_value=EvaluateAnswerOutput(is_correct=True, answer_idx=[0])
     )
     assist = AsyncMock(return_value=AssistantOutput(answer="because"))
-    monkeypatch.setattr(service._evaluate_agent, "evaluate", evaluate)
+    monkeypatch.setattr(service.grader, "evaluate", evaluate)
     monkeypatch.setattr(service._assistant_agent, "assist", assist)
     return Stubbed(service=service, evaluate=evaluate, assist=assist)
 
@@ -74,7 +75,7 @@ async def _ask(stubbed: Stubbed, question: str, exercise_id: int = 5) -> None:
     await stubbed.service.assist(
         user_id=1,
         exercise_id=exercise_id,
-        image_data=None,
+        image=None,
         question_number="1",
         user_input=question,
         topic_name="Present Tenses",
@@ -89,7 +90,7 @@ class TestConstruction:
 
         service = AgentService(llm=llm)
 
-        assert service._evaluate_agent.llm is llm
+        assert service.grader.llm is llm
         assert service._assistant_agent.llm is llm
 
     def test_the_client_is_required(self) -> None:
@@ -98,55 +99,31 @@ class TestConstruction:
             AgentService()  # ty: ignore[missing-argument]
 
 
-class TestEvaluateAnswer:
-    """Tests for grading."""
+class TestGrader:
+    """The grading agent is handed out rather than wrapped."""
 
-    async def test_hands_the_answers_to_the_agent_unchanged(
-        self, stubbed: Stubbed, answers: list[QuestionAnswer]
+    def test_the_grader_shares_the_injected_client(self) -> None:
+        """One connection pool per process, whichever agent is reached."""
+        llm = Mock(spec=BaseChatModel)
+
+        service = AgentService(llm=llm)
+
+        assert isinstance(service.grader, EvaluateAnswerAgent)
+        assert service.grader.llm is llm
+
+    async def test_the_grader_is_the_agent_a_handler_calls(
+        self, stubbed: Stubbed, answers: list[QuestionAnswer], question: Question
     ) -> None:
-        """``answer_idx`` indexes this sequence, so it must arrive intact."""
-        await stubbed.service.evaluate_answer(
-            image_data=b"png",
-            question_number="1",
+        """Nothing sits between the handler and the agent to restate its input."""
+        result = await stubbed.service.grader.evaluate(
+            question,
             user_input="is doing",
             answers=answers,
-            is_open_ended=False,
-            topic_name="Present Tenses",
-            rule="a rule",
-        )
-
-        kwargs = stubbed.graded()
-        assert kwargs["answers"] == answers
-        assert kwargs["rule"] == "a rule"
-
-    async def test_returns_the_verdict(
-        self, stubbed: Stubbed, answers: list[QuestionAnswer]
-    ) -> None:
-        result = await stubbed.service.evaluate_answer(
-            image_data=None,
-            question_number="1",
-            user_input="is doing",
-            answers=answers,
-            is_open_ended=False,
             topic_name="Present Tenses",
         )
 
         assert result.is_correct is True
-        assert result.answer_idx == [0]
-
-    async def test_question_without_answers(self, stubbed: Stubbed) -> None:
-        await stubbed.service.evaluate_answer(
-            image_data=None,
-            question_number="1",
-            user_input="anything",
-            answers=[],
-            is_open_ended=True,
-            topic_name="Present Tenses",
-        )
-
-        kwargs = stubbed.graded()
-        assert kwargs["answers"] == []
-        assert kwargs["is_open_ended"] is True
+        assert stubbed.graded()["answers"] == answers
 
 
 class TestAssist:

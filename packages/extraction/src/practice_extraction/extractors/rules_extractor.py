@@ -16,6 +16,7 @@ from practice_extraction.models import (
     ExtractedUnitRules,
     RulesQuestion,
 )
+from practice_extraction.stages import RULES_FILENAME
 
 from .answers_extractor import AnswersExtractor
 from .base_extractor import BaseExtractor
@@ -26,7 +27,7 @@ logger = get_logger(__name__)
 class RulesExtractor(BaseExtractor):
     """Extract grammar rules from exercise images using LLM."""
 
-    OUTPUT_FILENAME = "rules.json"
+    OUTPUT_FILENAME = RULES_FILENAME
 
     def __init__(self, paths: PathSettings, agent: RulesAgent) -> None:
         """Initialize the grammar rule extractor.

@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 import structlog
+from practice_core.grading import EvaluateAnswerOutput
 from practice_core.models import Exercise, Question, QuestionAnswer, Topic, Unit
 from practice_core.resources import read_packaged_text
 from practice_core.schema import create_content_schema
@@ -298,9 +299,16 @@ def mock_repository(
 
 @pytest.fixture
 def mock_agents() -> AsyncMock:
-    """An agent service that grades everything correct."""
+    """An agent service that grades everything correct.
+
+    The verdict is a real :class:`EvaluateAnswerOutput` rather than a stand-in,
+    so the validators that both front ends now depend on are in play here too.
+    """
     agents = AsyncMock(spec=AgentService)
-    agents.evaluate_answer.return_value = Mock(is_correct=True, answer_idx=[0])
+    agents.grader = Mock()
+    agents.grader.evaluate = AsyncMock(
+        return_value=EvaluateAnswerOutput(is_correct=True, answer_idx=[0])
+    )
     agents.assist.return_value = Mock(answer="Here is some **help**")
     return agents
 

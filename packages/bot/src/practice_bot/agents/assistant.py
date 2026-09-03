@@ -27,7 +27,7 @@ class AssistantAgent(BaseAgent):
     async def assist(
         self,
         *,
-        image_data: bytes | None,
+        image: bytes | None,
         question_number: str,
         user_input: str,
         topic_name: str,
@@ -36,7 +36,7 @@ class AssistantAgent(BaseAgent):
         """Answer the student's question about the current exercise.
 
         Args:
-            image_data: Raw exercise image bytes, if the exercise has one.
+            image: Raw exercise image bytes, if the exercise has one.
             question_number: The question number/ID.
             user_input: The student's question.
             topic_name: The topic name, for context.
@@ -58,5 +58,5 @@ class AssistantAgent(BaseAgent):
         return await self.invoke_structured(
             prompt=self.render(context),
             output_model=AssistantOutput,
-            image_data=image_data,
+            image=image,
         )

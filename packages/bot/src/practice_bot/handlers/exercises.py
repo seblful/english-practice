@@ -2,16 +2,18 @@
 
 import io
 
+from practice_core.lesson import topic_label
 from practice_core.models import Topic
 from practice_runtime.logging import get_logger
 
 from practice_bot import formatter, keyboards
 from practice_bot.callbacks import (
+    ACTIONS,
+    TOPICS,
     ExerciseAction,
     KeywordChoice,
     SpecificTopic,
     TopicSelection,
-    parse_topic_choice,
 )
 from practice_bot.context import BotContext
 from practice_bot.handlers.access import handler
@@ -24,7 +26,6 @@ NO_EXERCISES_MESSAGE = "🔍 No exercises found for this topic. Please try anoth
 NO_IMAGE_MESSAGE = "⚠️ This exercise has no image in the database."
 NO_ACTIVE_EXERCISE_MESSAGE = "🔍 No active exercise. Use /start to pick a topic."
 CHOOSE_TOPIC_MESSAGE = "Select a topic:"
-RANDOM_TOPIC_LABEL = "Random"
 
 
 async def send_exercise(
@@ -48,7 +49,9 @@ async def send_exercise(
         return
 
     exercise, question, image = drawn
-    topic_name = topic.name if topic else exercise.unit.topic_name or RANDOM_TOPIC_LABEL
+    topic_name = topic_label(
+        topic_name=topic.name if topic else None, unit=exercise.unit
+    )
 
     context.start_exercise(
         who.user.id,
@@ -93,7 +96,7 @@ async def topic_selection(who: Interaction, context: BotContext) -> None:
         who: The user behind the update.
         context: The handler context.
     """
-    choice = parse_topic_choice(who.callback_data)
+    choice = TOPICS.parse(who.callback_data)
     if choice is None:
         logger.warning("unparsable_topic_callback", data=who.callback_data)
         return
@@ -132,7 +135,7 @@ async def exercise_action(who: Interaction, context: BotContext) -> None:
         who: The user behind the update.
         context: The handler context.
     """
-    action = ExerciseAction.parse(who.callback_data)
+    action = ACTIONS.parse(who.callback_data)
     if action is None:
         logger.warning("unparsable_action_callback", data=who.callback_data)
         return

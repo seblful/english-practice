@@ -1,0 +1,208 @@
+"""Tests for the lesson both front ends can now run.
+
+These assert through the four transitions rather than by setting fields, which
+is the point of moving them here: recording an outcome used to be the caller's
+duty, so the rule that a revealed answer never counts as correct was enforced
+by whoever remembered to pass ``correct=False``.
+"""
+
+import pytest
+
+from practice_core.errors import PracticeError
+from practice_core.grading import EvaluateAnswerOutput
+from practice_core.lesson import (
+    LESSON_LENGTH,
+    RANDOM_TOPIC_LABEL,
+    ActiveExercise,
+    Lesson,
+    topic_label,
+)
+from practice_core.models import Exercise, Question, QuestionAnswer, Unit
+
+
+@pytest.fixture
+def active(exercise: Exercise, answers: list[QuestionAnswer]) -> ActiveExercise:
+    """A question in front of the user, with its answers already read."""
+    return ActiveExercise(
+        exercise=exercise,
+        question=exercise.questions[0],
+        topic_id=1,
+        topic_name="Present Tenses",
+        image=b"\x89PNG",
+        answers=tuple(answers),
+    )
+
+
+@pytest.fixture
+def lesson(active: ActiveExercise) -> Lesson:
+    """A lesson with its first question on screen."""
+    return Lesson(topic_id=1, topic_name="Present Tenses", active=active)
+
+
+class TestTopicLabel:
+    def test_the_requested_topic_wins(self, unit: Unit) -> None:
+        assert topic_label(topic_name="Past Tenses", unit=unit) == "Past Tenses"
+
+    def test_a_mixed_run_takes_the_topic_the_book_files_the_unit_under(
+        self, unit: Unit
+    ) -> None:
+        assert topic_label(topic_name=None, unit=unit) == unit.topic_name
+
+    def test_a_unit_the_book_files_nowhere(self) -> None:
+        loose = Unit(id=9, unit_number=9, title="Reported Speech")
+
+        assert topic_label(topic_name=None, unit=loose) == RANDOM_TOPIC_LABEL
+
+
+class TestActiveExercise:
+    def test_a_fresh_question_is_not_revealed(self, active: ActiveExercise) -> None:
+        assert active.is_revealed is False
+
+    def test_names_the_unit_and_section(self, active: ActiveExercise) -> None:
+        assert active.unit_reference == "1A"
+
+    def test_reveals_through_the_shared_decision(
+        self, active: ActiveExercise, answers: list[QuestionAnswer]
+    ) -> None:
+        active.evaluation = EvaluateAnswerOutput(is_correct=False, answer_idx=[1])
+
+        result = active.reveal()
+
+        assert result.answers == (answers[1],)
+        assert result.rule == active.question.rule
+
+    def test_passes_the_rule_setting_through(self, active: ActiveExercise) -> None:
+        assert active.reveal(show_rule=False).rule is None
+
+
+class TestCheck:
+    def test_a_correct_answer_is_recorded(self, lesson: Lesson) -> None:
+        lesson.check(EvaluateAnswerOutput(is_correct=True))
+
+        assert lesson.outcomes == [True]
+        assert lesson.correct == 1
+
+    def test_the_verdict_lands_on_the_question(self, lesson: Lesson) -> None:
+        verdict = EvaluateAnswerOutput(is_correct=False, answer_idx=[0])
+
+        returned = lesson.check(verdict)
+
+        assert returned.evaluation is verdict
+        assert returned.is_revealed is True
+
+    def test_a_graded_answer_is_not_marked_ungraded(self, lesson: Lesson) -> None:
+        """A retry after a failure must not leave the earlier flag standing."""
+        lesson.grading_failed()
+        lesson.check(EvaluateAnswerOutput(is_correct=True))
+
+        assert lesson.active is not None
+        assert lesson.active.ungraded is False
+
+    def test_checking_with_nothing_on_screen(self) -> None:
+        empty = Lesson(topic_id=None, topic_name="Mixed")
+
+        with pytest.raises(PracticeError, match="no question is on screen"):
+            empty.check(EvaluateAnswerOutput(is_correct=True))
+
+
+class TestRevealAndFailure:
+    def test_revealing_spends_the_question_but_earns_nothing(
+        self, lesson: Lesson
+    ) -> None:
+        lesson.reveal_answer()
+
+        assert lesson.outcomes == [False]
+        assert lesson.answered == 1
+        assert lesson.correct == 0
+
+    def test_a_run_of_reveals_is_not_a_perfect_lesson(self, lesson: Lesson) -> None:
+        for _ in range(3):
+            lesson.reveal_answer()
+
+        assert lesson.accuracy == 0.0
+
+    def test_a_failed_grading_spends_the_question(self, lesson: Lesson) -> None:
+        """A run has a fixed length, so there is nowhere to put a retry."""
+        returned = lesson.grading_failed()
+
+        assert lesson.outcomes == [False]
+        assert returned.ungraded is True
+        assert returned.reveal().was_graded is False
+
+    def test_revealing_with_nothing_on_screen(self) -> None:
+        empty = Lesson(topic_id=None, topic_name="Mixed")
+
+        with pytest.raises(PracticeError, match="no question is on screen"):
+            empty.reveal_answer()
+
+    def test_failing_with_nothing_on_screen(self) -> None:
+        empty = Lesson(topic_id=None, topic_name="Mixed")
+
+        with pytest.raises(PracticeError, match="no question is on screen"):
+            empty.grading_failed()
+
+
+class TestProgress:
+    def test_a_new_lesson_is_on_its_first_question(self, lesson: Lesson) -> None:
+        assert lesson.position == 1
+        assert lesson.progress == 0.0
+        assert lesson.is_complete is False
+
+    def test_the_counter_holds_while_the_verdict_is_read(self, lesson: Lesson) -> None:
+        """Otherwise "2/10" appears over the verdict for question one."""
+        lesson.check(EvaluateAnswerOutput(is_correct=True))
+
+        assert lesson.position == 1
+
+    def test_the_counter_moves_once_the_next_question_is_drawn(
+        self, lesson: Lesson, active: ActiveExercise
+    ) -> None:
+        lesson.check(EvaluateAnswerOutput(is_correct=True))
+        lesson.advance(
+            ActiveExercise(
+                exercise=active.exercise,
+                question=active.question,
+                topic_id=1,
+                topic_name="Present Tenses",
+            )
+        )
+
+        assert lesson.position == 2
+
+    def test_a_finished_run(self, lesson: Lesson) -> None:
+        for _ in range(LESSON_LENGTH):
+            lesson.record(correct=True)
+
+        assert lesson.is_complete is True
+        assert lesson.progress == 1.0
+        assert lesson.accuracy == 1.0
+
+    def test_the_counter_stops_at_the_length(
+        self, lesson: Lesson, active: ActiveExercise
+    ) -> None:
+        for _ in range(LESSON_LENGTH + 3):
+            lesson.record(correct=True)
+        lesson.advance(
+            ActiveExercise(
+                exercise=active.exercise,
+                question=Question(id=5, question_id="5"),
+                topic_id=1,
+                topic_name="Present Tenses",
+            )
+        )
+
+        assert lesson.position == LESSON_LENGTH
+
+    def test_an_untouched_lesson_has_no_accuracy_to_report(self) -> None:
+        empty = Lesson(topic_id=None, topic_name="Mixed")
+
+        assert empty.accuracy == 0.0
+
+
+class TestFinish:
+    def test_takes_the_question_off_screen(self, lesson: Lesson) -> None:
+        lesson.check(EvaluateAnswerOutput(is_correct=True))
+
+        lesson.finish()
+
+        assert lesson.active is None

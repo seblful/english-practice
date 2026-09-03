@@ -1,17 +1,44 @@
-"""Typed inline-button payloads.
+"""Typed inline-button payloads, and what each family of them means.
 
 Telegram gives every inline button 64 bytes of opaque string, which the bot
-receives back verbatim. Encoding and parsing live here, together with the
-handler patterns, so the two can never drift: a keyboard cannot emit a payload
-no handler is registered for.
+receives back verbatim. Four things have to agree about that string: the prefix
+it starts with, the regex a handler registers to claim it, the button that
+emits it, and the parse that reads it back. They used to sit in four files, so
+adding one button was a four-file edit and a keyboard could quietly emit a
+payload no handler would claim.
 
-Every ``parse`` returns ``None`` for anything unexpected. Old messages stay
+Now a :class:`Family` holds the first, second and fourth together, and
+:func:`button` builds the third from the payload itself. What is left per
+family is the payload type and one ``Family`` value.
+
+Every parse returns ``None`` for anything unexpected. Old messages stay
 clickable forever, so a payload from a previous version of the bot is a normal
 event, not an error.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Protocol
+
+from telegram import InlineKeyboardButton
+
+__all__ = [
+    "ACTIONS",
+    "ADMIN",
+    "TOPICS",
+    "AdminAction",
+    "AdminDecision",
+    "ExerciseAction",
+    "Family",
+    "KeywordChoice",
+    "Payload",
+    "SpecificTopic",
+    "TopicChoice",
+    "TopicSelection",
+    "button",
+    "parse_topic_choice",
+]
 
 TOPIC_PREFIX = "topic"
 ACTION_PREFIX = "action"
@@ -19,9 +46,44 @@ ADMIN_PREFIX = "admin"
 
 _ADMIN_PAYLOAD_PARTS = 3
 
-TOPIC_PATTERN = f"^{TOPIC_PREFIX}:"
-ACTION_PATTERN = f"^{ACTION_PREFIX}:"
-ADMIN_PATTERN = f"^{ADMIN_PREFIX}:"
+
+class Payload(Protocol):
+    """Anything that can be encoded into a button's callback data."""
+
+    def payload(self) -> str:
+        """Return the callback payload."""
+        ...
+
+
+def button(label: str, choice: Payload) -> InlineKeyboardButton:
+    """Return the button that emits one payload.
+
+    Args:
+        label: What the button says.
+        choice: The payload pressing it should send back.
+
+    Returns:
+        The button.
+    """
+    return InlineKeyboardButton(label, callback_data=choice.payload())
+
+
+@dataclass(frozen=True, slots=True)
+class Family[T]:
+    """One prefix, the pattern that claims it, and how to read its payloads.
+
+    Registration and parsing come off the same value, so a handler cannot be
+    registered for one prefix and then parse another -- which is what the
+    three loose ``*_PATTERN`` constants left possible.
+    """
+
+    prefix: str
+    parse: Callable[[str], T | None]
+
+    @property
+    def pattern(self) -> str:
+        """Return the regex a ``CallbackQueryHandler`` registers for."""
+        return f"^{self.prefix}:"
 
 
 class TopicSelection(StrEnum):
@@ -149,3 +211,12 @@ class AdminAction:
             return cls(AdminDecision(parts[1]), int(parts[2]))
         except ValueError:
             return None
+
+
+#: The three families of inline button this bot sends. A handler registers with
+#: ``pattern`` and reads with ``parse``, so the two cannot come apart.
+TOPICS: Family[TopicChoice] = Family(prefix=TOPIC_PREFIX, parse=parse_topic_choice)
+ACTIONS: Family[ExerciseAction] = Family(
+    prefix=ACTION_PREFIX, parse=ExerciseAction.parse
+)
+ADMIN: Family[AdminAction] = Family(prefix=ADMIN_PREFIX, parse=AdminAction.parse)
