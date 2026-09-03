@@ -224,11 +224,19 @@ class _OpenAICompatibleAdapter(ProviderAdapter):
     base_url: str
 
     def _headers(self, api_key: str) -> dict[str, str]:
-        """Return the auth and content headers for a request."""
-        return {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
+        """Return the auth and content headers for a request.
+
+        A blank key means *no* ``Authorization`` header rather than an empty
+        bearer token. ``"Bearer "`` is not a legal header value, so httpx
+        rejects it before the request leaves the device, and the failure
+        arrives looking like an unreachable provider — on the one call that is
+        meant to work without a key: OpenRouter's catalogue.
+        """
+        headers = {"Content-Type": "application/json"}
+        key = api_key.strip()
+        if key:
+            headers["Authorization"] = f"Bearer {key}"
+        return headers
 
     def models_call(self, api_key: str) -> HttpCall:
         """Return the request that lists models.
@@ -464,9 +472,15 @@ class GeminiAdapter(ProviderAdapter):
         """Return the auth and content headers.
 
         The key travels in a header rather than the query string that Google's
-        examples use: a URL ends up in far more logs than a header does.
+        examples use: a URL ends up in far more logs than a header does. A
+        blank key is left out entirely, so the request fails as an
+        unauthenticated one rather than inside the HTTP client.
         """
-        return {"x-goog-api-key": api_key, "Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json"}
+        key = api_key.strip()
+        if key:
+            headers["x-goog-api-key"] = key
+        return headers
 
     def models_call(self, api_key: str) -> HttpCall:
         """Return the request that lists models.

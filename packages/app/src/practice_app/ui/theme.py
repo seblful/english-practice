@@ -61,7 +61,17 @@ def build_theme() -> ft.Theme:
         appbar_theme=ft.AppBarTheme(
             center_title=False,
             elevation=0,
-            title_text_style=ft.TextStyle(size=22, weight=ft.FontWeight.W_600),
+            color=ft.Colors.ON_SURFACE,
+            # The colour has to be named in the style itself. Flutter only
+            # tints its *default* title style with the app bar's foreground
+            # colour, so supplying a style replaces that default wholesale and
+            # a style without a colour leaves the title unpainted — which on a
+            # light app bar came out white on white.
+            title_text_style=ft.TextStyle(
+                size=22,
+                weight=ft.FontWeight.W_600,
+                color=ft.Colors.ON_SURFACE,
+            ),
         ),
         card_theme=ft.CardTheme(
             elevation=0,

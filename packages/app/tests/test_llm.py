@@ -74,6 +74,27 @@ class TestOpenRouterRequests:
         assert call.headers["Authorization"] == "Bearer key"
         assert call.headers["X-Title"]
 
+    @pytest.mark.parametrize("blank", ["", "   ", "\n", "\t "])
+    def test_a_blank_key_sends_no_authorization_at_all(
+        self, config: AppConfig, blank: str
+    ) -> None:
+        """The catalogue is the one call meant to work without a key.
+
+        ``Bearer `` with nothing after it is not a legal header value, so httpx
+        used to reject the request before it left the device — reported as the
+        provider being unreachable.
+        """
+        call = OpenRouterAdapter().models_call(blank)
+
+        assert "Authorization" not in call.headers
+        assert call.headers["X-Title"]
+
+    def test_a_padded_key_is_sent_stripped(self, config: AppConfig) -> None:
+        """A key pasted with a stray newline is still a legal header value."""
+        call = OpenRouterAdapter().models_call("  key\n")
+
+        assert call.headers["Authorization"] == "Bearer key"
+
     def test_the_chat_call_attaches_the_image(self, config: AppConfig) -> None:
         call = OpenRouterAdapter().chat_call(
             _config(config, Provider.OPENROUTER), "grade this", WEBP_BYTES
@@ -173,6 +194,13 @@ class TestGeminiRequests:
         assert call.headers["x-goog-api-key"] == "key"
         assert "key" not in call.url
 
+    @pytest.mark.parametrize("blank", ["", "  "])
+    def test_a_blank_key_is_left_out(self, config: AppConfig, blank: str) -> None:
+        """Failing as an unauthenticated call beats failing inside httpx."""
+        call = GeminiAdapter().models_call(blank)
+
+        assert "x-goog-api-key" not in call.headers
+
     def test_the_chat_call_uses_inline_data(self, config: AppConfig) -> None:
         call = GeminiAdapter().chat_call(
             _config(config, Provider.GEMINI, model="gemini-2.5-flash"),
@@ -204,6 +232,18 @@ class TestGeminiRequests:
         generation = call.body["generationConfig"]
         assert generation["thinkingConfig"] == {"thinkingBudget": 8192}
         assert generation["maxOutputTokens"] > config.max_tokens
+
+
+class TestBlankKeyHeaders:
+    """No adapter may build a header whose value is a bare auth scheme."""
+
+    @pytest.mark.parametrize("provider", list(Provider))
+    def test_no_header_value_is_empty_or_padded(self, provider: Provider) -> None:
+        call = adapter_for(provider).models_call("")
+
+        for name, value in call.headers.items():
+            assert value == value.strip(), name
+            assert value, name
 
 
 class TestParseModels:

@@ -39,6 +39,7 @@ __all__ = [
     "sheet",
     "show_snack",
     "stat_tile",
+    "switch_row",
 ]
 
 
@@ -165,6 +166,36 @@ def field_label(text: str) -> ft.Text:
         The control.
     """
     return ft.Text(text, size=13, weight=ft.FontWeight.W_600)
+
+
+def switch_row(
+    label: str,
+    *,
+    value: bool,
+    on_change: ClickHandler,
+) -> ft.Row:
+    """Return a switch whose label wraps instead of running off the panel.
+
+    ``ft.Switch``'s own ``label`` shares one unwrapped row with the track, so
+    a sentence-length label is clipped at the panel's edge on a phone. Keeping
+    the text as a sibling lets it take a second line.
+
+    Args:
+        label: The sentence beside the switch.
+        value: Whether the switch is on.
+        on_change: Called with the switch's change event.
+
+    Returns:
+        The control.
+    """
+    return ft.Row(
+        controls=[
+            ft.Switch(value=value, on_change=on_change),
+            ft.Text(label, expand=True),
+        ],
+        spacing=GAP_SMALL,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+    )
 
 
 def stat_tile(

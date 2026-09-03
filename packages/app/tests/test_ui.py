@@ -40,11 +40,12 @@ from practice_app.ui.components import (
     sheet,
     show_snack,
     stat_tile,
+    switch_row,
 )
 from practice_app.ui.home_view import MIXED_LESSON_LABEL, HomeState, HomeView
 from practice_app.ui.model_picker import MAX_RESULTS, ModelPicker, visible_models
 from practice_app.ui.practice_view import PracticeScreen
-from practice_app.ui.settings_view import SettingsScreen
+from practice_app.ui.settings_view import _SEGMENT_LABEL_SIZE, SettingsScreen
 from practice_app.ui.stats_view import StatsScreen
 from practice_app.ui.theme import build_theme, theme_mode
 from tests.conftest import FakePage, reply_transport
@@ -97,6 +98,19 @@ class TestTheme:
 
         assert theme.use_material3 is True
         assert theme.color_scheme_seed
+
+    def test_the_app_bar_title_is_painted(self) -> None:
+        """Flutter drops its default title colour once a style is supplied.
+
+        Without a colour named here the title rendered white on a white app
+        bar on the phone.
+        """
+        appbar_theme = build_theme().appbar_theme
+
+        assert appbar_theme is not None
+        assert appbar_theme.title_text_style is not None
+        assert appbar_theme.title_text_style.color
+        assert appbar_theme.color
 
     @pytest.mark.parametrize(
         ("choice", "expected"),
@@ -318,6 +332,36 @@ async def _answer(screen: PracticeScreen, typed: str = "is doing") -> None:
     """
     screen._answer.value = typed
     await screen._on_check()
+
+
+class TestSwitchRow:
+    """A sentence-length label must wrap, not run off the panel's edge."""
+
+    def test_the_label_is_a_sibling_free_to_wrap(self) -> None:
+        async def handler(_: object) -> None:
+            """Stand in for the screen's handler."""
+
+        row = switch_row(
+            "Show the grammar rule after each answer", value=True, on_change=handler
+        )
+
+        switch, label = row.controls
+        assert isinstance(switch, ft.Switch)
+        assert switch.label is None
+        assert isinstance(label, ft.Text)
+        assert label.expand
+        assert "grammar rule" in rendered(row)
+
+    def test_the_switch_carries_the_value_and_handler(self) -> None:
+        async def handler(_: object) -> None:
+            """Stand in for the screen's handler."""
+
+        row = switch_row("On or off", value=False, on_change=handler)
+        switch = row.controls[0]
+
+        assert isinstance(switch, ft.Switch)
+        assert switch.value is False
+        assert switch.on_change is handler
 
 
 class TestHomeView:
@@ -1144,6 +1188,26 @@ class TestSettingsScreen:
         body = rendered(screen)
         for section in ("PROVIDER", "MODEL", "REASONING", "PROXY", "PRACTICE"):
             assert section in body
+
+    async def test_every_provider_segment_label_is_sized_to_fit(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """At 360dp the default size wrapped "OpenRouter" mid-word."""
+        screen = SettingsScreen(page, services)
+        await screen.refresh()
+
+        values = {known.value for known in Provider}
+        chooser = next(
+            button
+            for button in _all(screen, ft.SegmentedButton)
+            if {segment.value for segment in button.segments} == values
+        )
+
+        labels = [segment.label for segment in chooser.segments]
+        assert len(labels) == len(Provider)
+        for label in labels:
+            assert isinstance(label, ft.Text)
+            assert label.size == _SEGMENT_LABEL_SIZE
 
     async def test_the_about_section_counts_the_book(
         self, page: FakePage, services: Services

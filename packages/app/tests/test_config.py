@@ -91,6 +91,17 @@ class TestProviderConfigFromDict:
 
         assert stored.thinking is ThinkingLevel.OFF
 
+    def test_a_stored_key_is_stripped(self) -> None:
+        """A key with a stray newline would build an illegal header value."""
+        stored = ProviderConfig.from_dict({"api_key": " sk-x\n"}, default_model="m")
+
+        assert stored.api_key == "sk-x"
+
+    def test_a_whitespace_only_key_reads_as_unset(self) -> None:
+        stored = ProviderConfig.from_dict({"api_key": "   "}, default_model="m")
+
+        assert stored.api_key == ""
+
     def test_a_blank_model_falls_back_to_the_default(self) -> None:
         stored = ProviderConfig.from_dict({"model": "  "}, default_model="m")
 

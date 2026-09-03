@@ -184,7 +184,9 @@ class ProviderConfig:
             thinking = ThinkingLevel.OFF
 
         return cls(
-            api_key=_as_str(data.get("api_key")),
+            # Stripped here too: a key pasted with a stray newline would
+            # otherwise build an illegal header value.
+            api_key=_as_str(data.get("api_key")).strip(),
             model=_as_str(data.get("model")) or default_model,
             thinking=thinking,
             model_supports_thinking=bool(data.get("model_supports_thinking", False)),

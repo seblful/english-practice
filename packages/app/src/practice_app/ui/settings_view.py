@@ -38,12 +38,16 @@ from practice_app.ui.components import (
     push,
     section_title,
     show_snack,
+    switch_row,
 )
 from practice_app.ui.model_picker import ModelPicker
 from practice_app.ui.page import DialogPage
 from practice_app.ui.theme import GAP, GAP_LARGE, GAP_SMALL, RADIUS_SMALL
 
 __all__ = ["SettingsScreen"]
+
+# Small enough that the longest provider name stays on one line at 360dp.
+_SEGMENT_LABEL_SIZE = 13
 
 _MIN_TOKENS = 256
 _MAX_TOKENS = 32768
@@ -169,7 +173,14 @@ class SettingsScreen(ft.Column):
         return panel(
             ft.SegmentedButton(
                 segments=[
-                    ft.Segment(value=known.value, label=ft.Text(known.label))
+                    # A phone is 360dp wide, which leaves each of the three
+                    # segments about 85dp for its label. "OpenRouter" does not
+                    # fit that at the default size and has no space to break
+                    # at, so it wrapped mid-word.
+                    ft.Segment(
+                        value=known.value,
+                        label=ft.Text(known.label, size=_SEGMENT_LABEL_SIZE),
+                    )
                     for known in Provider
                 ],
                 selected=[provider.value],
@@ -367,8 +378,8 @@ class SettingsScreen(ft.Column):
         """
         proxy = self._config.proxy
         children: list[ft.Control] = [
-            ft.Switch(
-                label="Route provider calls through a proxy",
+            switch_row(
+                "Route provider calls through a proxy",
                 value=proxy.enabled,
                 on_change=self._on_proxy_enabled,
             )
@@ -544,8 +555,8 @@ class SettingsScreen(ft.Column):
         """
         config = self._config
         return panel(
-            ft.Switch(
-                label="Show the grammar rule after each answer",
+            switch_row(
+                "Show the grammar rule after each answer",
                 value=config.show_rules,
                 on_change=self._on_show_rules,
             ),
