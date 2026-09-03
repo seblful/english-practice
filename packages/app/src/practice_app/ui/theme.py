@@ -12,10 +12,13 @@ import flet as ft
 from practice_app.config import ThemeChoice
 
 __all__ = [
+    "ACTION_HEIGHT",
     "GAP",
     "GAP_LARGE",
     "GAP_SMALL",
+    "GAP_TINY",
     "RADIUS",
+    "RADIUS_LARGE",
     "RADIUS_SMALL",
     "SEED",
     "build_theme",
@@ -27,10 +30,18 @@ SEED = "#4582c3"
 
 RADIUS = 20
 RADIUS_SMALL = 12
+# The hero card and the feedback sheet: big enough to read as a surface of its
+# own rather than as another panel in a list.
+RADIUS_LARGE = 28
 
+GAP_TINY = 4
 GAP_SMALL = 8
 GAP = 16
 GAP_LARGE = 24
+
+# The one button a lesson screen is driven by sits under a thumb, so it is
+# sized for one — Material's 48dp minimum with room to spare.
+ACTION_HEIGHT = 52
 
 
 def build_theme() -> ft.Theme:

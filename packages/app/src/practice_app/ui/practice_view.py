@@ -1,12 +1,18 @@
-"""The practice screen: draw an exercise, answer it, see how you did.
+"""The practice screen: a lesson, one question at a time.
 
-This is the bot's flow with the chat taken out. There is no transcript and no
-follow-up conversation: one question is on screen, it gets one answer, and the
-book's answer and rule follow. Everything the user needs is therefore visible
-at once rather than scrolled back to.
+The shape here is a studying app's rather than a conversation's. A lesson is a
+fixed run of questions: a bar across the top says how far along it is, the
+question owns the middle of the screen, the action sits under the thumb, and
+the verdict arrives as a sheet over the bottom.
+
+That last part is the point. Nothing accumulates: the question the user just
+answered stays exactly where it was, with their own words still in the field
+beside the book's, instead of scrolling away above a growing transcript of
+panels. What is on screen is the question being worked on, and that is all.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import flet as ft
 from practice_core.errors import ContentError, PracticeError
@@ -16,34 +22,57 @@ from practice_core.feedback import (
     to_markdown,
     verdict_phrase,
 )
-from practice_core.models import Topic
 
 from practice_app.services import Services
-from practice_app.session import ActiveExercise, PracticeSession
-from practice_app.stats import Attempt
+from practice_app.session import ActiveExercise, Lesson, PracticeSession
+from practice_app.stats import Attempt, StatsSummary, TopicStat
 from practice_app.ui.components import (
+    action_bar,
     banner,
     hint,
-    panel,
     pill,
     placeholder,
+    primary_action,
+    progress_track,
     push,
+    secondary_action,
+    section_title,
+    sheet,
     show_snack,
+    stat_tile,
 )
+from practice_app.ui.home_view import HomeState, HomeView
 from practice_app.ui.page import DialogPage
-from practice_app.ui.theme import GAP, GAP_LARGE, GAP_SMALL, RADIUS, RADIUS_SMALL
+from practice_app.ui.theme import (
+    GAP,
+    GAP_SMALL,
+    GAP_TINY,
+    RADIUS,
+    RADIUS_SMALL,
+)
 
-__all__ = ["PracticeScreen"]
+if TYPE_CHECKING:  # pragma: no cover - the topics are only ever annotated here
+    from practice_core.models import Topic
 
+__all__ = ["RANDOM_TOPIC_LABEL", "PracticeScreen"]
+
+# What a question drawn from every topic is filed under when the book does not
+# say which topic its unit belongs to.
 RANDOM_TOPIC_LABEL = "Random"
+
+_REVEALED_HEADLINE = "Here is the answer"
 
 _NO_EXERCISES = "No exercises found for this topic. Try another one."
 _EMPTY_ANSWER = "Type your answer first."
 _GRADING_FAILED = "Could not grade that. Here is the book's answer."
 
+# A rule can run to a screenful, and the sheet must not push the question it
+# explains off the top of the screen.
+_RULE_HEIGHT = 160
+
 
 class PracticeScreen(ft.Column):
-    """One exercise at a time, and what happened to the last answer."""
+    """A lesson: a run of questions, one on screen at a time."""
 
     def __init__(
         self,
@@ -51,6 +80,7 @@ class PracticeScreen(ft.Column):
         services: Services,
         *,
         on_open_settings: Callable[[], None] | None = None,
+        on_lesson_change: Callable[[bool], None] | None = None,
     ) -> None:
         """Build the screen.
 
@@ -58,33 +88,41 @@ class PracticeScreen(ft.Column):
             page: The page, for dialogs and snack bars.
             services: The app's dependencies.
             on_open_settings: Switches to the settings tab, used by the "not
-                configured yet" banner.
+                configured yet" notice.
+            on_lesson_change: Told whether a lesson is running, so the shell
+                can get its chrome out of the way of one.
         """
         self._page = page
         self._services = services
-        self._on_open_settings = on_open_settings
+        self._on_lesson_change = on_lesson_change
+        self._home = HomeView(
+            on_start=self._start_from_home, on_open_settings=on_open_settings
+        )
         self._session = PracticeSession()
-        self._busy = False
+        self._summary = StatsSummary()
+        self._topic_stats: dict[str, TopicStat] = {}
         self._topics: tuple[Topic, ...] = ()
+        self._busy = False
+        # Drawn once per verdict rather than once per render, so folding the
+        # rule open does not re-roll the praise.
+        self._verdict = ""
+        self._rule_open = False
 
         self._answer = ft.TextField(
             hint_text="Type your answer",
             multiline=True,
             shift_enter=True,
-            min_lines=1,
-            max_lines=4,
+            min_lines=2,
+            max_lines=5,
             filled=True,
             border_radius=RADIUS_SMALL,
+            border_color=ft.Colors.TRANSPARENT,
             autocorrect=False,
             capitalization=ft.TextCapitalization.NONE,
             on_submit=self._on_check,
         )
 
-        super().__init__(
-            spacing=GAP,
-            scroll=ft.ScrollMode.AUTO,
-            expand=True,
-        )
+        super().__init__(spacing=0, expand=True)
         self.render()
 
     # ------------------------------------------------------------------
@@ -92,114 +130,142 @@ class PracticeScreen(ft.Column):
     # ------------------------------------------------------------------
 
     def render(self) -> None:
-        """Rebuild the screen from the current state."""
-        children: list[ft.Control] = []
+        """Rebuild the screen from the current state.
 
+        There are three states, and which one is showing is read off the
+        session alone: no lesson is the home screen, a lesson with a question
+        is the lesson itself, and a lesson whose question has been put down is
+        the result.
+        """
+        lesson = self._session.lesson
+        if lesson is None:
+            self.controls = [self._scroller(*self._home.build(self._home_state()))]
+        elif lesson.active is None:
+            self.controls = [
+                self._scroller(*self._result_panels(lesson)),
+                self._result_actions(lesson),
+            ]
+        else:
+            self.controls = [
+                self._lesson_bar(lesson),
+                self._scroller(*self._question_panels(lesson.active)),
+                self._lesson_foot(lesson, lesson.active),
+            ]
+
+    def _scroller(self, *controls: ft.Control) -> ft.Control:
+        """Return the part of the screen between the bar and the buttons.
+
+        Args:
+            *controls: What goes in it, top to bottom.
+
+        Returns:
+            The scrolling body. The side padding is here rather than on the
+            shell so that a bar or a sheet can still run edge to edge.
+        """
+        return ft.Container(
+            content=ft.Column(
+                controls=list(controls),
+                spacing=GAP,
+                scroll=ft.ScrollMode.AUTO,
+                expand=True,
+            ),
+            padding=ft.Padding.symmetric(horizontal=GAP),
+            expand=True,
+        )
+
+    # ------------------------------------------------------------------
+    # Home
+    # ------------------------------------------------------------------
+
+    def _home_state(self) -> HomeState:
+        """Return what the home screen should draw itself from.
+
+        Returns:
+            The figures, the topics and the topic just practised, plus the
+            first thing stopping the app from grading if there is one.
+        """
         problems = self._services.config.missing()
-        if problems:
-            children.append(self._setup_banner(problems[0]))
+        return HomeState(
+            summary=self._summary,
+            topics=self._topics,
+            topic_stats=self._topic_stats,
+            problem=problems[0] if problems else None,
+            last_topic_id=self._session.last_topic_id,
+            last_topic_name=self._session.last_topic_name,
+        )
 
-        active = self._session.active
-        if active is None:
-            children.append(self._start_panel())
-        else:
-            children.extend(self._exercise_panels(active))
+    def _start_from_home(self, topic_id: int | None, topic_name: str) -> None:
+        """Start a lesson from a tap on the home screen.
 
-        self.controls = children
-
-    def _setup_banner(self, problem: str) -> ft.Control:
-        """Return the notice shown while the app cannot grade yet.
+        The home screen's buttons cannot await, so the run is scheduled.
 
         Args:
-            problem: The first thing that is missing.
+            topic_id: The topic to draw from, or ``None`` for a mixed run.
+            topic_name: What to call the run on screen.
+        """
+        self._page.run_task(self.start_lesson, topic_id, topic_name)
+
+    # ------------------------------------------------------------------
+    # The lesson
+    # ------------------------------------------------------------------
+
+    def _lesson_bar(self, lesson: Lesson) -> ft.Control:
+        """Return the progress bar across the top of a lesson.
+
+        Args:
+            lesson: The run in progress.
 
         Returns:
-            The banner, with a shortcut to the settings tab.
+            The way out, how far along the run is, and where in it the user is.
         """
-        actions: list[ft.Control] = []
-        open_settings = self._on_open_settings
-        if open_settings is not None:
-            actions.append(
-                ft.FilledButton(
-                    content="Open settings",
-                    icon=ft.Icons.SETTINGS_ROUNDED,
-                    on_click=lambda _: open_settings(),
-                )
-            )
-        return banner(
-            f"{problem}. You can still draw exercises and reveal answers.",
-            icon=ft.Icons.WARNING_AMBER_ROUNDED,
-            color=ft.Colors.ON_TERTIARY_CONTAINER,
-            bgcolor=ft.Colors.TERTIARY_CONTAINER,
-            actions=actions,
+        return ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.IconButton(
+                        icon=ft.Icons.CLOSE_ROUNDED,
+                        icon_size=22,
+                        tooltip="Leave the lesson",
+                        on_click=self._on_quit,
+                    ),
+                    progress_track(lesson.progress),
+                    ft.Text(
+                        f"{lesson.position}/{lesson.length}",
+                        size=12,
+                        weight=ft.FontWeight.W_700,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
+                    ),
+                ],
+                spacing=GAP_SMALL,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.only(
+                left=GAP_TINY, right=GAP, top=GAP_TINY, bottom=GAP_TINY
+            ),
         )
 
-    def _start_panel(self) -> ft.Control:
-        """Return the block that starts a practice run.
-
-        Returns:
-            The placeholder with one button per way to pick a topic.
-        """
-        actions: list[ft.Control] = [
-            ft.FilledButton(
-                content="Random exercise",
-                icon=ft.Icons.CASINO_ROUNDED,
-                on_click=self._on_random,
-            ),
-            ft.OutlinedButton(
-                content="Choose a topic",
-                icon=ft.Icons.CATEGORY_ROUNDED,
-                on_click=self._on_choose_topic,
-            ),
-        ]
-        if self._session.has_previous_topic:
-            actions.append(
-                ft.TextButton(
-                    content=f"Again: {self._session.last_topic_name}",
-                    icon=ft.Icons.REFRESH_ROUNDED,
-                    on_click=self._on_same_topic,
-                )
-            )
-
-        return placeholder(
-            icon=ft.Icons.SCHOOL_ROUNDED,
-            title="Ready to practise?",
-            message=(
-                "Pick a topic and I will draw an exercise from Murphy's "
-                "English Grammar in Use."
-            ),
-            actions=actions,
-        )
-
-    def _exercise_panels(self, active: ActiveExercise) -> list[ft.Control]:
-        """Return everything shown while an exercise is open.
+    def _question_panels(self, active: ActiveExercise) -> list[ft.Control]:
+        """Return the question itself.
 
         Args:
             active: The exercise in front of the user.
 
         Returns:
-            The controls, top to bottom.
+            Where it came from, what to do with it, the picture, and the field.
         """
-        children: list[ft.Control] = [
-            self._header(active),
+        return [
+            self._meta(active),
             self._image_card(active),
+            self._answer_panel(active),
         ]
 
-        if active.is_revealed:
-            children.extend(self._result_panels(active))
-        else:
-            children.extend([self._answer, self._answer_actions()])
-
-        return children
-
-    def _header(self, active: ActiveExercise) -> ft.Control:
-        """Return the topic, unit and question line above the exercise.
+    def _meta(self, active: ActiveExercise) -> ft.Control:
+        """Return the block above the picture that places the question.
 
         Args:
             active: The exercise in front of the user.
 
         Returns:
-            The header.
+            The topic, the unit, the question number and the instruction.
         """
         return ft.Column(
             controls=[
@@ -225,7 +291,7 @@ class PracticeScreen(ft.Column):
                 ),
                 ft.Text(
                     f"Question {active.question.question_id}",
-                    size=24,
+                    size=22,
                     weight=ft.FontWeight.W_700,
                 ),
                 hint(
@@ -287,158 +353,269 @@ class PracticeScreen(ft.Column):
             tooltip="Tap to zoom",
         )
 
-    def _answer_actions(self) -> ft.Control:
-        """Return the buttons under the answer field.
+    def _answer_panel(self, active: ActiveExercise) -> ft.Control:
+        """Return the answer field, labelled, and locked once it is answered.
+
+        The field is never cleared or hidden by the verdict: reading your own
+        words next to the book's is most of what makes a correction land.
+
+        Args:
+            active: The exercise in front of the user.
 
         Returns:
-            A progress row while grading, the buttons otherwise.
+            The label and the field.
         """
+        answered = active.is_revealed
+        self._answer.read_only = answered
+        self._answer.fill_color = ft.Colors.SURFACE_CONTAINER_HIGH if answered else None
+        return ft.Column(
+            controls=[section_title("Your answer"), self._answer],
+            spacing=GAP_SMALL,
+            tight=True,
+        )
+
+    def _lesson_foot(self, lesson: Lesson, active: ActiveExercise) -> ft.Control:
+        """Return whatever is pinned under the question.
+
+        Args:
+            lesson: The run in progress.
+            active: The exercise in front of the user.
+
+        Returns:
+            The verdict sheet once the question has been answered, and the
+            buttons that answer it before then.
+        """
+        if active.is_revealed:
+            return self._feedback(lesson, active)
         if self._busy:
-            return ft.Row(
+            return action_bar(
+                ft.ProgressRing(width=18, height=18, stroke_width=2),
+                hint("Checking your answer..."),
+            )
+        return action_bar(
+            secondary_action(
+                "Reveal",
+                icon=ft.Icons.VISIBILITY_ROUNDED,
+                tooltip="Show the book's answer without grading",
+                on_click=self._on_reveal,
+            ),
+            primary_action(
+                "Check",
+                icon=ft.Icons.TASK_ALT_ROUNDED,
+                on_click=self._on_check,
+            ),
+        )
+
+    def _feedback(self, lesson: Lesson, active: ActiveExercise) -> ft.Control:
+        """Return the sheet that says how the answer went.
+
+        Args:
+            lesson: The run in progress.
+            active: The exercise that was just answered.
+
+        Returns:
+            The verdict, the book's answer, the rule behind it on request, and
+            the one button that moves on.
+        """
+        evaluation = active.evaluation
+        if evaluation is None:
+            tint = ft.Colors.TERTIARY_CONTAINER
+            on_tint = ft.Colors.ON_TERTIARY_CONTAINER
+            icon = ft.Icons.LIGHTBULB_OUTLINE_ROUNDED
+        elif evaluation.is_correct:
+            tint = ft.Colors.PRIMARY_CONTAINER
+            on_tint = ft.Colors.ON_PRIMARY_CONTAINER
+            icon = ft.Icons.CHECK_CIRCLE_ROUNDED
+        else:
+            tint = ft.Colors.ERROR_CONTAINER
+            on_tint = ft.Colors.ON_ERROR_CONTAINER
+            icon = ft.Icons.CANCEL_ROUNDED
+
+        return sheet(
+            ft.Row(
                 controls=[
-                    ft.ProgressRing(width=18, height=18, stroke_width=2),
-                    hint("Grading your answer..."),
+                    ft.Icon(icon, color=on_tint, size=22),
+                    ft.Text(
+                        self._verdict,
+                        size=18,
+                        weight=ft.FontWeight.W_700,
+                        color=on_tint,
+                        expand=True,
+                    ),
                 ],
                 spacing=GAP_SMALL + 2,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            )
-
-        return ft.Row(
-            controls=[
-                ft.FilledButton(
-                    content="Check answer",
-                    icon=ft.Icons.TASK_ALT_ROUNDED,
-                    on_click=self._on_check,
-                    expand=True,
-                ),
-                ft.OutlinedButton(
-                    content="Reveal",
-                    icon=ft.Icons.VISIBILITY_ROUNDED,
-                    tooltip="Show the book's answer without grading",
-                    on_click=self._on_reveal,
-                ),
-            ],
-            spacing=GAP_SMALL,
+            ),
+            self._answer_note(active),
+            ft.Row(
+                controls=[
+                    primary_action(
+                        "See your result" if lesson.is_complete else "Continue",
+                        icon=ft.Icons.ARROW_FORWARD_ROUNDED,
+                        on_click=self._on_continue,
+                        bgcolor=on_tint,
+                        color=tint,
+                    )
+                ]
+            ),
+            bgcolor=tint,
         )
 
-    def _result_panels(self, active: ActiveExercise) -> list[ft.Control]:
-        """Return the verdict, the answers, the rule and what to do next.
+    def _answer_note(self, active: ActiveExercise) -> ft.Control:
+        """Return the book's answer, on its own surface inside the sheet.
+
+        A neutral card keeps the book's markdown readable whatever colour the
+        verdict has painted around it. A correct answer gets the short form
+        only: it is confirmation, and confirmation should be quick to dismiss.
 
         Args:
             active: The exercise that was just answered.
 
         Returns:
-            The controls, top to bottom.
+            The card.
         """
+        correct = active.evaluation is not None and active.evaluation.is_correct
+        answers = active.revealed_answers
         children: list[ft.Control] = []
 
-        evaluation = active.evaluation
-        if evaluation is not None:
-            correct = evaluation.is_correct
-            children.append(
-                banner(
-                    verdict_phrase(correct),
-                    icon=(
-                        ft.Icons.CHECK_CIRCLE_ROUNDED
-                        if correct
-                        else ft.Icons.CANCEL_ROUNDED
-                    ),
-                    color=(
-                        ft.Colors.ON_PRIMARY_CONTAINER
-                        if correct
-                        else ft.Colors.ON_ERROR_CONTAINER
-                    ),
-                    bgcolor=(
-                        ft.Colors.PRIMARY_CONTAINER
-                        if correct
-                        else ft.Colors.ERROR_CONTAINER
-                    ),
-                )
-            )
-
-        typed = (self._answer.value or "").strip()
-        if typed:
-            children.append(panel(ft.Text(typed, selectable=True), title="Your answer"))
-
-        answers = active.revealed_answers
         if answers:
             children.append(
-                panel(
-                    ft.Markdown(
-                        to_markdown(short_answer_text(answers)),
-                        selectable=True,
-                    ),
-                    title="Correct answer",
-                    bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH,
+                ft.Text(
+                    short_answer_text(answers),
+                    size=16,
+                    weight=ft.FontWeight.W_700,
+                    selectable=True,
                 )
             )
-            children.append(
-                panel(
-                    # A markdown renderer reads a single newline as a soft
-                    # wrap, so two answers need a blank line between them.
+            if not correct:
+                # A markdown renderer reads a single newline as a soft wrap,
+                # so two answers need a blank line between them.
+                children.append(
                     ft.Markdown(
                         full_answer_text(answers, separator="\n\n"),
                         selectable=True,
-                    ),
-                    title="Full answer",
+                    )
                 )
-            )
-        elif active.question.is_open_ended:
+        else:
             children.append(
-                panel(
-                    hint("This question is open-ended, so the book prints no answer."),
-                    title="Correct answer",
-                )
+                hint("This question is open-ended, so the book prints no answer.")
             )
 
-        rule = active.question.rule
-        if self._services.config.show_rules and rule:
-            children.append(
-                panel(
-                    ft.Markdown(to_markdown(rule), selectable=True),
-                    title=f"Rule {active.unit_reference}",
-                    bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-                )
-            )
-
-        children.append(self._next_actions())
-        return children
-
-    def _next_actions(self) -> ft.Control:
-        """Return the buttons that start the next exercise.
-
-        Returns:
-            The row of buttons.
-        """
-        buttons: list[ft.Control] = [
-            ft.FilledButton(
-                content="Next exercise",
-                icon=ft.Icons.SKIP_NEXT_ROUNDED,
-                on_click=self._on_next,
-                expand=True,
-            )
-        ]
-        if self._session.has_previous_topic:
-            buttons.append(
-                ft.OutlinedButton(
-                    content="Random",
-                    icon=ft.Icons.CASINO_ROUNDED,
-                    on_click=self._on_random,
-                )
-            )
-        buttons.append(
-            ft.OutlinedButton(
-                content="Topics",
-                icon=ft.Icons.CATEGORY_ROUNDED,
-                on_click=self._on_choose_topic,
-            )
-        )
+        children.extend(self._rule_controls(active))
 
         return ft.Container(
-            content=ft.Row(
-                controls=buttons, spacing=GAP_SMALL, wrap=True, run_spacing=GAP_SMALL
+            content=ft.Column(controls=children, spacing=GAP_SMALL, tight=True),
+            padding=GAP_SMALL + 4,
+            bgcolor=ft.Colors.SURFACE,
+            border_radius=RADIUS_SMALL,
+        )
+
+    def _rule_controls(self, active: ActiveExercise) -> list[ft.Control]:
+        """Return the rule behind the answer, folded away until it is asked for.
+
+        Args:
+            active: The exercise that was just answered.
+
+        Returns:
+            Nothing when there is no rule or the user has turned rules off; the
+            toggle, and the rule under it when it is open, otherwise.
+        """
+        rule = active.question.rule
+        if not (self._services.config.show_rules and rule):
+            return []
+
+        toggle = ft.TextButton(
+            content=f"Rule {active.unit_reference}",
+            icon=(
+                ft.Icons.EXPAND_LESS_ROUNDED
+                if self._rule_open
+                else ft.Icons.EXPAND_MORE_ROUNDED
             ),
-            padding=ft.Padding.only(bottom=GAP_LARGE),
+            on_click=self._on_toggle_rule,
+        )
+        if not self._rule_open:
+            return [toggle]
+
+        return [
+            toggle,
+            ft.Container(
+                content=ft.Column(
+                    controls=[ft.Markdown(to_markdown(rule), selectable=True)],
+                    scroll=ft.ScrollMode.AUTO,
+                    tight=True,
+                ),
+                height=_RULE_HEIGHT,
+            ),
+        ]
+
+    # ------------------------------------------------------------------
+    # The result
+    # ------------------------------------------------------------------
+
+    def _result_panels(self, lesson: Lesson) -> list[ft.Control]:
+        """Return the screen shown when a lesson is over.
+
+        Args:
+            lesson: The run that just finished.
+
+        Returns:
+            How it went, in one line and in three figures.
+        """
+        percent = round(lesson.accuracy * 100)
+        return [
+            placeholder(
+                icon=ft.Icons.EMOJI_EVENTS_ROUNDED,
+                title="Lesson complete",
+                message=(
+                    f"{lesson.correct} of {lesson.answered} correct "
+                    f"in {lesson.topic_name}."
+                ),
+            ),
+            ft.Row(
+                controls=[
+                    stat_tile(
+                        f"{percent}%",
+                        "this lesson",
+                        ft.Icons.TASK_ALT_ROUNDED,
+                    ),
+                    stat_tile(
+                        str(lesson.correct),
+                        "correct",
+                        ft.Icons.CHECK_CIRCLE_ROUNDED,
+                    ),
+                    stat_tile(
+                        str(lesson.answered - lesson.correct),
+                        "to revisit",
+                        ft.Icons.REPLAY_ROUNDED,
+                        color=ft.Colors.TERTIARY,
+                    ),
+                ],
+                spacing=GAP_SMALL,
+            ),
+        ]
+
+    def _result_actions(self, lesson: Lesson) -> ft.Control:
+        """Return the buttons under a finished lesson.
+
+        Args:
+            lesson: The run that just finished.
+
+        Returns:
+            The bar: another run of the same, or back to the home screen.
+        """
+        return action_bar(
+            secondary_action(
+                "Done",
+                icon=ft.Icons.HOME_ROUNDED,
+                on_click=self._on_done,
+            ),
+            primary_action(
+                "Practise again",
+                icon=ft.Icons.REPLAY_ROUNDED,
+                on_click=lambda _: self._page.run_task(
+                    self.start_lesson, lesson.topic_id, lesson.topic_name
+                ),
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -494,121 +671,65 @@ class PracticeScreen(ft.Column):
             )
         )
 
-    def _topic_dialog(self, topics: Sequence[Topic]) -> ft.AlertDialog:
-        """Build the topic chooser.
-
-        Args:
-            topics: The topics to offer.
-
-        Returns:
-            The dialog.
-        """
-        rows: list[ft.Control] = [
-            ft.Container(
-                content=ft.Row(
-                    controls=[
-                        ft.Column(
-                            controls=[
-                                ft.Text(topic.name, weight=ft.FontWeight.W_600),
-                                hint(
-                                    f"{topic.unit_count} "
-                                    f"unit{'' if topic.unit_count == 1 else 's'}"
-                                ),
-                            ],
-                            spacing=2,
-                            tight=True,
-                            expand=True,
-                        ),
-                        ft.Icon(
-                            ft.Icons.CHEVRON_RIGHT_ROUNDED,
-                            color=ft.Colors.ON_SURFACE_VARIANT,
-                            size=20,
-                        ),
-                    ],
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+    def _on_quit(self) -> None:
+        """Ask before walking out of a lesson part-way through."""
+        self._page.show_dialog(
+            ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Leave this lesson?"),
+                content=ft.Text(
+                    "The questions you have already answered are kept, but the "
+                    "rest of the run is dropped."
                 ),
-                padding=ft.Padding.symmetric(horizontal=GAP_SMALL + 4, vertical=10),
-                bgcolor=ft.Colors.SURFACE_CONTAINER_LOW,
-                border_radius=RADIUS_SMALL,
-                ink=True,
-                on_click=lambda _, chosen=topic: self._page.run_task(
-                    self._pick_topic, chosen
-                ),
+                actions=[
+                    ft.TextButton("Stay", on_click=lambda _: self._page.pop_dialog()),
+                    ft.FilledButton(content="Leave", on_click=self._on_leave),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+                shape=ft.RoundedRectangleBorder(radius=RADIUS),
             )
-            for topic in topics
-        ]
-
-        return ft.AlertDialog(
-            title=ft.Text("Choose a topic"),
-            content=ft.Container(
-                width=560,
-                height=460,
-                content=ft.ListView(controls=rows, spacing=GAP_SMALL - 2),
-            ),
-            content_padding=ft.Padding.symmetric(horizontal=GAP, vertical=GAP_SMALL),
-            inset_padding=GAP,
-            actions=[
-                ft.TextButton("Close", on_click=lambda _: self._page.pop_dialog())
-            ],
-            actions_alignment=ft.MainAxisAlignment.END,
-            shape=ft.RoundedRectangleBorder(radius=RADIUS),
         )
 
     # ------------------------------------------------------------------
     # Events
     # ------------------------------------------------------------------
 
-    async def _on_random(self) -> None:
-        """Draw from every topic."""
-        await self.draw(None, RANDOM_TOPIC_LABEL)
-
-    async def _on_same_topic(self) -> None:
-        """Draw from the topic the user last practised."""
-        await self.draw(
-            self._session.last_topic_id,
-            self._session.last_topic_name or RANDOM_TOPIC_LABEL,
-        )
-
-    async def _on_next(self) -> None:
-        """Draw another exercise from wherever the last one came from."""
-        active = self._session.active
-        topic_id = active.topic_id if active else self._session.last_topic_id
-        name = active.topic_name if active else self._session.last_topic_name
-        await self.draw(topic_id, name or RANDOM_TOPIC_LABEL)
-
-    async def _on_choose_topic(self) -> None:
-        """Show the topic list, loading it once."""
-        if not self._topics:
-            try:
-                self._topics = tuple(await self._services.content.list_topics())
-            except ContentError as exc:
-                show_snack(self._page, str(exc), error=True)
-                return
-        self._page.show_dialog(self._topic_dialog(self._topics))
-
-    async def _pick_topic(self, topic: Topic) -> None:
-        """Close the chooser and draw from the chosen topic.
-
-        Args:
-            topic: The topic the user tapped.
-        """
+    async def _on_leave(self) -> None:
+        """Leave the lesson, once the user has confirmed it."""
         self._page.pop_dialog()
-        await self.draw(topic.id, topic.name)
+        await self._end_lesson()
+
+    async def _on_done(self) -> None:
+        """Close a finished lesson."""
+        await self._end_lesson()
+
+    def _on_toggle_rule(self) -> None:
+        """Fold the rule open or shut."""
+        self._rule_open = not self._rule_open
+        self.render()
+        push(self)
 
     async def _on_reveal(self) -> None:
-        """Show the book's answer without asking the model anything."""
-        active = self._session.active
-        if active is None:  # pragma: no cover - the button is not shown
+        """Give up on the question and show the book's answer."""
+        lesson = self._session.lesson
+        if lesson is None or lesson.active is None:  # pragma: no cover - guarded
             return
-        active.ungraded = True
+        lesson.active.ungraded = True
+        # Revealing spends the question but earns nothing: a run of reveals
+        # must not read back as a perfect lesson.
+        lesson.record(correct=False)
+        self._verdict = _REVEALED_HEADLINE
         self.render()
         push(self)
 
     async def _on_check(self) -> None:
         """Grade what the user typed."""
-        active = self._session.active
-        if active is None or self._busy:  # pragma: no cover - guarded by the UI
+        lesson = self._session.lesson
+        if lesson is None or lesson.active is None:  # pragma: no cover - guarded
             return
+        if self._busy:  # pragma: no cover - the button is gone while busy
+            return
+        active = lesson.active
 
         typed = (self._answer.value or "").strip()
         if not typed:
@@ -629,9 +750,13 @@ class PracticeScreen(ft.Column):
             )
         except PracticeError as exc:
             active.ungraded = True
+            self._verdict = _REVEALED_HEADLINE
+            lesson.record(correct=False)
             show_snack(self._page, f"{_GRADING_FAILED} {exc}", error=True)
         else:
             active.evaluation = evaluation
+            self._verdict = verdict_phrase(evaluation.is_correct)
+            lesson.record(correct=evaluation.is_correct)
             await self._services.stats.record(
                 Attempt(
                     topic_name=active.topic_name,
@@ -646,53 +771,136 @@ class PracticeScreen(ft.Column):
             self.render()
             push(self)
 
+    async def _on_continue(self) -> None:
+        """Move past the verdict: on to the next question, or to the result."""
+        lesson = self._session.lesson
+        if lesson is None:  # pragma: no cover - the sheet is not on screen
+            return
+
+        if lesson.is_complete:
+            lesson.active = None
+            await self._reload_stats()
+        else:
+            drawn = await self._draw(lesson.topic_id, lesson.topic_name)
+            if drawn is None:
+                return
+            lesson.active = drawn
+            self._answer.value = ""
+            self._rule_open = False
+
+        self.render()
+        push(self)
+
     # ------------------------------------------------------------------
-    # Drawing an exercise
+    # Running a lesson
     # ------------------------------------------------------------------
 
-    async def draw(self, topic_id: int | None, topic_name: str) -> None:
-        """Draw an exercise and put it on screen.
+    async def start_lesson(self, topic_id: int | None, topic_name: str) -> None:
+        """Draw the first question of a run and hand the screen over to it.
+
+        The question is drawn before the lesson exists, so a topic with nothing
+        in it leaves the user on the home screen with a message rather than
+        inside an empty lesson they have to back out of.
+
+        Args:
+            topic_id: The topic to draw from, or ``None`` for a mixed run.
+            topic_name: What to call the run on screen.
+        """
+        drawn = await self._draw(topic_id, topic_name)
+        if drawn is None:
+            return
+
+        self._answer.value = ""
+        self._rule_open = False
+        lesson = self._session.begin(topic_id, topic_name)
+        lesson.active = drawn
+
+        self._announce()
+        self.render()
+        push(self)
+
+    async def _draw(
+        self, topic_id: int | None, topic_name: str
+    ) -> ActiveExercise | None:
+        """Draw one question, with everything needed to grade and show it.
 
         Args:
             topic_id: The topic to draw from, or ``None`` for any.
             topic_name: What to call it on screen.
+
+        Returns:
+            The question, or ``None`` when there was nothing to draw — in which
+            case the user has already been told why.
         """
         try:
             drawn = await self._services.content.draw_question(topic_id)
         except ContentError as exc:
             show_snack(self._page, str(exc), error=True)
-            return
+            return None
 
         if drawn is None:
             show_snack(self._page, _NO_EXERCISES)
-            return
+            return None
 
         exercise, question, image = drawn
         try:
             answers = await self._services.content.list_answers(question.id)
-        except ContentError as exc:  # pragma: no cover - the draw already read the file
+        except ContentError as exc:  # pragma: no cover - the draw already read it
             show_snack(self._page, str(exc), error=True)
-            return
+            return None
 
-        self._answer.value = ""
-        self._session.start(
-            ActiveExercise(
-                exercise=exercise,
-                question=question,
-                topic_id=topic_id,
-                topic_name=(
-                    topic_name
-                    if topic_id is not None
-                    else exercise.unit.topic_name or RANDOM_TOPIC_LABEL
-                ),
-                image=image,
-                answers=tuple(answers),
-            )
+        return ActiveExercise(
+            exercise=exercise,
+            question=question,
+            topic_id=topic_id,
+            topic_name=(
+                topic_name
+                if topic_id is not None
+                else exercise.unit.topic_name or RANDOM_TOPIC_LABEL
+            ),
+            image=image,
+            answers=tuple(answers),
         )
+
+    async def _end_lesson(self) -> None:
+        """Put the lesson down and go back to the home screen."""
+        self._session.end()
+        await self._reload_stats()
+        self._announce()
         self.render()
         push(self)
 
+    def _announce(self) -> None:
+        """Tell the shell whether a lesson has the screen to itself."""
+        if self._on_lesson_change is not None:
+            self._on_lesson_change(self._session.lesson is not None)
+
+    # ------------------------------------------------------------------
+    # Loading
+    # ------------------------------------------------------------------
+
+    async def load(self) -> None:
+        """Load what the home screen shows: the topics, and today's progress.
+
+        The topics are read once — they ship with the app and cannot change —
+        while the figures are read every time, so the card is current whenever
+        the tab comes back into view.
+        """
+        if not self._topics:
+            try:
+                self._topics = tuple(await self._services.content.list_topics())
+            except ContentError as exc:
+                show_snack(self._page, str(exc), error=True)
+        await self._reload_stats()
+        self.render()
+        push(self)
+
+    async def _reload_stats(self) -> None:
+        """Re-read the progress the home screen reports."""
+        self._summary = await self._services.stats.summary()
+        self._topic_stats = {topic.name: topic for topic in self._summary.topics}
+
     def refresh(self) -> None:
-        """Re-render after a settings change, which may hide the setup banner."""
+        """Re-render after a settings change, which may hide the setup notice."""
         self.render()
         push(self)

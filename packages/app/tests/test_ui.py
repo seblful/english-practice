@@ -9,30 +9,39 @@ They also drive the flow: draw an exercise, answer it, see the verdict recorded.
 """
 
 from dataclasses import replace
+from datetime import date
 from typing import Any
 
 import flet as ft
 import httpx
 import pytest
 from practice_core.content import ContentLibrary
+from practice_core.models import Topic
 
 from practice_app.config import AppConfig, ConfigStore, ProxyConfig, ThemeChoice
 from practice_app.providers import ModelInfo, Provider, ThinkingLevel
 from practice_app.services import Services
-from practice_app.stats import Attempt, StatsStore
+from practice_app.session import Lesson
+from practice_app.stats import Attempt, DayStat, StatsStore, StatsSummary, TopicStat
 from practice_app.ui.app import PRACTICE_TAB, SETTINGS_TAB, STATS_TAB, PracticeApp
 from practice_app.ui.components import (
+    action_bar,
     banner,
     field_label,
     hint,
     panel,
     pill,
     placeholder,
+    primary_action,
+    progress_track,
     push,
+    secondary_action,
     section_title,
+    sheet,
     show_snack,
     stat_tile,
 )
+from practice_app.ui.home_view import MIXED_LESSON_LABEL, HomeState, HomeView
 from practice_app.ui.model_picker import MAX_RESULTS, ModelPicker, visible_models
 from practice_app.ui.practice_view import PracticeScreen
 from practice_app.ui.settings_view import SettingsScreen
@@ -136,6 +145,30 @@ class TestComponents:
         assert "Nothing here" in rendered(built)
         assert "Try this" in rendered(built)
 
+    def test_the_lesson_buttons_are_thumb_sized(self) -> None:
+        check = primary_action("Check", icon=ft.Icons.TASK_ALT_ROUNDED)
+        reveal = secondary_action("Reveal")
+
+        assert check.height == reveal.height
+        assert check.expand is True
+        assert reveal.expand is False
+
+    def test_an_action_bar_carries_its_buttons(self) -> None:
+        bar = action_bar(secondary_action("Reveal"), primary_action("Check"))
+
+        assert "Reveal" in rendered(bar)
+        assert bar.border is not None
+
+    def test_a_sheet_is_rounded_at_the_top_only(self) -> None:
+        raised = sheet(ft.Text("Correct!"), bgcolor=ft.Colors.PRIMARY_CONTAINER)
+
+        assert "Correct!" in rendered(raised)
+        assert isinstance(raised.border_radius, ft.BorderRadius)
+        assert raised.border_radius.bottom_left == 0
+
+    def test_a_progress_track_reports_its_share(self) -> None:
+        assert progress_track(0.4).value == 0.4
+
     def test_the_small_pieces_build(self) -> None:
         assert hint("a").value == "a"
         assert field_label("b").value == "b"
@@ -162,52 +195,21 @@ class TestComponents:
 # ----------------------------------------------------------------------
 
 
-class TestPracticeScreenStart:
-    def test_a_configured_app_starts_with_the_topic_choices(
-        self, page: FakePage, services: Services
-    ) -> None:
-        screen = PracticeScreen(page, services)
-
-        body = rendered(screen)
-        assert "Ready to practise?" in body
-        assert "Random exercise" in body
-        assert "Choose a topic" in body
-
-    def test_an_unconfigured_app_says_what_is_missing(
-        self, page: FakePage, services: Services
-    ) -> None:
-        services.config = AppConfig()
-        opened: list[bool] = []
-        screen = PracticeScreen(
-            page, services, on_open_settings=lambda: opened.append(True)
-        )
-
-        body = rendered(screen)
-        assert "API key is not set" in body
-        assert "Open settings" in body
-
-    def test_the_setup_banner_can_reach_the_settings_tab(
-        self, page: FakePage, services: Services
-    ) -> None:
-        services.config = AppConfig()
-        opened: list[bool] = []
-        screen = PracticeScreen(
-            page, services, on_open_settings=lambda: opened.append(True)
-        )
-
-        banner_control = screen.controls[0]
-        button = _find(banner_control, ft.FilledButton)
-        button.on_click(None)
-
-        assert opened == [True]
-
-    def test_without_a_settings_hook_the_banner_has_no_button(
-        self, page: FakePage, services: Services
-    ) -> None:
-        services.config = AppConfig()
-        screen = PracticeScreen(page, services)
-
-        assert _find_or_none(screen.controls[0], ft.FilledButton) is None
+@pytest.fixture
+def wrong_services(
+    config_store: ConfigStore,
+    content: ContentLibrary,
+    stats: StatsStore,
+    config: AppConfig,
+) -> Services:
+    """Services whose grader marks every answer wrong."""
+    return Services(
+        config_store=config_store,
+        content=content,
+        stats=stats,
+        config=config,
+        transport=reply_transport('{"is_correct": false, "answer_idx": []}'),
+    )
 
 
 def _find(control: Any, kind: type) -> Any:
@@ -267,26 +269,318 @@ def _all(control: Any, kind: type) -> list[Any]:
     return found
 
 
-class TestPracticeScreenFlow:
-    async def test_drawing_puts_an_exercise_on_screen(
+def _button(control: Any, label: str) -> Any:
+    """Return the button whose label starts with ``label``.
+
+    Args:
+        control: Where to look.
+        label: The start of the label, which is enough to tell the buttons of
+            one screen apart.
+
+    Returns:
+        The button.
+
+    Raises:
+        AssertionError: If no button carries that label.
+    """
+    for kind in (ft.FilledButton, ft.OutlinedButton, ft.TextButton, ft.IconButton):
+        for button in _all(control, kind):
+            if label in rendered(button):
+                return button
+    raise AssertionError(f"no button labelled {label!r}")
+
+
+async def _start(screen: PracticeScreen, length: int | None = None) -> Lesson:
+    """Start a lesson on the seeded topic, optionally shortened.
+
+    Args:
+        screen: The screen to drive.
+        length: How many questions the run should hold. A short run is what
+            makes finishing one testable.
+
+    Returns:
+        The lesson now on screen.
+    """
+    await screen.start_lesson(1, "Present Tenses")
+    lesson = screen._session.lesson
+    assert lesson is not None
+    if length is not None:
+        lesson.length = length
+    return lesson
+
+
+async def _answer(screen: PracticeScreen, typed: str = "is doing") -> None:
+    """Type an answer and check it.
+
+    Args:
+        screen: The screen to drive.
+        typed: What the user wrote.
+    """
+    screen._answer.value = typed
+    await screen._on_check()
+
+
+class TestHomeView:
+    """The course list: what it draws, and what a tap on it reports."""
+
+    def _view(self, started: list[tuple[int | None, str]]) -> HomeView:
+        return HomeView(
+            on_start=lambda topic_id, name: started.append((topic_id, name))
+        )
+
+    def test_a_first_visit_offers_a_lesson_and_no_topics(self) -> None:
+        column = ft.Column(controls=self._view([]).build(HomeState()))
+
+        body = rendered(column)
+        assert "First day" in body
+        assert "0/10 today" in body
+        assert "Start a lesson" in body
+        assert "No topics to show" in body
+
+    def test_a_streak_and_a_met_goal_are_reported(self) -> None:
+        state = HomeState(
+            summary=StatsSummary(
+                day_streak=3,
+                recent_days=(DayStat(day=date(2026, 3, 14), attempts=12, correct=9),),
+            )
+        )
+
+        body = rendered(ft.Column(controls=self._view([]).build(state)))
+
+        assert "3 day streak" in body
+        assert "10/10 today" in body
+        assert "Daily goal reached" in body
+
+    def test_a_practised_topic_carries_its_tally(self) -> None:
+        state = HomeState(
+            topics=(Topic(id=1, name="Present Tenses", unit_count=12),),
+            topic_stats={"Present Tenses": TopicStat("Present Tenses", 8, 6)},
+        )
+
+        column = ft.Column(controls=self._view([]).build(state))
+
+        assert "12 units - 6/8" in rendered(column)
+        assert any(bar.value == 0.75 for bar in _all(column, ft.ProgressBar))
+
+    def test_the_lesson_button_asks_for_a_mixed_run(self) -> None:
+        started: list[tuple[int | None, str]] = []
+        column = ft.Column(controls=self._view(started).build(HomeState()))
+
+        _button(column, "Start a lesson").on_click(None)
+
+        assert started == [(None, MIXED_LESSON_LABEL)]
+
+    def test_a_topic_card_asks_for_that_topic(self) -> None:
+        started: list[tuple[int | None, str]] = []
+        state = HomeState(topics=(Topic(id=7, name="Past Tenses", unit_count=1),))
+        column = ft.Column(controls=self._view(started).build(state))
+
+        cards = [item for item in _all(column, ft.Container) if item.on_click]
+        cards[0].on_click(None)
+
+        assert started == [(7, "Past Tenses")]
+
+    def test_the_last_topic_is_offered_again(self) -> None:
+        started: list[tuple[int | None, str]] = []
+        state = HomeState(last_topic_id=1, last_topic_name="Present Tenses")
+        column = ft.Column(controls=self._view(started).build(state))
+
+        _button(column, "Again: Present Tenses").on_click(None)
+
+        assert started == [(1, "Present Tenses")]
+
+    def test_the_setup_notice_reaches_the_settings_tab(self) -> None:
+        opened: list[bool] = []
+        view = HomeView(
+            on_start=lambda _topic_id, _name: None,
+            on_open_settings=lambda: opened.append(True),
+        )
+        column = ft.Column(controls=view.build(HomeState(problem="API key is not set")))
+
+        assert "API key is not set" in rendered(column)
+        _button(column, "Open settings").on_click(None)
+
+        assert opened == [True]
+
+    def test_without_a_settings_hook_the_notice_has_no_button(self) -> None:
+        state = HomeState(problem="API key is not set")
+
+        column = ft.Column(controls=self._view([]).build(state))
+
+        assert "Open settings" not in rendered(column)
+
+
+class TestPracticeHome:
+    async def test_it_opens_on_the_lesson_card_and_the_topics(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
 
-        await screen.draw(1, "Present Tenses")
+        await screen.load()
+
+        body = rendered(screen)
+        assert "Start a lesson" in body
+        assert "PRACTISE A TOPIC" in body
+        assert "Present Tenses" in body
+        assert "1 unit" in body
+
+    async def test_the_day_card_reports_today(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await screen.load()
+        await _start(screen)
+        await _answer(screen)
+
+        await screen._on_done()
+
+        assert "1/10 today" in rendered(screen)
+
+    async def test_a_practised_topic_shows_its_tally(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await screen.load()
+        await _start(screen)
+        await _answer(screen)
+
+        await screen._on_done()
+
+        assert "1 unit - 1/1" in rendered(screen)
+
+    async def test_an_unconfigured_app_says_what_is_missing(
+        self, page: FakePage, services: Services
+    ) -> None:
+        services.config = AppConfig()
+        screen = PracticeScreen(page, services, on_open_settings=lambda: None)
+
+        body = rendered(screen)
+        assert "API key is not set" in body
+        assert "Open settings" in body
+
+    async def test_the_setup_banner_can_reach_the_settings_tab(
+        self, page: FakePage, services: Services
+    ) -> None:
+        services.config = AppConfig()
+        opened: list[bool] = []
+        screen = PracticeScreen(
+            page, services, on_open_settings=lambda: opened.append(True)
+        )
+
+        _button(screen.controls[0], "Open settings").on_click(None)
+
+        assert opened == [True]
+
+    async def test_without_a_settings_hook_the_banner_has_no_button(
+        self, page: FakePage, services: Services
+    ) -> None:
+        services.config = AppConfig()
+        screen = PracticeScreen(page, services)
+
+        assert "Open settings" not in rendered(screen)
+
+    async def test_a_topic_card_starts_a_lesson_on_it(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await screen.load()
+        topics = await services.content.list_topics()
+
+        cards = [item for item in _all(screen, ft.Container) if item.on_click]
+        cards[0].on_click(None)
+        await page.drain()
+
+        lesson = screen._session.lesson
+        assert lesson is not None
+        assert lesson.topic_id == topics[0].id
+        assert lesson.topic_name == topics[0].name
+
+    async def test_the_last_topic_is_offered_again(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        await screen._on_leave()
+
+        assert "Again: Present Tenses" in rendered(screen)
+
+        _button(screen, "Again: Present Tenses").on_click(None)
+        await page.drain()
+
+        lesson = screen._session.lesson
+        assert lesson is not None
+        assert lesson.topic_id == 1
+
+    async def test_a_broken_content_database_is_reported(
+        self,
+        page: FakePage,
+        config_store: ConfigStore,
+        stats: StatsStore,
+        config: AppConfig,
+        tmp_path: Any,
+    ) -> None:
+        """The exercises ship with the app, so this is a reinstall, not a retry."""
+        missing = Services(
+            config_store=config_store,
+            content=ContentLibrary(tmp_path / "absent.db", read_only=True),
+            stats=stats,
+            config=config,
+        )
+        screen = PracticeScreen(page, missing)
+
+        await screen.load()
+        await screen.start_lesson(1, "Present Tenses")
+
+        assert "database is missing" in page.snack_texts()[0]
+        assert "database is missing" in page.snack_texts()[1]
+        assert screen._session.lesson is None
+        assert "No topics to show" in rendered(screen)
+
+    def test_refreshing_redraws(self, page: FakePage, services: Services) -> None:
+        screen = PracticeScreen(page, services)
+        services.config = AppConfig()
+
+        screen.refresh()
+
+        assert "API key is not set" in rendered(screen)
+
+
+class TestLessonFlow:
+    async def test_starting_puts_a_question_on_screen(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+
+        await _start(screen)
 
         body = rendered(screen)
         assert "Present Tenses" in body
         assert "Question 2" in body
         assert "Unit 1" in body
-        assert "Check answer" in body
+        assert "1/10" in body
+        assert "Check" in body
+
+    async def test_a_mixed_lesson_labels_the_topic_it_landed_on(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+
+        _button(screen, "Start a lesson").on_click(None)
+        await page.drain()
+
+        lesson = screen._session.lesson
+        assert lesson is not None
+        assert lesson.topic_id is None
+        assert lesson.topic_name == MIXED_LESSON_LABEL
+        assert lesson.active is not None
+        assert lesson.active.topic_name in {"Present Tenses", "Past Tenses"}
 
     async def test_the_exercise_image_is_shown(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
 
-        await screen.draw(1, "Present Tenses")
+        await _start(screen)
 
         assert _find(screen, ft.Image).src == b"\x89PNG\r\n\x1a\n"
 
@@ -295,80 +589,124 @@ class TestPracticeScreenFlow:
     ) -> None:
         screen = PracticeScreen(page, services)
 
-        await screen.draw(2, "Past Tenses")
+        await screen.start_lesson(2, "Past Tenses")
 
         assert "no picture" in rendered(screen)
 
-    async def test_an_empty_topic_is_reported(
+    async def test_an_empty_topic_leaves_the_user_at_home(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
 
-        await screen.draw(999, "Nothing")
+        await screen.start_lesson(999, "Nothing")
 
         assert "No exercises found" in page.snack_texts()[0]
+        assert screen._session.lesson is None
+        assert "Start a lesson" in rendered(screen)
 
-    async def test_answering_shows_the_verdict_and_the_book_answer(
+    async def test_answering_raises_the_verdict_sheet(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        await screen.draw(1, "Present Tenses")
-        screen._answer.value = "is doing"
+        await _start(screen)
 
-        await screen._on_check()
+        await _answer(screen)
 
         body = rendered(screen)
-        assert "CORRECT ANSWER" in body
         assert "is doing" in body
-        assert "FULL ANSWER" in body
-        assert "Next exercise" in body
+        assert "Continue" in body
+        # The question is still on screen: nothing scrolled away under a reply.
+        assert "Question 2" in body
+
+    async def test_a_correct_answer_keeps_the_sheet_short(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """Confirmation should be quick to dismiss, so the sentence is left out."""
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+
+        await _answer(screen)
+
+        assert "He **is doing** it." not in rendered(screen)
+
+    async def test_a_wrong_answer_shows_the_whole_sentence(
+        self, page: FakePage, wrong_services: Services
+    ) -> None:
+        screen = PracticeScreen(page, wrong_services)
+        await _start(screen)
+
+        await _answer(screen, "did")
+
+        assert "He **is doing** it." in rendered(screen)
+
+    async def test_the_answer_field_keeps_what_was_typed(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+
+        await _answer(screen, "is doing")
+
+        assert screen._answer.value == "is doing"
+        assert screen._answer.read_only is True
 
     async def test_a_graded_answer_is_recorded(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        await screen.draw(1, "Present Tenses")
-        screen._answer.value = "is doing"
+        lesson = await _start(screen)
 
-        await screen._on_check()
+        await _answer(screen)
 
         summary = await services.stats.summary()
         assert summary.total == 1
         assert summary.correct == 1
+        assert lesson.outcomes == [True]
 
-    async def test_the_rule_is_shown_when_enabled(
+    async def test_the_rule_is_folded_away_until_it_is_asked_for(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        await screen.draw(1, "Present Tenses")
-        screen._answer.value = "is doing"
+        await _start(screen)
+        await _answer(screen)
 
-        await screen._on_check()
+        assert "Rule 1A" in rendered(screen)
+        assert "Use present continuous" not in rendered(screen)
+
+        screen._on_toggle_rule()
 
         assert "Use present continuous" in rendered(screen)
 
-    async def test_the_rule_is_hidden_when_disabled(
+    async def test_the_rule_toggle_is_hidden_when_rules_are_off(
         self, page: FakePage, services: Services
     ) -> None:
         services.config = replace(services.config, show_rules=False)
         screen = PracticeScreen(page, services)
-        await screen.draw(1, "Present Tenses")
-        screen._answer.value = "is doing"
+        await _start(screen)
 
-        await screen._on_check()
+        await _answer(screen)
 
-        assert "Use present continuous" not in rendered(screen)
+        assert "Rule 1A" not in rendered(screen)
 
     async def test_an_empty_answer_is_refused(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        await screen.draw(1, "Present Tenses")
-        screen._answer.value = "   "
+        await _start(screen)
 
-        await screen._on_check()
+        await _answer(screen, "   ")
 
         assert "Type your answer first" in page.snack_texts()[0]
+
+    async def test_a_busy_screen_shows_progress(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        screen._busy = True
+        screen.render()
+
+        assert "Checking your answer" in rendered(screen)
 
     async def test_a_failed_grading_still_reveals_the_answer(
         self,
@@ -388,128 +726,74 @@ class TestPracticeScreenFlow:
         )
         broken.client._sleep = _instant
         screen = PracticeScreen(page, broken)
-        await screen.draw(1, "Present Tenses")
-        screen._answer.value = "is doing"
+        lesson = await _start(screen)
 
-        await screen._on_check()
+        await _answer(screen)
 
         assert "Could not grade that" in page.snack_texts()[0]
-        assert "CORRECT ANSWER" in rendered(screen)
-
-    async def test_a_failed_grading_is_not_counted(
-        self,
-        page: FakePage,
-        config_store: ConfigStore,
-        content: ContentLibrary,
-        stats: StatsStore,
-        config: AppConfig,
-    ) -> None:
-        broken = Services(
-            config_store=config_store,
-            content=content,
-            stats=stats,
-            config=config,
-            transport=httpx.MockTransport(lambda _: httpx.Response(401, json={})),
-        )
-        screen = PracticeScreen(page, broken)
-        await screen.draw(1, "Present Tenses")
-        screen._answer.value = "is doing"
-
-        await screen._on_check()
-
+        assert "is doing" in rendered(screen)
+        assert lesson.outcomes == [False]
         assert (await stats.summary()).total == 0
 
-    async def test_revealing_skips_the_model_entirely(
+    async def test_revealing_spends_the_question_but_earns_nothing(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        await screen.draw(1, "Present Tenses")
+        lesson = await _start(screen)
 
         await screen._on_reveal()
 
-        assert "CORRECT ANSWER" in rendered(screen)
+        assert "is doing" in rendered(screen)
+        assert lesson.outcomes == [False]
         assert (await services.stats.summary()).total == 0
 
-    async def test_next_draws_from_the_same_topic(
+    async def test_an_open_question_says_the_book_prints_no_answer(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """Showing a canonical answer to a free-form question would mislead."""
+        screen = PracticeScreen(page, services)
+        await screen.start_lesson(2, "Past Tenses")
+
+        await screen._on_reveal()
+
+        assert "open-ended" in rendered(screen)
+
+    async def test_continuing_draws_the_next_question(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        await screen.draw(1, "Present Tenses")
+        lesson = await _start(screen)
+        await _answer(screen)
 
-        await screen._on_next()
+        await screen._on_continue()
 
-        assert screen._session.active is not None
-        assert screen._session.active.topic_id == 1
+        assert lesson.active is not None
+        assert lesson.active.is_revealed is False
+        assert screen._answer.value == ""
+        assert "2/10" in rendered(screen)
 
-    async def test_random_labels_the_topic_it_landed_on(
+    async def test_a_lesson_that_cannot_draw_on_stays_put(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
+        lesson = await _start(screen)
+        await _answer(screen)
+        lesson.topic_id = 999
 
-        await screen._on_random()
+        await screen._on_continue()
 
-        assert screen._session.active is not None
-        assert screen._session.active.topic_id is None
-        assert screen._session.active.topic_name in {
-            "Present Tenses",
-            "Past Tenses",
-        }
-
-    async def test_the_same_topic_button_appears_after_a_topic_draw(
-        self, page: FakePage, services: Services
-    ) -> None:
-        screen = PracticeScreen(page, services)
-        await screen.draw(1, "Present Tenses")
-        screen._session.clear()
-        screen.render()
-
-        assert "Again: Present Tenses" in rendered(screen)
-
-    async def test_the_same_topic_button_redraws_that_topic(
-        self, page: FakePage, services: Services
-    ) -> None:
-        screen = PracticeScreen(page, services)
-        await screen.draw(1, "Present Tenses")
-
-        await screen._on_same_topic()
-
-        assert screen._session.active is not None
-        assert screen._session.active.topic_id == 1
-
-    async def test_the_topic_chooser_lists_the_topics(
-        self, page: FakePage, services: Services
-    ) -> None:
-        screen = PracticeScreen(page, services)
-
-        await screen._on_choose_topic()
-
-        body = rendered(page.last_dialog)
-        assert "Present Tenses" in body
-        assert "Past Tenses" in body
-        assert "1 unit" in body
-
-    async def test_choosing_a_topic_closes_the_dialog_and_draws(
-        self, page: FakePage, services: Services
-    ) -> None:
-        screen = PracticeScreen(page, services)
-        await screen._on_choose_topic()
-        topics = await services.content.list_topics()
-
-        await screen._pick_topic(topics[1])
-
-        assert page.popped == 1
-        assert screen._session.active is not None
-        assert screen._session.active.topic_name == topics[1].name
+        assert "No exercises found" in page.snack_texts()[0]
+        assert lesson.active is not None
+        assert lesson.active.is_revealed is True
 
     async def test_the_unit_dialog_names_the_unit(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        await screen.draw(1, "Present Tenses")
+        lesson = await _start(screen)
 
-        active = screen._session.active
-        assert active is not None
-        screen._show_unit(active)
+        assert lesson.active is not None
+        screen._show_unit(lesson.active)
 
         assert "Present Continuous" in rendered(page.last_dialog)
 
@@ -517,67 +801,104 @@ class TestPracticeScreenFlow:
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        await screen.draw(1, "Present Tenses")
+        lesson = await _start(screen)
 
-        active = screen._session.active
-        assert active is not None
-        screen._zoom_image(active)
+        assert lesson.active is not None
+        screen._zoom_image(lesson.active)
 
         assert _find(page.last_dialog, ft.InteractiveViewer) is not None
 
-    async def test_a_busy_screen_shows_progress(
+
+class TestLeavingALesson:
+    async def test_the_cross_asks_first(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        await screen.draw(1, "Present Tenses")
-        screen._busy = True
-        screen.render()
+        await _start(screen)
 
-        assert "Grading your answer" in rendered(screen)
+        screen._on_quit()
 
-    async def test_an_open_question_says_the_book_prints_no_answer(
+        assert "Leave this lesson?" in rendered(page.last_dialog)
+        assert screen._session.lesson is not None
+
+    async def test_confirming_goes_back_home(
         self, page: FakePage, services: Services
     ) -> None:
-        """Showing a canonical answer to a free-form question would mislead."""
         screen = PracticeScreen(page, services)
-        await screen.draw(2, "Past Tenses")
+        await _start(screen)
+        screen._on_quit()
 
-        await screen._on_reveal()
+        await screen._on_leave()
+
+        assert page.popped == 1
+        assert screen._session.lesson is None
+        assert "Start a lesson" in rendered(screen)
+
+    async def test_the_shell_is_told_when_a_lesson_owns_the_screen(
+        self, page: FakePage, services: Services
+    ) -> None:
+        seen: list[bool] = []
+        screen = PracticeScreen(page, services, on_lesson_change=seen.append)
+
+        await _start(screen)
+        await screen._on_leave()
+
+        assert seen == [True, False]
+
+
+class TestLessonResult:
+    async def test_the_last_question_offers_the_result(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen, length=1)
+
+        await _answer(screen)
+
+        assert "See your result" in rendered(screen)
+
+    async def test_finishing_shows_the_score(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen, length=1)
+        await _answer(screen)
+
+        await screen._on_continue()
 
         body = rendered(screen)
-        assert "open-ended" in body
-        assert "FULL ANSWER" not in body
+        assert "Lesson complete" in body
+        assert "1 of 1 correct" in body
+        assert "100%" in body
 
-    async def test_a_broken_content_database_is_reported(
-        self,
-        page: FakePage,
-        config_store: ConfigStore,
-        stats: StatsStore,
-        config: AppConfig,
-        tmp_path: Any,
+    async def test_practising_again_starts_another_run(
+        self, page: FakePage, services: Services
     ) -> None:
-        """The exercises ship with the app, so this is a reinstall, not a retry."""
-        missing = Services(
-            config_store=config_store,
-            content=ContentLibrary(tmp_path / "absent.db", read_only=True),
-            stats=stats,
-            config=config,
-        )
-        screen = PracticeScreen(page, missing)
-
-        await screen.draw(1, "Present Tenses")
-        await screen._on_choose_topic()
-
-        assert "database is missing" in page.snack_texts()[0]
-        assert "database is missing" in page.snack_texts()[1]
-
-    def test_refreshing_redraws(self, page: FakePage, services: Services) -> None:
         screen = PracticeScreen(page, services)
-        services.config = AppConfig()
+        await _start(screen, length=1)
+        await _answer(screen)
+        await screen._on_continue()
 
-        screen.refresh()
+        _button(screen.controls[1], "Practise again").on_click(None)
+        await page.drain()
 
-        assert "API key is not set" in rendered(screen)
+        lesson = screen._session.lesson
+        assert lesson is not None
+        assert lesson.answered == 0
+        assert lesson.active is not None
+
+    async def test_done_returns_to_the_home_screen(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen, length=1)
+        await _answer(screen)
+        await screen._on_continue()
+
+        await screen._on_done()
+
+        assert screen._session.lesson is None
+        assert "Start a lesson" in rendered(screen)
 
 
 async def _instant(_: float) -> None:
@@ -1208,14 +1529,10 @@ class TestPracticeApp:
         app = PracticeApp(page, services)
         await app.start()
 
-        for index, screen in (
-            (STATS_TAB, app.stats),
-            (SETTINGS_TAB, app.settings),
-            (PRACTICE_TAB, app.practice),
-        ):
+        for index in (STATS_TAB, SETTINGS_TAB, PRACTICE_TAB):
             await app.select_tab(index)
 
-            assert app._body.content is screen
+            assert app._body.content is app._panes[index]
             assert page.navigation_bar.selected_index == index
 
     async def test_the_tab_title_follows_the_tab(
@@ -1228,18 +1545,34 @@ class TestPracticeApp:
 
         assert page.appbar.title.value == "Progress"
 
-    async def test_switching_tabs_keeps_the_open_exercise(
+    async def test_switching_tabs_keeps_the_open_lesson(
         self, page: FakePage, services: Services
     ) -> None:
-        """Losing a half-answered exercise would be the app's worst bug."""
+        """Losing a half-answered lesson would be the app's worst bug."""
         app = PracticeApp(page, services)
         await app.start()
-        await app.practice.draw(1, "Present Tenses")
+        await app.practice.start_lesson(1, "Present Tenses")
 
         await app.select_tab(STATS_TAB)
         await app.select_tab(PRACTICE_TAB)
 
         assert app.practice._session.active is not None
+
+    async def test_a_lesson_takes_the_chrome_off_the_screen(
+        self, page: FakePage, services: Services
+    ) -> None:
+        app = PracticeApp(page, services)
+        await app.start()
+
+        await app.practice.start_lesson(1, "Present Tenses")
+
+        assert page.appbar.visible is False
+        assert page.navigation_bar.visible is False
+
+        await app.practice._on_leave()
+
+        assert page.appbar.visible is True
+        assert page.navigation_bar.visible is True
 
     async def test_the_navigation_bar_switches_tabs(
         self, page: FakePage, services: Services
@@ -1251,7 +1584,7 @@ class TestPracticeApp:
             _event(ft.NavigationBar(selected_index=SETTINGS_TAB, destinations=[]))
         )
 
-        assert app._body.content is app.settings
+        assert app._body.content is app._panes[SETTINGS_TAB]
 
     async def test_the_theme_button_cycles(
         self, page: FakePage, services: Services
@@ -1290,4 +1623,4 @@ class TestPracticeApp:
         app._open_settings()
         await page.drain()
 
-        assert app._body.content is app.settings
+        assert app._body.content is app._panes[SETTINGS_TAB]

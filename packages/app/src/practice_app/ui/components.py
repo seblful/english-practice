@@ -4,22 +4,39 @@ Each function returns a plain control, so a screen composes them rather than
 inheriting from them, and a test can build one and read its parts.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import flet as ft
 
 from practice_app.ui.page import DialogPage
-from practice_app.ui.theme import GAP, GAP_SMALL, RADIUS, RADIUS_SMALL
+from practice_app.ui.theme import (
+    ACTION_HEIGHT,
+    GAP,
+    GAP_SMALL,
+    RADIUS,
+    RADIUS_LARGE,
+    RADIUS_SMALL,
+)
+
+# Flet accepts a handler that takes the event or one that takes nothing, and
+# both shapes are used here, so the buttons pass one through as it comes.
+ClickHandler = Callable[..., Any]
 
 __all__ = [
+    "action_bar",
     "banner",
     "field_label",
     "hint",
     "panel",
     "pill",
     "placeholder",
+    "primary_action",
+    "progress_track",
     "push",
+    "secondary_action",
     "section_title",
+    "sheet",
     "show_snack",
     "stat_tile",
 ]
@@ -282,6 +299,147 @@ def placeholder(
         ),
         padding=ft.Padding.symmetric(horizontal=GAP, vertical=GAP * 2),
         alignment=ft.Alignment.CENTER,
+    )
+
+
+def primary_action(
+    text: str,
+    *,
+    icon: ft.IconData | None = None,
+    on_click: ClickHandler | None = None,
+    bgcolor: str | None = None,
+    color: str | None = None,
+    expand: bool = True,
+) -> ft.FilledButton:
+    """Return the one big button a screen is driven by.
+
+    Args:
+        text: The label.
+        icon: Optional leading icon.
+        on_click: What tapping it does.
+        bgcolor: Background colour, for a button sitting on a tinted sheet.
+        color: Foreground colour, to match.
+        expand: Whether to fill the row it is in. It must be in a row: in a
+            column the same flag would stretch it down the whole screen.
+
+    Returns:
+        The button, sized for a thumb.
+    """
+    return ft.FilledButton(
+        content=ft.Text(text, size=15, weight=ft.FontWeight.W_700),
+        icon=icon,
+        on_click=on_click,
+        height=ACTION_HEIGHT,
+        bgcolor=bgcolor,
+        color=color,
+        expand=expand,
+        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=RADIUS_SMALL + 2)),
+    )
+
+
+def secondary_action(
+    text: str,
+    *,
+    icon: ft.IconData | None = None,
+    on_click: ClickHandler | None = None,
+    tooltip: str | None = None,
+    expand: bool = False,
+) -> ft.OutlinedButton:
+    """Return the quieter button beside a :func:`primary_action`.
+
+    Args:
+        text: The label.
+        icon: Optional leading icon.
+        on_click: What tapping it does.
+        tooltip: Optional long-press explanation.
+        expand: Whether to fill the row it is in. Off by default, which is
+            what leaves the loud button the wider of the two.
+
+    Returns:
+        The button, the same height as its louder neighbour so the pair reads
+        as one bar rather than as two controls.
+    """
+    return ft.OutlinedButton(
+        content=ft.Text(text, size=15, weight=ft.FontWeight.W_600),
+        icon=icon,
+        on_click=on_click,
+        tooltip=tooltip,
+        height=ACTION_HEIGHT,
+        expand=expand,
+        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=RADIUS_SMALL + 2)),
+    )
+
+
+def progress_track(
+    value: float,
+    *,
+    color: str | None = None,
+    bgcolor: str | None = None,
+    height: int = 10,
+) -> ft.ProgressBar:
+    """Return the rounded bar that says how far along something is.
+
+    Args:
+        value: How much is done, from 0 to 1.
+        color: The filled colour.
+        bgcolor: The empty colour.
+        height: How thick to draw it.
+
+    Returns:
+        The bar, expanded so a row can put a counter beside it.
+    """
+    return ft.ProgressBar(
+        value=value,
+        bar_height=height,
+        border_radius=RADIUS_SMALL,
+        color=color or ft.Colors.PRIMARY,
+        bgcolor=bgcolor or ft.Colors.SURFACE_CONTAINER_HIGHEST,
+        expand=True,
+    )
+
+
+def action_bar(*controls: ft.Control) -> ft.Container:
+    """Return the bar pinned under the body of a screen.
+
+    Args:
+        *controls: What goes in it, left to right.
+
+    Returns:
+        The bar, ruled off from the content it acts on.
+    """
+    return ft.Container(
+        content=ft.Row(
+            controls=list(controls),
+            spacing=GAP_SMALL,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        ),
+        padding=ft.Padding.symmetric(horizontal=GAP, vertical=GAP_SMALL + 4),
+        bgcolor=ft.Colors.SURFACE,
+        border=ft.Border.only(top=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT)),
+    )
+
+
+def sheet(*controls: ft.Control, bgcolor: str) -> ft.Container:
+    """Return the panel that rises over the bottom of the screen.
+
+    This is where a verdict goes. It covers the action bar rather than joining
+    the page's flow, so the question the user just answered stays where it was
+    instead of scrolling away under a growing transcript.
+
+    Args:
+        *controls: What goes in it, top to bottom.
+        bgcolor: The tint that carries the verdict.
+
+    Returns:
+        The sheet.
+    """
+    return ft.Container(
+        content=ft.Column(controls=list(controls), spacing=GAP_SMALL, tight=True),
+        padding=ft.Padding.only(left=GAP, right=GAP, top=GAP, bottom=GAP_SMALL + 4),
+        bgcolor=bgcolor,
+        border_radius=ft.BorderRadius.only(
+            top_left=RADIUS_LARGE, top_right=RADIUS_LARGE
+        ),
     )
 
 

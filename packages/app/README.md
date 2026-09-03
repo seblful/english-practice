@@ -5,35 +5,67 @@ Grammar in Use* (Murphy), grades what you type with a vision LLM, then shows
 the book's answer and the rule behind it — and keeps a record of how you are
 doing.
 
-It is deliberately not a chat. One question is on screen, it takes one answer,
-and there is no transcript to scroll: no message history, and no follow-up
-conversation.
+It is deliberately not a chat. Practice is a **lesson**: ten questions, a bar
+across the top saying how far along you are, and a result at the end. One
+question owns the screen, the verdict arrives as a sheet over the bottom rather
+than as the next entry in a transcript, and nothing accumulates behind you —
+there is no message history to scroll and no follow-up conversation.
 
 ## What it looks like
+
+Between lessons, the course list: the day's card, and the book's topics as the
+runs they lead to.
 
 ```
 Practice                                    ☾
 ┌──────────────────────────────────────────┐
-│ 📚 Present Tenses   📖 Unit 12           │
-│                                          │
-│ Question 3                               │
-│ Type the missing words, or the sentence. │
-│ ┌──────────────────────────────────────┐ │
-│ │        [ exercise image ]        🔍  │ │
-│ └──────────────────────────────────────┘ │
-│ ┌──────────────────────────────────────┐ │
-│ │ is doing                             │ │
-│ └──────────────────────────────────────┘ │
-│ [ ✓ Check answer ]        [ 👁 Reveal ]  │
+│ 🔥 4 day streak              7/10 today  │
+│ Today                                    │
+│ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░  │
+│ A lesson is 10 questions from Murphy's.  │
+│ [         ▶ Start a lesson            ]  │
+└──────────────────────────────────────────┘
+  [ ↻ Again: Present Tenses              ]
+  PRACTISE A TOPIC
+┌──────────────────────────────────────────┐
+│ 📖  Present Tenses                     › │
+│     12 units - 18/24                     │
+│     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░                 │
 └──────────────────────────────────────────┘
       Practice      Progress      Settings
+```
+
+Inside a lesson the shell's chrome steps aside, and the verdict rises over the
+bottom — leaving the question, and what you wrote, exactly where they were.
+
+```
+✕  ▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░    3/10
+──────────────────────────────────────────
+ 📚 Present Tenses   📖 Unit 12
+ Question 3
+ Type the missing words, or the sentence.
+ ┌───────────────────────────────────────┐
+ │        [ exercise image ]        🔍   │
+ └───────────────────────────────────────┘
+ YOUR ANSWER
+ ┌───────────────────────────────────────┐
+ │ is doing                              │
+ └───────────────────────────────────────┘
+╭──────────────────────────────────────────╮
+│ ✓ Spot on!                               │
+│ ┌──────────────────────────────────────┐ │
+│ │ is doing                             │ │
+│ │ ⌄ Rule 12A                           │ │
+│ └──────────────────────────────────────┘ │
+│ [            Continue →              ]   │
+╰──────────────────────────────────────────╯
 ```
 
 Three tabs:
 
 | Tab | What it does |
 | :-- | :----------- |
-| **Practice** | Random exercise, a chosen topic, or the last topic again. Tap the unit chip for what the unit covers, tap the image to pinch-zoom it. Answer, or reveal the answer without grading. |
+| **Practice** | Between lessons: the day's streak and goal, the last topic again, and every topic with your tally on it. Inside one: ten questions, a progress bar, and a way out that asks first. Tap the unit chip for what the unit covers, tap the image to pinch-zoom it. Answer, or reveal the answer without grading — a reveal spends the question but never counts as correct. |
 | **Progress** | Accuracy, the current and best run of correct answers, today's tally, a day streak, the last seven days, and a per-topic breakdown. Resettable. |
 | **Settings** | Provider, API key, model, thinking level, proxy, sampling, whether rules are shown, and the theme. |
 
@@ -125,7 +157,10 @@ copying the database out on first launch when it has to.
 main.py                    builds the dependencies, hands them to the shell
   │
   ├── practice_app/ui/     app.py (shell) + one module per screen
+  │     ├── practice_view.py the lesson: question, verdict sheet, result
+  │     ├── home_view.py   the course list, drawn from a HomeState
   │     └── page.py        the slice of ft.Page the screens depend on
+  ├── practice_app/session.py    the lesson in progress, and its outcomes
   ├── practice_app/services.py   the one object every screen is handed
   ├── practice_app/llm.py        three provider adapters over httpx
   ├── practice_app/providers.py  providers, thinking levels, their translation
@@ -153,12 +188,15 @@ Two deliberate absences:
   five HTTP calls, and `practice_app/llm.py` is those calls. Each adapter
   returns its request as data, which is what lets a test assert exactly what a
   given setting sends.
-- **No message history.** There is nothing to store, and nothing to trim.
+- **No message history.** There is nothing to store, and nothing to trim. The
+  lesson is not stored either: which question is open is worth one tap to
+  redraw, while the answers, which are worth keeping, go straight into
+  `practice_app/stats.py`.
 
 ## Working on it
 
 ```bash
-uv run pytest        # 297 tests, 95% coverage gate
+uv run pytest        # 331 tests, 95% coverage gate
 uv run ty check
 uv run ruff check . && uv run ruff format .
 ```

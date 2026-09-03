@@ -9,7 +9,7 @@ Two front ends, one book:
 | | |
 | :-- | :-- |
 | **[Telegram bot](packages/bot/README.md)** | Sends the exercise, grades the answer, and answers follow-up questions about it. Approves users. |
-| **[Android app](packages/app/README.md)** | The same loop on a phone, with the chat taken out: no message history, but a progress screen and per-provider settings. |
+| **[Android app](packages/app/README.md)** | The same loop on a phone, shaped as lessons rather than a chat: ten questions a run, a verdict sheet instead of a transcript, plus a progress screen and per-provider settings. |
 
 Both grade with the same prompt and the same rules, because those live in
 **[`practice-core`](packages/core/README.md)**, which both import. Nothing that

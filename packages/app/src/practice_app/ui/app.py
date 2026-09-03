@@ -1,9 +1,14 @@
 """The app shell: three tabs, one theme, and the dependencies behind them.
 
 The screens are built once and swapped in and out of the body, rather than
-rebuilt per tab: the practice screen holds the exercise the user is part-way
+rebuilt per tab: the practice screen holds the lesson the user is part-way
 through, and losing that on a glance at the stats would be the app's most
 annoying bug.
+
+The chrome steps aside for a lesson. While one is running the app bar and the
+navigation bar are hidden, so the question, the answer and the one button that
+moves the lesson on have the screen to themselves — the way out is the cross on
+the lesson's own bar, which asks first.
 """
 
 from collections.abc import Sequence
@@ -27,7 +32,7 @@ SETTINGS_TAB = 2
 
 _TAB_TITLES = ("Practice", "Progress", "Settings")
 
-# The app bar already supplies the top inset, so the body only needs breathing
+# The app bar already supplies the top inset, so a screen only needs breathing
 # room under it.
 _BODY_TOP_GAP = GAP // 2
 
@@ -45,6 +50,25 @@ _THEME_ICONS = {
 }
 
 
+def _padded(screen: ft.Control) -> ft.Control:
+    """Return a screen with the page margins around it.
+
+    The practice screen is not wrapped: its progress bar and its verdict sheet
+    run edge to edge, so it owns its own padding.
+
+    Args:
+        screen: The screen to inset.
+
+    Returns:
+        The screen in a padded container.
+    """
+    return ft.Container(
+        content=screen,
+        padding=ft.Padding.only(left=GAP, right=GAP, top=_BODY_TOP_GAP),
+        expand=True,
+    )
+
+
 class PracticeApp:
     """Assembles the page: app bar, body, navigation bar."""
 
@@ -60,18 +84,18 @@ class PracticeApp:
         self._index = PRACTICE_TAB
 
         self.practice = PracticeScreen(
-            page, services, on_open_settings=self._open_settings
+            page,
+            services,
+            on_open_settings=self._open_settings,
+            on_lesson_change=self._lesson_changed,
         )
         self.stats = StatsScreen(page, services)
         self.settings = SettingsScreen(
             page, services, on_changed=self._settings_changed
         )
+        self._panes = (self.practice, _padded(self.stats), _padded(self.settings))
 
-        self._body = ft.Container(
-            content=self.practice,
-            padding=ft.Padding.only(left=GAP, right=GAP, top=_BODY_TOP_GAP),
-            expand=True,
-        )
+        self._body = ft.Container(content=self._panes[self._index], expand=True)
         self._theme_button = ft.IconButton(
             icon=_THEME_ICONS[services.config.theme],
             tooltip="Switch theme",
@@ -100,7 +124,7 @@ class PracticeApp:
             on_change=self._change_tab,
             destinations=[
                 ft.NavigationBarDestination(
-                    icon=ft.Icons.EDIT_NOTE_ROUNDED, label="Practice"
+                    icon=ft.Icons.SCHOOL_ROUNDED, label="Practice"
                 ),
                 ft.NavigationBarDestination(
                     icon=ft.Icons.INSIGHTS_ROUNDED, label="Progress"
@@ -112,8 +136,9 @@ class PracticeApp:
         )
         page.add(ft.SafeArea(content=self._body, expand=True))
 
-        # Both are cheap local reads, and doing them now means the first visit
-        # to either tab is already populated.
+        # All three are cheap local reads, and doing them now means the first
+        # visit to any tab is already populated.
+        await self.practice.load()
         await self.stats.refresh()
         await self.settings.refresh()
 
@@ -140,16 +165,29 @@ class PracticeApp:
             index: Which tab to show.
         """
         self._index = index
-        self._body.content = (self.practice, self.stats, self.settings)[index]
+        self._body.content = self._panes[index]
         if self._page.navigation_bar is not None:
             self._page.navigation_bar.selected_index = index
         if self._page.appbar is not None:
             self._page.appbar.title = ft.Text(_TAB_TITLES[index])
 
-        if index == STATS_TAB:
+        if index == PRACTICE_TAB:
+            await self.practice.load()
+        elif index == STATS_TAB:
             await self.stats.refresh()
-        elif index == SETTINGS_TAB:
+        else:
             await self.settings.refresh()
+
+    def _lesson_changed(self, running: bool) -> None:
+        """Hide the shell's chrome for the duration of a lesson.
+
+        Args:
+            running: Whether a lesson now has the screen.
+        """
+        if self._page.appbar is not None:
+            self._page.appbar.visible = not running
+        if self._page.navigation_bar is not None:
+            self._page.navigation_bar.visible = not running
 
     # ------------------------------------------------------------------
     # Appearance
