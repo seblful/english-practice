@@ -95,7 +95,7 @@ uv run practice-content bundle             # the compact copy the APK ships
 
 `populate` rebuilds from scratch, so it refuses to run when the database
 already exists; `--force` deletes it first. The seeded database holds 145
-units, 433 exercises, 3,025 questions and 16 topics.
+units, 566 exercises, 4,025 questions and 16 topics.
 
 The bot's own `authorized_users` table is not in that schema. It belongs to the
 bot, and the bot creates it at startup.

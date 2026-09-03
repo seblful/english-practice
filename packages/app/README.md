@@ -196,7 +196,7 @@ Two deliberate absences:
 ## Working on it
 
 ```bash
-uv run pytest        # 331 tests, 95% coverage gate
+uv run pytest        # 362 tests, 95% coverage gate
 uv run ty check
 uv run ruff check . && uv run ruff format .
 ```
