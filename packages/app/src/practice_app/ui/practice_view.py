@@ -9,6 +9,13 @@ That last part is the point. Nothing accumulates: the question the user just
 answered stays exactly where it was, with their own words still in the field
 beside the book's, instead of scrolling away above a growing transcript of
 panels. What is on screen is the question being worked on, and that is all.
+
+Nothing here opens a dialog. A lesson is a full-screen task on a phone, and a
+box floating over the middle of one -- to say what a unit covers, to magnify
+the picture, to ask whether the user really means to leave -- reads as an
+interruption from somewhere else. So every one of those is part of the screen
+instead: the unit is a line under the heading, the picture magnifies into the
+whole screen, and leaving is asked in the same sheet the verdict arrives in.
 """
 
 from collections.abc import Callable
@@ -27,9 +34,12 @@ from practice_app.services import Services
 from practice_app.session import ActiveExercise, Lesson, PracticeSession
 from practice_app.stats import Attempt, StatsSummary, TopicStat
 from practice_app.ui.components import (
+    SCROLL,
+    STRETCH,
     action_bar,
     banner,
     hint,
+    link_action,
     pill,
     placeholder,
     primary_action,
@@ -71,12 +81,46 @@ _GRADING_FAILED = "Could not grade that. Here is the book's answer."
 # explains off the top of the screen.
 _RULE_HEIGHT = 160
 
-# The exercise crops are wide and short -- ten numbered lines across a book
-# page -- so a tall frame spends most of itself on blank paper either side of
-# the picture and the zoom looks like it did nothing. This is deep enough to
-# read a crop in and to pan a magnified one around.
-_ZOOM_HEIGHT = 260
+# Room to drag a magnified crop past the frame's edge. Without it the picture
+# is clamped with its own margin still cut off, and the zoom reads as broken.
 _ZOOM_PAN_MARGIN = 80
+
+# Room for three lines of typing without scrolling -- most answers are one
+# clause, but an open-ended question asks for a sentence -- and up to six
+# before the field starts scrolling instead of pushing the picture off screen.
+_ANSWER_MIN_LINES = 3
+_ANSWER_MAX_LINES = 6
+
+
+def _plain(text: str) -> str:
+    """Return text stripped of everything that is not a word.
+
+    Args:
+        text: Markdown from the book.
+
+    Returns:
+        The words alone: no emphasis, no end stop, one space between them, and
+        case folded, so two spellings of the same answer compare equal.
+    """
+    words = text.replace("*", "").replace("_", "").split()
+    return " ".join(words).strip(".").casefold()
+
+
+def _adds_context(full: str, short: str) -> bool:
+    """Return whether the book's whole sentence says more than the answer.
+
+    A question that asks for a complete sentence prints the same words in both
+    of the book's fields, and a sheet that shows them one under the other
+    reads as a rendering bug rather than as a correction.
+
+    Args:
+        full: The full answers, as markdown.
+        short: The short answers, on one line.
+
+    Returns:
+        Whether the sentence is worth printing under the answer.
+    """
+    return _plain(full) != _plain(short)
 
 
 class PracticeScreen(ft.Column):
@@ -120,19 +164,25 @@ class PracticeScreen(ft.Column):
         # that moves the lesson on.
         self._grading_error: str | None = None
         self._rule_open = False
+        # Two panes the lesson can put over itself, both part of the screen
+        # rather than a dialog above it: the magnified picture, and the
+        # question asked on the way out.
+        self._zoom_open = False
+        self._leaving = False
 
         self._answer = text_field(
             hint_text="Type your answer",
             multiline=True,
             shift_enter=True,
-            min_lines=2,
-            max_lines=5,
+            min_lines=_ANSWER_MIN_LINES,
+            max_lines=_ANSWER_MAX_LINES,
+            text_size=16,
             autocorrect=False,
             capitalization=ft.TextCapitalization.NONE,
             on_submit=self._on_check,
         )
 
-        super().__init__(spacing=0, expand=True)
+        super().__init__(spacing=0, expand=True, horizontal_alignment=STRETCH)
         self.render()
 
     # ------------------------------------------------------------------
@@ -142,25 +192,34 @@ class PracticeScreen(ft.Column):
     def render(self) -> None:
         """Rebuild the screen from the current state.
 
-        There are three states, and which one is showing is read off the
-        session alone: no lesson is the home screen, a lesson with a question
-        is the lesson itself, and a lesson whose question has been put down is
-        the result.
+        Which state is showing is read off the session and two flags: no
+        lesson is the home screen, a lesson whose question has been put down
+        is the result, a lesson with a question is the lesson itself -- and
+        the magnified picture, while it is open, is the whole screen.
         """
         lesson = self._session.lesson
         if lesson is None:
             self.controls = [self._scroller(*self._home.build(self._home_state()))]
-        elif lesson.active is None:
+            return
+
+        active = lesson.active
+        if active is None:
             self.controls = [
                 self._scroller(*self._result_panels(lesson)),
                 self._result_actions(lesson),
             ]
-        else:
-            self.controls = [
-                self._lesson_bar(lesson),
-                self._scroller(*self._question_panels(lesson, lesson.active)),
-                self._lesson_foot(lesson, lesson.active),
-            ]
+            return
+
+        image = active.image
+        if self._zoom_open and image is not None:
+            self.controls = self._zoom_pane(active, image)
+            return
+
+        self.controls = [
+            self._lesson_bar(lesson),
+            self._scroller(*self._question_panels(lesson, active)),
+            self._lesson_foot(lesson, active),
+        ]
 
     def _scroller(self, *controls: ft.Control) -> ft.Control:
         """Return the part of the screen between the bar and the buttons.
@@ -176,8 +235,9 @@ class PracticeScreen(ft.Column):
             content=ft.Column(
                 controls=list(controls),
                 spacing=GAP,
-                scroll=ft.ScrollMode.AUTO,
+                scroll=SCROLL,
                 expand=True,
+                horizontal_alignment=STRETCH,
             ),
             padding=ft.Padding.symmetric(horizontal=GAP),
             expand=True,
@@ -235,7 +295,7 @@ class PracticeScreen(ft.Column):
                         icon=ft.Icons.CLOSE_ROUNDED,
                         icon_size=22,
                         tooltip="Leave the lesson",
-                        on_click=self._on_quit,
+                        on_click=lambda _: self.request_leave(),
                     ),
                     progress_track(lesson.progress),
                     ft.Text(
@@ -286,24 +346,20 @@ class PracticeScreen(ft.Column):
             active: The exercise in front of the user.
 
         Returns:
-            The topic, the unit, the sentence, the count and the instruction.
+            The topic, the unit, the sentence, the count, what the unit covers
+            and the instruction.
         """
+        unit = active.exercise.unit
         return ft.Column(
             controls=[
                 ft.Row(
                     controls=[
                         pill(active.topic_name, icon=ft.Icons.CATEGORY_ROUNDED),
-                        ft.Container(
-                            content=pill(
-                                f"Unit {active.exercise.unit.unit_number}",
-                                icon=ft.Icons.MENU_BOOK_ROUNDED,
-                                bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-                                color=ft.Colors.ON_SURFACE_VARIANT,
-                            ),
-                            ink=True,
-                            border_radius=RADIUS_SMALL,
-                            on_click=lambda _: self._show_unit(active),
-                            tooltip="What this unit covers",
+                        pill(
+                            f"Unit {unit.unit_number}",
+                            icon=ft.Icons.MENU_BOOK_ROUNDED,
+                            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
                         ),
                         pill(
                             f"Sentence {active.question.question_id}",
@@ -321,6 +377,15 @@ class PracticeScreen(ft.Column):
                     size=22,
                     weight=ft.FontWeight.W_700,
                 ),
+                # What the unit covers. It used to be a dialog behind the unit
+                # chip, which is a lot of ceremony for one line that is worth
+                # reading before answering anyway.
+                ft.Text(
+                    unit.title,
+                    size=13,
+                    weight=ft.FontWeight.W_600,
+                    color=ft.Colors.ON_SURFACE_VARIANT,
+                ),
                 hint(
                     "Answer in your own words - the grammar is what counts."
                     if active.question.is_open_ended
@@ -329,6 +394,7 @@ class PracticeScreen(ft.Column):
             ],
             spacing=GAP_SMALL,
             tight=True,
+            horizontal_alignment=STRETCH,
         )
 
     def _image_card(self, active: ActiveExercise) -> ft.Control:
@@ -349,34 +415,46 @@ class PracticeScreen(ft.Column):
             )
 
         return ft.Container(
-            content=ft.Stack(
+            content=ft.Column(
                 controls=[
                     ft.Image(
                         src=active.image,
                         fit=ft.BoxFit.FIT_WIDTH,
-                        border_radius=RADIUS,
+                        border_radius=RADIUS_SMALL,
                         gapless_playback=True,
                     ),
-                    ft.Container(
-                        content=ft.Icon(
-                            ft.Icons.ZOOM_IN_ROUNDED,
-                            size=18,
-                            color=ft.Colors.ON_INVERSE_SURFACE,
-                        ),
-                        padding=6,
-                        bgcolor=ft.Colors.with_opacity(0.55, ft.Colors.INVERSE_SURFACE),
-                        border_radius=RADIUS_SMALL,
-                        right=GAP_SMALL,
-                        bottom=GAP_SMALL,
+                    # Under the crop rather than floating over a corner of it.
+                    # The exercise is ten printed lines edge to edge, and a
+                    # badge on top of it covers one of them.
+                    ft.Row(
+                        controls=[
+                            ft.Icon(
+                                ft.Icons.ZOOM_IN_ROUNDED,
+                                size=14,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                            ),
+                            ft.Text(
+                                "Tap to zoom",
+                                size=11,
+                                weight=ft.FontWeight.W_500,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                            ),
+                        ],
+                        spacing=GAP_TINY,
+                        alignment=ft.MainAxisAlignment.END,
+                        tight=True,
                     ),
-                ]
+                ],
+                spacing=GAP_TINY,
+                tight=True,
+                horizontal_alignment=STRETCH,
             ),
             padding=GAP_SMALL,
             bgcolor=ft.Colors.WHITE,
             border_radius=RADIUS,
             border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             ink=True,
-            on_click=lambda _: self._zoom_image(active),
+            on_click=lambda _: self._open_zoom(),
             tooltip="Tap to zoom",
         )
 
@@ -399,6 +477,7 @@ class PracticeScreen(ft.Column):
             controls=[section_title("Your answer"), self._answer],
             spacing=GAP_SMALL,
             tight=True,
+            horizontal_alignment=STRETCH,
         )
 
     def _lesson_foot(self, lesson: Lesson, active: ActiveExercise) -> ft.Control:
@@ -409,9 +488,12 @@ class PracticeScreen(ft.Column):
             active: The exercise in front of the user.
 
         Returns:
-            The verdict sheet once the question has been answered, and the
-            buttons that answer it before then.
+            The leave question while it is being asked, the verdict sheet once
+            the question has been answered, and the buttons that answer it
+            before then.
         """
+        if self._leaving:
+            return self._leave_sheet()
         if active.is_revealed:
             return self._feedback(lesson, active)
         if self._busy:
@@ -512,23 +594,24 @@ class PracticeScreen(ft.Column):
         children: list[ft.Control] = []
 
         if answers:
+            short = short_answer_text(answers)
             children.append(
                 ft.Text(
-                    short_answer_text(answers),
-                    size=16,
+                    short,
+                    size=17,
                     weight=ft.FontWeight.W_700,
                     selectable=True,
                 )
             )
-            if not correct:
-                # A markdown renderer reads a single newline as a soft wrap,
-                # so two answers need a blank line between them.
-                children.append(
-                    ft.Markdown(
-                        full_answer_text(answers, separator="\n\n"),
-                        selectable=True,
-                    )
-                )
+            # A markdown renderer reads a single newline as a soft wrap, so
+            # two answers need a blank line between them.
+            full = full_answer_text(answers, separator="\n\n")
+            # A correct answer gets the short form only: it is confirmation,
+            # and confirmation should be quick to dismiss. The whole sentence
+            # is skipped as well when it says nothing the short form did not,
+            # which is what had a reveal printing the same words twice.
+            if not correct and _adds_context(full, short):
+                children.append(ft.Markdown(full, selectable=True))
         else:
             children.append(
                 hint("This question is open-ended, so the book prints no answer.")
@@ -537,7 +620,12 @@ class PracticeScreen(ft.Column):
         children.extend(self._rule_controls(active))
 
         return ft.Container(
-            content=ft.Column(controls=children, spacing=GAP_SMALL, tight=True),
+            content=ft.Column(
+                controls=children,
+                spacing=GAP_SMALL,
+                tight=True,
+                horizontal_alignment=STRETCH,
+            ),
             padding=GAP_SMALL + 4,
             bgcolor=ft.Colors.SURFACE,
             border_radius=RADIUS_SMALL,
@@ -557,14 +645,19 @@ class PracticeScreen(ft.Column):
         if not (self._services.config.show_rules and rule):
             return []
 
-        toggle = ft.TextButton(
-            content=f"Rule {active.unit_reference}",
-            icon=(
-                ft.Icons.EXPAND_LESS_ROUNDED
-                if self._rule_open
-                else ft.Icons.EXPAND_MORE_ROUNDED
-            ),
-            on_click=self._on_toggle_rule,
+        toggle = ft.Row(
+            controls=[
+                link_action(
+                    f"Rule {active.unit_reference}",
+                    icon=(
+                        ft.Icons.EXPAND_LESS_ROUNDED
+                        if self._rule_open
+                        else ft.Icons.EXPAND_MORE_ROUNDED
+                    ),
+                    on_click=self._on_toggle_rule,
+                )
+            ],
+            tight=True,
         )
         if not self._rule_open:
             return [toggle]
@@ -574,7 +667,7 @@ class PracticeScreen(ft.Column):
             ft.Container(
                 content=ft.Column(
                     controls=[ft.Markdown(to_markdown(rule), selectable=True)],
-                    scroll=ft.ScrollMode.AUTO,
+                    scroll=SCROLL,
                     tight=True,
                 ),
                 height=_RULE_HEIGHT,
@@ -652,80 +745,182 @@ class PracticeScreen(ft.Column):
         )
 
     # ------------------------------------------------------------------
-    # Dialogs
+    # The picture, magnified
     # ------------------------------------------------------------------
 
-    def _show_unit(self, active: ActiveExercise) -> None:
-        """Show which unit the exercise came from.
+    def _zoom_pane(self, active: ActiveExercise, image: bytes) -> list[ft.Control]:
+        """Return the whole screen given over to the exercise image.
+
+        A phone has one screen and the crop wants all of it, so this replaces
+        the lesson rather than floating over it - and the way back is the same
+        bar the lesson's own way out sits in.
 
         Args:
             active: The exercise in front of the user.
-        """
-        unit = active.exercise.unit
-        self._page.show_dialog(
-            ft.AlertDialog(
-                title=ft.Text(f"Unit {unit.unit_number}"),
-                content=ft.Text(unit.title),
-                actions=[
-                    ft.TextButton("Close", on_click=lambda _: self._page.pop_dialog())
-                ],
-                actions_alignment=ft.MainAxisAlignment.END,
-                shape=ft.RoundedRectangleBorder(radius=RADIUS),
-            )
-        )
+            image: Its picture, which the caller has already found.
 
-    def _zoom_image(self, active: ActiveExercise) -> None:
-        """Open the exercise image in a pinch-zoomable view.
-
-        Args:
-            active: The exercise in front of the user.
+        Returns:
+            The bar, and the picture under it.
         """
-        if active.image is None:  # pragma: no cover - the card is not tappable
-            return
-        self._page.show_dialog(
-            ft.AlertDialog(
-                content=ft.Container(
-                    content=ft.InteractiveViewer(
-                        content=ft.Image(src=active.image, fit=ft.BoxFit.CONTAIN),
-                        min_scale=1,
-                        max_scale=6,
-                        # Room to drag a magnified crop past the frame's edge,
-                        # rather than being clamped with its margin still cut
-                        # off.
-                        boundary_margin=ft.Margin.all(_ZOOM_PAN_MARGIN),
+        return [
+            ft.Container(
+                content=ft.Row(
+                    controls=[
+                        ft.IconButton(
+                            icon=ft.Icons.ARROW_BACK_ROUNDED,
+                            icon_size=22,
+                            tooltip="Back to the question",
+                            on_click=lambda _: self._close_zoom(),
+                        ),
+                        ft.Text(
+                            f"Unit {active.exercise.unit.unit_number}",
+                            size=14,
+                            weight=ft.FontWeight.W_600,
+                            expand=True,
+                        ),
+                        hint("Pinch to zoom"),
+                    ],
+                    spacing=GAP_SMALL,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=ft.Padding.only(left=GAP_TINY, right=GAP, bottom=GAP_TINY),
+            ),
+            ft.Container(
+                content=ft.InteractiveViewer(
+                    # The mount hugs the picture instead of filling the
+                    # screen: these crops are wide and short, and a
+                    # full-height white sheet around one is mostly blank paper.
+                    content=ft.Container(
+                        content=ft.Image(src=image, fit=ft.BoxFit.FIT_WIDTH),
+                        padding=GAP_SMALL,
+                        bgcolor=ft.Colors.WHITE,
+                        border_radius=RADIUS,
                     ),
-                    bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-                    border_radius=RADIUS_SMALL,
-                    height=_ZOOM_HEIGHT,
+                    min_scale=1,
+                    max_scale=6,
+                    alignment=ft.Alignment.CENTER,
+                    # Room to drag a magnified crop past the frame's edge,
+                    # rather than being clamped with its margin still cut off.
+                    boundary_margin=ft.Margin.all(_ZOOM_PAN_MARGIN),
                 ),
-                content_padding=GAP_SMALL,
-                inset_padding=GAP_SMALL,
-                actions=[
-                    ft.TextButton("Close", on_click=lambda _: self._page.pop_dialog())
+                margin=ft.Margin.only(left=GAP, right=GAP, bottom=GAP),
+                alignment=ft.Alignment.CENTER,
+                expand=True,
+            ),
+        ]
+
+    # ------------------------------------------------------------------
+    # Leaving a lesson
+    # ------------------------------------------------------------------
+
+    def _leave_sheet(self) -> ft.Control:
+        """Return the question asked on the way out of a lesson.
+
+        It is the same sheet the verdict arrives in, for the same reason: the
+        question and the answer the user is part-way through stay on screen
+        while they decide, instead of being greyed out behind a box.
+
+        Returns:
+            The sheet: what leaving costs, and the two ways to answer.
+        """
+        on_tint = ft.Colors.ON_SECONDARY_CONTAINER
+        return sheet(
+            ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.LOGOUT_ROUNDED, color=on_tint, size=22),
+                    ft.Text(
+                        "Leave this lesson?",
+                        size=18,
+                        weight=ft.FontWeight.W_700,
+                        color=on_tint,
+                        expand=True,
+                    ),
                 ],
-                actions_alignment=ft.MainAxisAlignment.END,
-                shape=ft.RoundedRectangleBorder(radius=RADIUS),
-            )
+                spacing=GAP_SMALL + 2,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            hint(
+                "The questions you have already answered are kept, but the "
+                "rest of the run is dropped.",
+                color=on_tint,
+            ),
+            ft.Row(
+                controls=[
+                    secondary_action(
+                        "Stay",
+                        icon=ft.Icons.ARROW_BACK_ROUNDED,
+                        on_click=lambda _: self._stay(),
+                    ),
+                    primary_action(
+                        "Leave",
+                        icon=ft.Icons.LOGOUT_ROUNDED,
+                        on_click=self._on_leave,
+                        bgcolor=on_tint,
+                        color=ft.Colors.SECONDARY_CONTAINER,
+                    ),
+                ],
+                spacing=GAP_SMALL,
+            ),
+            bgcolor=ft.Colors.SECONDARY_CONTAINER,
         )
 
-    def _on_quit(self) -> None:
-        """Ask before walking out of a lesson part-way through."""
-        self._page.show_dialog(
-            ft.AlertDialog(
-                modal=True,
-                title=ft.Text("Leave this lesson?"),
-                content=ft.Text(
-                    "The questions you have already answered are kept, but the "
-                    "rest of the run is dropped."
-                ),
-                actions=[
-                    ft.TextButton("Stay", on_click=lambda _: self._page.pop_dialog()),
-                    ft.FilledButton(content="Leave", on_click=self._on_leave),
-                ],
-                actions_alignment=ft.MainAxisAlignment.END,
-                shape=ft.RoundedRectangleBorder(radius=RADIUS),
-            )
-        )
+    # ------------------------------------------------------------------
+    # What the back gesture asks for
+    # ------------------------------------------------------------------
+
+    def handle_back(self) -> bool:
+        """Take the system Back gesture, if this screen has a use for it.
+
+        Back is the same gesture as the lesson's cross, and letting it close
+        the app mid-lesson was the app's rudest bug: ten questions in, and the
+        run is gone with nothing asked.
+
+        Returns:
+            Whether the gesture was used. ``False`` means this screen has
+            nothing open and the shell may do what it likes with it.
+        """
+        if self._zoom_open:
+            self._close_zoom()
+            return True
+        if self._leaving:
+            self._stay()
+            return True
+        lesson = self._session.lesson
+        if lesson is None:
+            return False
+        if lesson.active is None:
+            # The run is over and its result is on screen. There is nothing
+            # left to lose, so Back means "done" rather than a question.
+            self._page.run_task(self._end_lesson)
+            return True
+        self.request_leave()
+        return True
+
+    def request_leave(self) -> None:
+        """Ask whether to leave the lesson, from the cross or from Back."""
+        if self._session.lesson is None:  # pragma: no cover - both guard it
+            return
+        self._leaving = True
+        self.render()
+        push(self)
+
+    def _stay(self) -> None:
+        """Put the leave question away and carry on with the question."""
+        self._leaving = False
+        self.render()
+        push(self)
+
+    def _open_zoom(self) -> None:
+        """Give the screen over to the exercise picture."""
+        self._zoom_open = True
+        self.render()
+        push(self)
+
+    def _close_zoom(self) -> None:
+        """Go back to the question from the magnified picture."""
+        self._zoom_open = False
+        self.render()
+        push(self)
 
     # ------------------------------------------------------------------
     # Events
@@ -733,7 +928,6 @@ class PracticeScreen(ft.Column):
 
     async def _on_leave(self) -> None:
         """Leave the lesson, once the user has confirmed it."""
-        self._page.pop_dialog()
         await self._end_lesson()
 
     async def _on_done(self) -> None:
@@ -853,6 +1047,7 @@ class PracticeScreen(ft.Column):
         self._answer.value = ""
         self._rule_open = False
         self._grading_error = None
+        self._close_panes()
         lesson = self._session.begin(topic_id, topic_name)
         lesson.active = drawn
 
@@ -903,9 +1098,20 @@ class PracticeScreen(ft.Column):
             answers=tuple(answers),
         )
 
+    def _close_panes(self) -> None:
+        """Put away anything the lesson had open over itself.
+
+        Both flags outlive the lesson they belong to otherwise, and a leave
+        question left standing greets the *next* lesson with its own way out
+        already on screen.
+        """
+        self._leaving = False
+        self._zoom_open = False
+
     async def _end_lesson(self) -> None:
         """Put the lesson down and go back to the home screen."""
         self._session.end()
+        self._close_panes()
         await self._reload_stats()
         self._announce()
         self.render()

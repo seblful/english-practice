@@ -86,12 +86,13 @@ class TestProviderConfigFromDict:
 
         assert stored.model == Provider.OPENROUTER.default_model
 
-    def test_an_unknown_thinking_level_falls_back_to_off(self) -> None:
+    def test_an_unknown_thinking_level_falls_back_to_the_default(self) -> None:
         stored = ProviderConfig.from_dict(
-            {"thinking": "ludicrous"}, provider=Provider.OPENROUTER
+            {"model": "vendor/model", "thinking": "ludicrous"},
+            provider=Provider.OPENROUTER,
         )
 
-        assert stored.thinking is ThinkingLevel.OFF
+        assert stored.thinking is Provider.OPENROUTER.default_thinking
 
     def test_a_stored_key_is_stripped(self) -> None:
         """A key with a stray newline would build an illegal header value."""
@@ -126,12 +127,37 @@ class TestProviderConfigFromDict:
 
         assert stored.model_supports_thinking is True
 
-    def test_a_provider_whose_default_does_not_reason_says_so(self) -> None:
+    def test_a_model_that_does_not_reason_says_so(self) -> None:
         stored = ProviderConfig.from_dict(
-            {"model": Provider.OPENAI.default_model}, provider=Provider.OPENAI
+            {"model": "vendor/plain", "model_supports_thinking": False},
+            provider=Provider.OPENAI,
         )
 
         assert stored.model_supports_thinking is False
+
+    def test_a_superseded_default_is_replaced_by_the_current_one(self) -> None:
+        """An old default was never a choice, so it must not outlive itself."""
+        stale = next(iter(Provider.OPENROUTER.superseded_models))
+
+        stored = ProviderConfig.from_dict(
+            {"api_key": "sk-x", "model": stale, "thinking": "off"},
+            provider=Provider.OPENROUTER,
+        )
+
+        assert stored.model == Provider.OPENROUTER.default_model
+        assert stored.thinking is Provider.OPENROUTER.default_thinking
+        assert stored.model_supports_thinking is True
+        # The key is the user's, and it survives the model being replaced.
+        assert stored.api_key == "sk-x"
+
+    def test_a_model_the_user_picked_is_left_alone(self) -> None:
+        stored = ProviderConfig.from_dict(
+            {"model": "vendor/chosen", "thinking": "high"},
+            provider=Provider.OPENROUTER,
+        )
+
+        assert stored.model == "vendor/chosen"
+        assert stored.thinking is ThinkingLevel.HIGH
 
     def test_a_recorded_capability_is_believed_over_the_default(self) -> None:
         stored = ProviderConfig.from_dict(

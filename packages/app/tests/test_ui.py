@@ -10,7 +10,7 @@ They also drive the flow: draw an exercise, answer it, see the verdict recorded.
 
 from dataclasses import replace
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
 import flet as ft
 import httpx
@@ -19,7 +19,12 @@ from practice_core.content import ContentLibrary
 from practice_core.models import Topic
 
 from practice_app.config import AppConfig, ConfigStore, ProxyConfig, ThemeChoice
-from practice_app.providers import ModelInfo, Provider, ThinkingLevel
+from practice_app.providers import (
+    ModelInfo,
+    Provider,
+    ThinkingLevel,
+    supported_thinking_levels,
+)
 from practice_app.services import Services
 from practice_app.session import Lesson
 from practice_app.stats import Attempt, DayStat, StatsStore, StatsSummary, TopicStat
@@ -72,7 +77,14 @@ def texts(control: Any) -> list[str]:
             return
         if isinstance(node, (ft.Text, ft.Markdown)) and node.value:
             found.append(str(node.value))
-        for attribute in ("content", "controls", "title", "label", "actions"):
+        for attribute in (
+            "content",
+            "controls",
+            "title",
+            "subtitle",
+            "label",
+            "actions",
+        ):
             value = getattr(node, attribute, None)
             if isinstance(value, str):
                 found.append(value)
@@ -346,7 +358,7 @@ class TestSwitchRow:
             "Show the grammar rule after each answer", value=True, on_change=handler
         )
 
-        switch, label = row.controls
+        label, switch = row.controls
         assert isinstance(switch, ft.Switch)
         assert switch.label is None
         assert isinstance(label, ft.Text)
@@ -358,7 +370,7 @@ class TestSwitchRow:
             """Stand in for the screen's handler."""
 
         row = switch_row("On or off", value=False, on_change=handler)
-        switch = row.controls[0]
+        switch = row.controls[-1]
 
         assert isinstance(switch, ft.Switch)
         assert switch.value is False
@@ -909,27 +921,57 @@ class TestLessonFlow:
         assert lesson.active is not None
         assert lesson.active.is_revealed is True
 
-    async def test_the_unit_dialog_names_the_unit(
+    async def test_the_question_says_what_the_unit_covers(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """It used to be a dialog behind the unit chip. A line is enough."""
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+
+        assert "Present Continuous" in rendered(screen)
+        assert page.dialogs == []
+
+
+class TestZoomingThePicture:
+    """The magnified crop is a state of the screen, never a box over it."""
+
+    async def test_opening_the_zoom_gives_it_the_whole_screen(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        lesson = await _start(screen)
+        await _start(screen)
 
-        assert lesson.active is not None
-        screen._show_unit(lesson.active)
+        screen._open_zoom()
 
-        assert "Present Continuous" in rendered(page.last_dialog)
+        assert _find(screen, ft.InteractiveViewer) is not None
+        assert page.dialogs == []
+        # The question is not underneath it: this replaced the lesson.
+        assert "YOUR ANSWER" not in rendered(screen)
 
-    async def test_the_image_can_be_zoomed(
+    async def test_back_closes_the_zoom_before_the_lesson(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
-        lesson = await _start(screen)
+        await _start(screen)
+        screen._open_zoom()
 
-        assert lesson.active is not None
-        screen._zoom_image(lesson.active)
+        assert screen.handle_back() is True
 
-        assert _find(page.last_dialog, ft.InteractiveViewer) is not None
+        assert _find_or_none(screen, ft.InteractiveViewer) is None
+        assert screen._session.lesson is not None
+        assert "YOUR ANSWER" in rendered(screen)
+
+    async def test_an_exercise_with_no_picture_cannot_be_zoomed(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        lesson = await screen.start_lesson(2, "Past Tenses") or screen._session.lesson
+
+        assert lesson is not None
+        screen._open_zoom()
+
+        assert _find_or_none(screen, ft.InteractiveViewer) is None
+        assert "YOUR ANSWER" in rendered(screen)
 
 
 class TestLeavingALesson:
@@ -939,23 +981,96 @@ class TestLeavingALesson:
         screen = PracticeScreen(page, services)
         await _start(screen)
 
-        screen._on_quit()
+        screen.request_leave()
 
-        assert "Leave this lesson?" in rendered(page.last_dialog)
+        assert "Leave this lesson?" in rendered(screen)
+        assert page.dialogs == []
         assert screen._session.lesson is not None
+
+    async def test_staying_puts_the_question_back(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        screen.request_leave()
+
+        screen._stay()
+
+        assert "Leave this lesson?" not in rendered(screen)
+        assert screen._session.lesson is not None
+        assert "Check" in rendered(screen)
 
     async def test_confirming_goes_back_home(
         self, page: FakePage, services: Services
     ) -> None:
         screen = PracticeScreen(page, services)
         await _start(screen)
-        screen._on_quit()
+        screen.request_leave()
 
         await screen._on_leave()
 
-        assert page.popped == 1
         assert screen._session.lesson is None
         assert "Start a lesson" in rendered(screen)
+
+    async def test_back_asks_rather_than_dropping_the_run(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """Android's Back mid-lesson used to close the app outright."""
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+
+        assert screen.handle_back() is True
+
+        assert "Leave this lesson?" in rendered(screen)
+        assert screen._session.lesson is not None
+
+    async def test_back_again_stays_in_the_lesson(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        screen.request_leave()
+
+        assert screen.handle_back() is True
+
+        assert "Leave this lesson?" not in rendered(screen)
+        assert screen._session.lesson is not None
+
+    async def test_back_on_the_home_screen_is_not_this_screen_s(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+
+        assert screen.handle_back() is False
+
+    async def test_back_on_the_result_closes_the_lesson(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """Nothing is left to confirm once the run is over."""
+        screen = PracticeScreen(page, services)
+        await _start(screen, length=1)
+        await _answer(screen)
+        await screen._on_continue()
+
+        assert screen.handle_back() is True
+        await page.drain()
+
+        assert screen._session.lesson is None
+        assert "Start a lesson" in rendered(screen)
+
+    async def test_the_next_lesson_does_not_open_on_the_question_just_asked(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """The flag outlived its lesson, so the next one began part-way out."""
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        screen.request_leave()
+        await screen._on_leave()
+
+        await _start(screen)
+
+        assert "Leave this lesson?" not in rendered(screen)
+        assert "Check" in rendered(screen)
 
     async def test_the_shell_is_told_when_a_lesson_owns_the_screen(
         self, page: FakePage, services: Services
@@ -1280,8 +1395,79 @@ class TestSettingsScreen:
         await screen.refresh()
 
         body = rendered(screen)
-        for section in ("PROVIDER", "MODEL", "REASONING", "PROXY", "PRACTICE"):
+        for section in (
+            "PROVIDER",
+            "MODEL",
+            "REASONING",
+            "PRACTICE",
+            "PROXY",
+            "ADVANCED",
+            "ABOUT",
+        ):
             assert section in body
+
+    async def test_the_folds_say_what_they_hold_while_shut(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """A heading worth reading is what makes folding them away honest."""
+        screen = SettingsScreen(page, services)
+
+        await screen.refresh()
+
+        body = rendered(screen)
+        assert "Off - calls go straight to the provider" in body
+        assert "0.7 temp" in body
+        assert "2048 tokens" in body
+
+    async def test_a_saved_setting_leaves_an_open_fold_open(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """The slider lives inside the fold, so closing it mid-drag is a bug."""
+        screen = SettingsScreen(page, services)
+        screen._on_advanced_fold(
+            _event(ft.ExpansionTile(title=ft.Text("Advanced")), data="true")
+        )
+
+        await screen._on_temperature(_event(ft.Slider(value=0.4)))
+
+        folds = [
+            tile
+            for tile in _all(screen, ft.ExpansionTile)
+            if "ADVANCED" in rendered(tile.title)
+        ]
+        assert [fold.expanded for fold in folds] == [True]
+
+    async def test_turning_the_proxy_on_shows_its_fields(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = SettingsScreen(page, services)
+
+        await screen._on_proxy_enabled(_event(ft.Switch(value=True)))
+
+        folds = [
+            tile
+            for tile in _all(screen, ft.ExpansionTile)
+            if "PROXY" in rendered(tile.title)
+        ]
+        assert [fold.expanded for fold in folds] == [True]
+
+    async def test_closing_a_fold_is_remembered(
+        self, page: FakePage, services: Services
+    ) -> None:
+        services.config = replace(services.config, proxy=ProxyConfig(enabled=True))
+        screen = SettingsScreen(page, services)
+
+        screen._on_proxy_fold(
+            _event(ft.ExpansionTile(title=ft.Text("Proxy")), data=False)
+        )
+        await screen.refresh()
+
+        folds = [
+            tile
+            for tile in _all(screen, ft.ExpansionTile)
+            if "PROXY" in rendered(tile.title)
+        ]
+        assert [fold.expanded for fold in folds] == [False]
 
     async def test_every_provider_segment_label_is_sized_to_fit(
         self, page: FakePage, services: Services
@@ -1350,9 +1536,35 @@ class TestSettingsScreen:
         services.config = services.config.with_active(model_supports_thinking=True)
         screen = SettingsScreen(page, services)
 
-        await screen._on_thinking(_event(ft.Dropdown(value="high")))
+        await screen._on_thinking("high")
 
         assert services.config.active.thinking is ThinkingLevel.HIGH
+
+    async def test_tapping_a_level_schedules_the_save(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """A chip's callback cannot await, so the work is handed to the page."""
+        services.config = services.config.with_active(model_supports_thinking=True)
+        screen = SettingsScreen(page, services)
+
+        screen._choose_thinking("medium")
+        await page.drain()
+
+        assert services.config.active.thinking is ThinkingLevel.MEDIUM
+
+    def test_every_level_is_offered_as_a_chip(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """A dropdown sized itself to its longest entry; chips show them all."""
+        services.config = services.config.with_active(model_supports_thinking=True)
+        screen = SettingsScreen(page, services)
+
+        chips = _all(screen.controls[2], ft.Chip)
+
+        assert [rendered(chip) for chip in chips] == [
+            level.label for level in supported_thinking_levels(Provider.OPENROUTER)
+        ]
+        assert [chip.selected for chip in chips].count(True) == 1
 
     def test_a_model_that_cannot_think_disables_the_control(
         self, page: FakePage, services: Services
@@ -1360,7 +1572,7 @@ class TestSettingsScreen:
         screen = SettingsScreen(page, services)
 
         assert "no thinking control" in rendered(screen)
-        assert _find(screen.controls[2], ft.Dropdown).disabled is True
+        assert all(chip.disabled for chip in _all(screen.controls[2], ft.Chip))
 
     async def test_choosing_a_model_carries_its_capabilities(
         self, page: FakePage, services: Services, catalogue: list[ModelInfo]
@@ -1389,7 +1601,7 @@ class TestSettingsScreen:
         services._catalogues[Provider.OPENROUTER] = catalogue
         screen = SettingsScreen(page, services)
 
-        assert _find(screen.controls[2], ft.Dropdown).disabled is False
+        assert not any(chip.disabled for chip in _all(screen.controls[2], ft.Chip))
         assert "no thinking control" not in rendered(screen)
 
     async def test_a_fetched_catalogue_corrects_the_stored_capabilities(
@@ -1493,7 +1705,9 @@ class TestSettingsScreen:
         services.config = replace(services.config, proxy=ProxyConfig(enabled=True))
         screen = SettingsScreen(page, services)
 
-        await screen._on_proxy_scheme(_event(ft.Dropdown(value="socks5")))
+        await screen._on_proxy_scheme(
+            _event(ft.SegmentedButton(segments=[], selected=["socks5"]))
+        )
 
         assert services.config.proxy.scheme == "socks5"
 
@@ -1691,16 +1905,17 @@ def _segmented(value: str) -> ft.SegmentedButton:
     )
 
 
-def _event(control: Any) -> Any:
+def _event(control: Any, data: Any = None) -> Any:
     """Return something shaped like a Flet event for one control.
 
     Args:
         control: The control the event came from.
+        data: The event's payload, for the handlers that read one.
 
     Returns:
-        An object exposing ``control``.
+        An object exposing ``control`` and ``data``.
     """
-    return type("Event", (), {"control": control})()
+    return type("Event", (), {"control": control, "data": data})()
 
 
 # ----------------------------------------------------------------------
@@ -1723,6 +1938,58 @@ class TestPracticeApp:
         assert page.navigation_bar is not None
         assert len(page.navigation_bar.destinations) == 3
         assert page.controls
+
+
+class TestTheBackGesture:
+    """Back is a step inside the app, not a way out of it."""
+
+    async def test_the_root_view_hands_the_gesture_over(
+        self, page: FakePage, services: Services
+    ) -> None:
+        app = PracticeApp(page, services)
+
+        await app.start()
+
+        assert page.root_view.can_pop is False
+        assert page.root_view.on_confirm_pop == app._on_confirm_pop
+
+    async def test_nothing_open_on_the_practice_tab_closes_the_app(
+        self, page: FakePage, services: Services
+    ) -> None:
+        app = PracticeApp(page, services)
+        await app.start()
+
+        handler = page.root_view.on_confirm_pop
+        assert handler is not None
+        await handler(
+            ft.Event(name="confirm_pop", control=cast("ft.View", page.root_view))
+        )
+
+        assert page.root_view.confirmed == [True]
+
+    async def test_another_tab_goes_back_to_practice_instead(
+        self, page: FakePage, services: Services
+    ) -> None:
+        app = PracticeApp(page, services)
+        await app.start()
+        await app.select_tab(SETTINGS_TAB)
+
+        assert await app.handle_back() is False
+
+        assert app._index == PRACTICE_TAB
+
+    async def test_a_running_lesson_is_asked_about_first(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """Ten questions in, Back used to end the app and drop the run."""
+        app = PracticeApp(page, services)
+        await app.start()
+        await app.practice.start_lesson(1, "Present Tenses")
+
+        assert await app.handle_back() is False
+
+        assert "Leave this lesson?" in rendered(app.practice)
+        assert app.practice._session.lesson is not None
 
     async def test_each_tab_shows_its_screen(
         self, page: FakePage, services: Services

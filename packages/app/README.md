@@ -41,33 +41,42 @@ bottom — leaving the question, and what you wrote, exactly where they were.
 ```
 ✕  ▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░    3/10
 ──────────────────────────────────────────
- 📚 Present Tenses   📖 Unit 12
- Question 3
+ 📚 Present Tenses  📖 Unit 12  ☰ Sentence 3
+ Question 3 of 10
+ Present continuous: I am doing
  Type the missing words, or the sentence.
- ┌───────────────────────────────────────┐
- │        [ exercise image ]        🔍   │
- └───────────────────────────────────────┘
+┌────────────────────────────────────────┐
+│        [ exercise image ]         🔍   │
+└────────────────────────────────────────┘
  YOUR ANSWER
- ┌───────────────────────────────────────┐
- │ is doing                              │
- └───────────────────────────────────────┘
-╭──────────────────────────────────────────╮
-│ ✓ Spot on!                               │
-│ ┌──────────────────────────────────────┐ │
-│ │ is doing                             │ │
-│ │ ⌄ Rule 12A                           │ │
-│ └──────────────────────────────────────┘ │
-│ [            Continue →              ]   │
-╰──────────────────────────────────────────╯
+┌────────────────────────────────────────┐
+│ is doing                               │
+│                                        │
+└────────────────────────────────────────┘
+╭────────────────────────────────────────╮
+│ ✓ Spot on!                             │
+│ ┌────────────────────────────────────┐ │
+│ │ is doing                           │ │
+│ │ ⌄ Rule 12A                         │ │
+│ └────────────────────────────────────┘ │
+│ [           Continue →              ] │
+╰────────────────────────────────────────╯
 ```
+
+Nothing in a lesson opens a dialog. What a unit covers is a line under the
+heading; tapping the picture gives it the whole screen, with a way back in the
+same place the lesson's own is; and leaving — from the cross or from Android's
+Back — is asked in the sheet the verdict arrives in, so the question and what
+you typed stay where they are while you decide. Back never closes the app out
+from under a lesson.
 
 Three tabs:
 
 | Tab | What it does |
 | :-- | :----------- |
-| **Practice** | Between lessons: the day's streak and goal, the last topic again, and every topic with your tally on it. Inside one: ten questions, a progress bar, and a way out that asks first. Tap the unit chip for what the unit covers, tap the image to pinch-zoom it. Answer, or reveal the answer without grading — a reveal spends the question but never counts as correct. |
+| **Practice** | Between lessons: the day's streak and goal, the last topic again, and every topic with your tally on it. Inside one: ten questions, a progress bar, and a way out that asks first — including Android's Back. Tap the image to pinch-zoom it full screen. Answer, or reveal the answer without grading — a reveal spends the question but never counts as correct. |
 | **Progress** | Accuracy, the current and best run of correct answers, today's tally, a day streak, the last seven days, and a per-topic breakdown. Resettable. |
-| **Settings** | Provider, API key, model, thinking level, proxy, sampling, whether rules are shown, and the theme. |
+| **Settings** | One column of panels, in the order they matter: provider and key, model, reasoning, practice and theme — then the proxy and the sampling controls, folded away behind headings that say what they are set to. |
 
 Everything the app shares with the bot — the models, the queries, the grading
 prompt, the content schema — comes from `practice-core`. Everything else here
@@ -87,6 +96,13 @@ The list shows what each model can do — `vision`, `thinking`, context window,
 price per million tokens — and filters by those. OpenRouter reports its own
 capabilities, so those badges are exact; OpenAI publishes no capability data at
 all, so they are inferred from the model id.
+
+A fresh install starts on each provider's newest mid-tier vision model —
+`google/gemini-3.8-flash`, `gemini-3.8-flash`, `gpt-5.6-terra` — because every
+exercise is a picture and grading one sentence is too short a call to be worth
+a flagship's price. An install still carrying an *older* release's default is
+moved to the current one on load: that model was never a choice anyone made.
+A model you picked yourself is never touched.
 
 > Every exercise is a picture, so pick a model that accepts images. The picker
 > filters to those by default, and the settings screen says so plainly when the
@@ -196,7 +212,7 @@ Two deliberate absences:
 ## Working on it
 
 ```bash
-uv run pytest        # 362 tests, 95% coverage gate
+uv run pytest        # 380 tests, 95% coverage gate
 uv run ty check
 uv run ruff check . && uv run ruff format .
 ```

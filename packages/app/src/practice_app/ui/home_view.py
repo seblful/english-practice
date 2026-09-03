@@ -19,8 +19,10 @@ from practice_core.models import Topic
 from practice_app.session import LESSON_LENGTH
 from practice_app.stats import StatsSummary, TopicStat
 from practice_app.ui.components import (
+    STRETCH,
     banner,
     hint,
+    inline_action,
     pill,
     placeholder,
     primary_action,
@@ -119,9 +121,12 @@ class HomeView:
         open_settings = self._on_open_settings
         if open_settings is not None:
             actions.append(
-                ft.FilledButton(
-                    content="Open settings",
+                inline_action(
+                    "Open settings",
                     icon=ft.Icons.SETTINGS_ROUNDED,
+                    # The notice already carries a tint, and an outline drawn
+                    # on top of that tint disappears into it.
+                    filled=True,
                     on_click=lambda _: open_settings(),
                 )
             )
@@ -199,6 +204,7 @@ class HomeView:
                 ],
                 spacing=GAP_SMALL,
                 tight=True,
+                horizontal_alignment=STRETCH,
             ),
             padding=GAP + 2,
             bgcolor=ft.Colors.PRIMARY_CONTAINER,
@@ -244,6 +250,7 @@ class HomeView:
                     "The bundled book could not be read, so there is nothing "
                     "to practise yet."
                 ),
+                expand=True,
             )
 
         return ft.Column(
@@ -256,6 +263,7 @@ class HomeView:
             ],
             spacing=GAP_SMALL,
             tight=True,
+            horizontal_alignment=STRETCH,
         )
 
     def _topic_card(self, topic: Topic, stat: TopicStat | None) -> ft.Control:
@@ -314,7 +322,12 @@ class HomeView:
             rows.append(progress_track(stat.accuracy, height=5))
 
         return ft.Container(
-            content=ft.Column(controls=rows, spacing=GAP_SMALL, tight=True),
+            content=ft.Column(
+                controls=rows,
+                spacing=GAP_SMALL,
+                tight=True,
+                horizontal_alignment=STRETCH,
+            ),
             padding=GAP_SMALL + 4,
             bgcolor=ft.Colors.SURFACE_CONTAINER_LOW,
             border_radius=RADIUS,

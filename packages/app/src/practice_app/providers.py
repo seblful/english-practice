@@ -61,6 +61,22 @@ class Provider(StrEnum):
         return _DEFAULT_MODEL_REASONS[self]
 
     @property
+    def default_thinking(self) -> "ThinkingLevel":
+        """Return the thinking level a fresh install grades at.
+
+        A little reasoning, rather than none: the levels every provider maps
+        to a real budget start here, and a model that cannot turn thinking off
+        at all -- which the newest flash models tend not to -- rejects the
+        request that asks it to.
+        """
+        return ThinkingLevel.LOW if self.default_model_reasons else ThinkingLevel.OFF
+
+    @property
+    def superseded_models(self) -> frozenset[str]:
+        """Return the models this provider's current default has replaced."""
+        return _SUPERSEDED_MODELS[self]
+
+    @property
     def lists_models_anonymously(self) -> bool:
         """Whether the model catalogue can be fetched without an API key."""
         return self is Provider.OPENROUTER
@@ -87,19 +103,29 @@ _CONSOLE_URLS: Final[dict[Provider, str]] = {
     Provider.OPENAI: "https://platform.openai.com/api-keys",
 }
 
+# What a fresh install grades with: each provider's newest mid-tier vision
+# model. Every exercise is a picture, so vision is not optional; grading one
+# sentence is a short call, so a flagship's price buys nothing here.
 _DEFAULT_MODELS: Final[dict[Provider, str]] = {
-    Provider.OPENROUTER: "google/gemini-2.5-flash",
-    Provider.GEMINI: "gemini-2.5-flash",
-    Provider.OPENAI: "gpt-4.1-mini",
+    Provider.OPENROUTER: "google/gemini-3.8-flash",
+    Provider.GEMINI: "gemini-3.8-flash",
+    # The balanced tier of the GPT-5.6 series, between Luna and the flagship
+    # Sol.
+    Provider.OPENAI: "gpt-5.6-terra",
 }
 
+# All three reason, so a fresh install offers the thinking control rather than
+# greying it out on the model it selected itself.
+_DEFAULT_MODEL_REASONS: Final[dict[Provider, bool]] = dict.fromkeys(Provider, True)
 
-# Both Gemini 2.5 Flash models reason. `gpt-4.1-mini` is not a reasoning
-# model, so OpenAI's default correctly has no thinking control to offer.
-_DEFAULT_MODEL_REASONS: Final[dict[Provider, bool]] = {
-    Provider.OPENROUTER: True,
-    Provider.GEMINI: True,
-    Provider.OPENAI: False,
+# The defaults earlier versions shipped. A stored model that is still one of
+# these was never a choice the user made -- it is a previous default left
+# behind -- so it is replaced rather than pinning the grader to a superseded
+# model for the life of the install.
+_SUPERSEDED_MODELS: Final[dict[Provider, frozenset[str]]] = {
+    Provider.OPENROUTER: frozenset({"google/gemini-2.5-flash"}),
+    Provider.GEMINI: frozenset({"gemini-2.5-flash"}),
+    Provider.OPENAI: frozenset({"gpt-4.1-mini"}),
 }
 
 

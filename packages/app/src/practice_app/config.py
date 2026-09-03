@@ -183,9 +183,17 @@ class ProviderConfig:
         try:
             thinking = ThinkingLevel(raw_level)
         except ValueError:
-            thinking = ThinkingLevel.OFF
+            thinking = default.thinking
 
-        model = _as_str(data.get("model")) or default.model
+        stored_model = _as_str(data.get("model"))
+        # A model that is still an older version's default was never picked;
+        # it is a default left behind. Replacing it -- with the level and the
+        # capabilities that belong to the new one, since all three were the
+        # old default together -- is what lets a new release's grader reach an
+        # install that has been through an upgrade.
+        if not stored_model or stored_model in provider.superseded_models:
+            return replace(default, api_key=_as_str(data.get("api_key")).strip())
+
         # A file written before the app recorded capabilities says nothing
         # about them, and assuming "no" for the model the app picked itself is
         # what left a fresh install insisting its own default cannot think. So
@@ -193,7 +201,7 @@ class ProviderConfig:
         stored_thinking = data.get("model_supports_thinking")
         supports_thinking = (
             default.model_supports_thinking
-            if stored_thinking is None and model == default.model
+            if stored_thinking is None and stored_model == default.model
             else bool(stored_thinking)
         )
 
@@ -201,7 +209,7 @@ class ProviderConfig:
             # Stripped here too: a key pasted with a stray newline would
             # otherwise build an illegal header value.
             api_key=_as_str(data.get("api_key")).strip(),
-            model=model,
+            model=stored_model,
             thinking=thinking,
             model_supports_thinking=supports_thinking,
             model_supports_json=bool(data.get("model_supports_json", False)),
@@ -219,6 +227,7 @@ def _default_provider(provider: Provider) -> ProviderConfig:
     """
     return ProviderConfig(
         model=provider.default_model,
+        thinking=provider.default_thinking,
         model_supports_thinking=provider.default_model_reasons,
     )
 

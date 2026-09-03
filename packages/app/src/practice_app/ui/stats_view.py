@@ -10,9 +10,14 @@ import flet as ft
 from practice_app.services import Services
 from practice_app.stats import DayStat, StatsSummary, TopicStat
 from practice_app.ui.components import (
+    SCROLL,
+    STRETCH,
+    confirm_dialog,
     hint,
+    inline_action,
     panel,
     placeholder,
+    progress_track,
     push,
     section_title,
     show_snack,
@@ -65,7 +70,9 @@ class StatsScreen(ft.Column):
         self._services = services
         self._summary = StatsSummary()
 
-        super().__init__(spacing=GAP, scroll=ft.ScrollMode.AUTO, expand=True)
+        super().__init__(
+            spacing=GAP, scroll=SCROLL, expand=True, horizontal_alignment=STRETCH
+        )
         self.render()
 
     # ------------------------------------------------------------------
@@ -84,6 +91,7 @@ class StatsScreen(ft.Column):
                         "Answer a question on the Practice tab and your "
                         "accuracy, streaks and topics show up here."
                     ),
+                    expand=True,
                 )
             ]
             return
@@ -139,12 +147,11 @@ class StatsScreen(ft.Column):
                         spacing=GAP,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    ft.ProgressBar(
-                        value=summary.accuracy,
-                        bar_height=8,
-                        border_radius=RADIUS_SMALL,
-                        color=ft.Colors.PRIMARY,
+                    progress_track(
+                        summary.accuracy,
+                        height=8,
                         bgcolor=ft.Colors.with_opacity(0.25, ft.Colors.PRIMARY),
+                        expand=False,
                     ),
                     ft.Text(
                         f"{summary.total} answers over "
@@ -156,6 +163,7 @@ class StatsScreen(ft.Column):
                 ],
                 spacing=GAP_SMALL,
                 tight=True,
+                horizontal_alignment=STRETCH,
             ),
             padding=GAP + 2,
             bgcolor=ft.Colors.PRIMARY_CONTAINER,
@@ -169,34 +177,43 @@ class StatsScreen(ft.Column):
             summary: The figures to show.
 
         Returns:
-            A row of tiles.
+            Four tiles, two to a row.
         """
         today = summary.today
-        return ft.Row(
+        tiles = (
+            stat_tile(
+                str(summary.current_streak),
+                "in a row now",
+                ft.Icons.LOCAL_FIRE_DEPARTMENT_ROUNDED,
+                color=ft.Colors.TERTIARY,
+            ),
+            stat_tile(
+                str(summary.best_streak),
+                "best run",
+                ft.Icons.EMOJI_EVENTS_ROUNDED,
+            ),
+            stat_tile(
+                f"{today.correct}/{today.attempts}",
+                "today",
+                ft.Icons.TASK_ALT_ROUNDED,
+            ),
+            stat_tile(
+                str(summary.day_streak),
+                "day streak",
+                ft.Icons.CALENDAR_MONTH_ROUNDED,
+            ),
+        )
+        # Two by two. Four across a 360dp phone leaves each tile 80dp, which
+        # is not enough for "in a row now" to sit under its figure without
+        # breaking into three lines.
+        return ft.Column(
             controls=[
-                stat_tile(
-                    str(summary.current_streak),
-                    "in a row now",
-                    ft.Icons.LOCAL_FIRE_DEPARTMENT_ROUNDED,
-                    color=ft.Colors.TERTIARY,
-                ),
-                stat_tile(
-                    str(summary.best_streak),
-                    "best run",
-                    ft.Icons.EMOJI_EVENTS_ROUNDED,
-                ),
-                stat_tile(
-                    f"{today.correct}/{today.attempts}",
-                    "today",
-                    ft.Icons.TASK_ALT_ROUNDED,
-                ),
-                stat_tile(
-                    str(summary.day_streak),
-                    "day streak",
-                    ft.Icons.CALENDAR_MONTH_ROUNDED,
-                ),
+                ft.Row(controls=list(pair), spacing=GAP_SMALL)
+                for pair in (tiles[:2], tiles[2:])
             ],
             spacing=GAP_SMALL,
+            tight=True,
+            horizontal_alignment=STRETCH,
         )
 
     def _week(self, summary: StatsSummary) -> ft.Control:
@@ -310,16 +327,16 @@ class StatsScreen(ft.Column):
                     ],
                     spacing=GAP_SMALL,
                 ),
-                ft.ProgressBar(
-                    value=topic.accuracy,
-                    bar_height=6,
-                    border_radius=RADIUS_SMALL,
+                progress_track(
+                    topic.accuracy,
+                    height=6,
                     color=_accuracy_color(topic.accuracy, topic.attempts),
-                    bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+                    expand=False,
                 ),
             ],
             spacing=6,
             tight=True,
+            horizontal_alignment=STRETCH,
         )
 
     def _footer(self, summary: StatsSummary) -> ft.Control:
@@ -342,15 +359,15 @@ class StatsScreen(ft.Column):
             content=ft.Column(
                 controls=[
                     hint(span),
-                    ft.TextButton(
-                        content="Reset progress",
+                    inline_action(
+                        "Reset progress",
                         icon=ft.Icons.DELETE_OUTLINE_ROUNDED,
                         on_click=self._confirm_reset,
-                        style=ft.ButtonStyle(color=ft.Colors.ERROR),
+                        danger=True,
                     ),
                 ],
                 spacing=GAP_SMALL,
-                horizontal_alignment=ft.CrossAxisAlignment.START,
+                horizontal_alignment=STRETCH,
                 tight=True,
             ),
             padding=ft.Padding.only(bottom=GAP_LARGE),
@@ -363,22 +380,13 @@ class StatsScreen(ft.Column):
     def _confirm_reset(self) -> None:
         """Ask before deleting the progress history."""
         self._page.show_dialog(
-            ft.AlertDialog(
-                modal=True,
-                title=ft.Text("Reset progress?"),
-                content=ft.Text(
-                    "Every recorded answer is deleted. This cannot be undone."
-                ),
-                actions=[
-                    ft.TextButton("Cancel", on_click=lambda _: self._page.pop_dialog()),
-                    ft.FilledButton(
-                        content="Reset",
-                        on_click=self._reset,
-                        style=ft.ButtonStyle(bgcolor=ft.Colors.ERROR),
-                    ),
-                ],
-                actions_alignment=ft.MainAxisAlignment.END,
-                shape=ft.RoundedRectangleBorder(radius=RADIUS),
+            confirm_dialog(
+                self._page,
+                title="Reset progress?",
+                message="Every recorded answer is deleted. This cannot be undone.",
+                confirm="Reset",
+                on_confirm=self._reset,
+                danger=True,
             )
         )
 

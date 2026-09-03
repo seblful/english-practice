@@ -1,5 +1,13 @@
 """The settings screen: provider, key, model, thinking, proxy, and the rest.
 
+One column of panels, in the order the settings matter: who grades (provider,
+key), what grades (model, reasoning), how practice behaves, and then the two
+groups almost nobody opens — the proxy and the sampling controls — folded away
+behind their own headings so the screen stays a short list rather than a wall
+of fields. Every panel is :func:`~practice_app.ui.components.panel` or
+:func:`~practice_app.ui.components.collapsible`, so they cannot drift into
+different surfaces, widths or radii.
+
 Two saving rules keep this honest. A tap — a provider, a model, a switch — is
 saved and applied at once, because there is no Save button to press. Typing is
 staged in memory and written when the field loses focus, because saving a
@@ -30,14 +38,19 @@ from practice_app.providers import (
 )
 from practice_app.services import Services
 from practice_app.ui.components import (
+    SCROLL,
+    STRETCH,
     banner,
-    dropdown,
+    choice_chips,
+    collapsible,
     field_label,
     hint,
+    inline_action,
+    is_open,
+    link_action,
     panel,
     pill,
     push,
-    section_title,
     segmented,
     show_snack,
     switch_row,
@@ -102,8 +115,15 @@ class SettingsScreen(ft.Column):
         self._loading_models = False
         self._check_result: tuple[str, bool] | None = None
         self._checking = False
+        # Which folds are open. The screen rebuilds itself after every saved
+        # setting, so this has to be the screen's state and not the tile's --
+        # otherwise dragging the temperature slider closes the fold it is in.
+        self._proxy_open = services.config.proxy.enabled
+        self._advanced_open = False
 
-        super().__init__(spacing=GAP, scroll=ft.ScrollMode.AUTO, expand=True)
+        super().__init__(
+            spacing=GAP, scroll=SCROLL, expand=True, horizontal_alignment=STRETCH
+        )
         self.render()
 
     # ------------------------------------------------------------------
@@ -136,14 +156,19 @@ class SettingsScreen(ft.Column):
     # ------------------------------------------------------------------
 
     def render(self) -> None:
-        """Rebuild the screen from the current settings."""
+        """Rebuild the screen from the current settings.
+
+        The order is who grades, what grades, how practice behaves, and then
+        the two folds — so the settings a user actually opens this screen for
+        are the ones above the first scroll.
+        """
         self.controls = [
             self._provider_panel(),
             self._model_panel(),
             self._thinking_panel(),
+            self._practice_panel(),
             self._proxy_panel(),
             self._advanced_panel(),
-            self._practice_panel(),
             self._about_panel(),
         ]
 
@@ -175,21 +200,10 @@ class SettingsScreen(ft.Column):
                 on_change=self._on_provider,
             ),
             key_field,
-            ft.Row(
-                controls=[
-                    hint("Kept on this device only, never sent anywhere else."),
-                    ft.TextButton(
-                        content="Get a key",
-                        icon=ft.Icons.OPEN_IN_NEW_ROUNDED,
-                        on_click=self._open_key_page,
-                    ),
-                ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                wrap=True,
-            ),
             self._check_row(),
+            hint("Kept on this device only, never sent anywhere else."),
             title="Provider",
+            icon=ft.Icons.CLOUD_ROUNDED,
         )
 
     def _check_row(self) -> ft.Control:
@@ -209,10 +223,24 @@ class SettingsScreen(ft.Column):
             )
 
         children: list[ft.Control] = [
-            ft.OutlinedButton(
-                content="Test connection",
-                icon=ft.Icons.BOLT_ROUNDED,
-                on_click=self._on_check,
+            # Both actions on one line: they are the two things anyone does on
+            # this panel, and a stacked pair of buttons under a field reads as
+            # two unrelated afterthoughts.
+            ft.Row(
+                controls=[
+                    link_action(
+                        "Get a key",
+                        icon=ft.Icons.OPEN_IN_NEW_ROUNDED,
+                        on_click=self._open_key_page,
+                    ),
+                    ft.Container(expand=True),
+                    inline_action(
+                        "Test connection",
+                        icon=ft.Icons.BOLT_ROUNDED,
+                        on_click=self._on_check,
+                    ),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
             )
         ]
         if self._check_result is not None:
@@ -235,7 +263,12 @@ class SettingsScreen(ft.Column):
                     ),
                 )
             )
-        return ft.Column(controls=children, spacing=GAP_SMALL, tight=True)
+        return ft.Column(
+            controls=children,
+            spacing=GAP_SMALL,
+            tight=True,
+            horizontal_alignment=STRETCH,
+        )
 
     def _model_panel(self) -> ft.Control:
         """Return the selected model and the way to change it.
@@ -319,7 +352,7 @@ class SettingsScreen(ft.Column):
                 )
             )
 
-        return panel(*children, title="Model")
+        return panel(*children, title="Model", icon=ft.Icons.AUTO_AWESOME_ROUNDED)
 
     def _thinking_panel(self) -> ft.Control:
         """Return the thinking-level control for the selected model.
@@ -336,15 +369,12 @@ class SettingsScreen(ft.Column):
         current = active.thinking if active.thinking in levels else levels[0]
 
         return panel(
-            dropdown(
-                label="Thinking level",
-                value=current.value,
-                options=[
-                    ft.DropdownOption(key=level.value, text=level.label)
-                    for level in levels
-                ],
+            field_label("Thinking level"),
+            choice_chips(
+                [(level.value, level.label) for level in levels],
+                selected=current.value,
+                on_select=self._choose_thinking,
                 disabled=not can_think,
-                on_select=self._on_thinking,
             ),
             hint(
                 current.description
@@ -352,6 +382,7 @@ class SettingsScreen(ft.Column):
                 else "The selected model has no thinking control to set."
             ),
             title="Reasoning",
+            icon=ft.Icons.PSYCHOLOGY_ROUNDED,
         )
 
     def _model_reasons(self) -> bool:
@@ -370,11 +401,26 @@ class SettingsScreen(ft.Column):
             return info.supports_thinking
         return self._config.active.model_supports_thinking
 
-    def _proxy_panel(self) -> ft.Control:
-        """Return the proxy switch and, when it is on, its fields.
+    def _proxy_summary(self) -> str:
+        """Return the line under the proxy heading, so the fold says its state.
 
         Returns:
-            The panel.
+            What the proxy is set to, in one line.
+        """
+        proxy = self._config.proxy
+        if not proxy.enabled:
+            return "Off - calls go straight to the provider"
+        if not proxy.is_complete:
+            return "On, but it has no host and port yet"
+        return f"{proxy.scheme}://{proxy.host}:{proxy.port}"
+
+    def _proxy_panel(self) -> ft.Control:
+        """Return the proxy fold: the switch, and its fields once it is on.
+
+        Returns:
+            The fold, opened already when a proxy is configured, because then
+            it is a setting the user is using rather than one they have never
+            touched.
         """
         proxy = self._config.proxy
         children: list[ft.Control] = [
@@ -388,30 +434,20 @@ class SettingsScreen(ft.Column):
         if proxy.enabled:
             children.extend(
                 [
-                    ft.Row(
-                        controls=[
-                            dropdown(
-                                label="Scheme",
-                                value=proxy.scheme,
-                                options=[
-                                    ft.DropdownOption(key=scheme, text=scheme)
-                                    for scheme in PROXY_SCHEMES
-                                ],
-                                width=140,
-                                on_select=self._on_proxy_scheme,
-                            ),
-                            text_field(
-                                label="Port",
-                                value="" if proxy.port is None else str(proxy.port),
-                                keyboard_type=ft.KeyboardType.NUMBER,
-                                input_filter=ft.NumbersOnlyInputFilter(),
-                                expand=True,
-                                on_change=self._stage_proxy_port,
-                                on_blur=self._commit,
-                                on_submit=self._commit,
-                            ),
-                        ],
-                        spacing=GAP_SMALL,
+                    field_label("Protocol"),
+                    segmented(
+                        [(scheme, scheme) for scheme in PROXY_SCHEMES],
+                        selected=proxy.scheme,
+                        on_change=self._on_proxy_scheme,
+                    ),
+                    text_field(
+                        label="Port",
+                        value="" if proxy.port is None else str(proxy.port),
+                        keyboard_type=ft.KeyboardType.NUMBER,
+                        input_filter=ft.NumbersOnlyInputFilter(),
+                        on_change=self._stage_proxy_port,
+                        on_blur=self._commit,
+                        on_submit=self._commit,
                     ),
                     text_field(
                         label="Host",
@@ -457,80 +493,70 @@ class SettingsScreen(ft.Column):
                     )
                 )
 
-        return panel(*children, title="Proxy")
+        return collapsible(
+            *children,
+            title="Proxy",
+            icon=ft.Icons.VPN_LOCK_ROUNDED,
+            summary=self._proxy_summary(),
+            expanded=self._proxy_open,
+            on_toggle=self._on_proxy_fold,
+        )
 
     def _advanced_panel(self) -> ft.Control:
         """Return the sampling controls, folded away by default.
 
         Returns:
-            The panel.
+            The fold, whose heading carries what the three settings inside it
+            currently are — which is most of what anyone opens it to check.
         """
         config = self._config
-        return ft.Container(
-            content=ft.ExpansionTile(
-                title=ft.Row(
-                    controls=[
-                        ft.Icon(
-                            ft.Icons.TUNE_ROUNDED, size=18, color=ft.Colors.PRIMARY
-                        ),
-                        section_title("Advanced"),
-                    ],
-                    spacing=GAP_SMALL,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                controls=[
-                    ft.Column(
-                        controls=[
-                            field_label(f"Temperature: {config.temperature:.1f}"),
-                            ft.Slider(
-                                value=config.temperature,
-                                min=0,
-                                max=2,
-                                divisions=20,
-                                label="{value}",
-                                on_change_end=self._on_temperature,
-                            ),
-                            hint(
-                                "Lower is stricter and more repeatable. "
-                                "Grading rarely wants more than 0.7."
-                            ),
-                            text_field(
-                                label="Answer token limit",
-                                value=str(config.max_tokens),
-                                keyboard_type=ft.KeyboardType.NUMBER,
-                                input_filter=ft.NumbersOnlyInputFilter(),
-                                on_change=self._stage_max_tokens,
-                                on_blur=self._commit,
-                                on_submit=self._commit,
-                            ),
-                            hint(
-                                "Thinking tokens are added on top of this, so a "
-                                "reasoning model is never left with nothing to "
-                                "answer with."
-                            ),
-                            text_field(
-                                label="Request timeout (seconds)",
-                                value=str(int(config.request_timeout)),
-                                keyboard_type=ft.KeyboardType.NUMBER,
-                                input_filter=ft.NumbersOnlyInputFilter(),
-                                on_change=self._stage_timeout,
-                                on_blur=self._commit,
-                                on_submit=self._commit,
-                            ),
-                        ],
-                        spacing=GAP_SMALL,
-                        tight=True,
-                    )
-                ],
-                tile_padding=ft.Padding.symmetric(horizontal=GAP - 2),
-                controls_padding=ft.Padding.only(
-                    left=GAP - 2, right=GAP - 2, bottom=GAP
-                ),
-                expanded=False,
-                show_trailing_icon=True,
+        return collapsible(
+            field_label(f"Temperature: {config.temperature:.1f}"),
+            ft.Slider(
+                value=config.temperature,
+                min=0,
+                max=2,
+                divisions=20,
+                label="{value}",
+                on_change_end=self._on_temperature,
             ),
-            bgcolor=ft.Colors.SURFACE_CONTAINER_LOW,
-            border_radius=RADIUS_SMALL + 8,
+            hint(
+                "Lower is stricter and more repeatable. "
+                "Grading rarely wants more than 0.7."
+            ),
+            text_field(
+                label="Answer token limit",
+                value=str(config.max_tokens),
+                keyboard_type=ft.KeyboardType.NUMBER,
+                input_filter=ft.NumbersOnlyInputFilter(),
+                on_change=self._stage_max_tokens,
+                on_blur=self._commit,
+                on_submit=self._commit,
+            ),
+            hint(
+                "Thinking tokens are added on top of this, so a reasoning "
+                "model is never left with nothing to answer with."
+            ),
+            text_field(
+                label="Request timeout (seconds)",
+                value=str(int(config.request_timeout)),
+                keyboard_type=ft.KeyboardType.NUMBER,
+                input_filter=ft.NumbersOnlyInputFilter(),
+                on_change=self._stage_timeout,
+                on_blur=self._commit,
+                on_submit=self._commit,
+            ),
+            title="Advanced",
+            icon=ft.Icons.TUNE_ROUNDED,
+            # Short enough for one line at 360dp: a heading that wraps stops
+            # looking like a heading.
+            summary=(
+                f"{config.temperature:.1f} temp - "
+                f"{config.max_tokens} tokens - "
+                f"{int(config.request_timeout)}s"
+            ),
+            expanded=self._advanced_open,
+            on_toggle=self._on_advanced_fold,
         )
 
     def _practice_panel(self) -> ft.Control:
@@ -546,7 +572,7 @@ class SettingsScreen(ft.Column):
                 value=config.show_rules,
                 on_change=self._on_show_rules,
             ),
-            ft.Container(height=GAP_SMALL - 4),
+            ft.Divider(),
             field_label("Theme"),
             segmented(
                 _THEME_LABELS,
@@ -554,6 +580,7 @@ class SettingsScreen(ft.Column):
                 on_change=self._on_theme,
             ),
             title="Practice",
+            icon=ft.Icons.SCHOOL_ROUNDED,
         )
 
     def _about_panel(self) -> ft.Control:
@@ -580,7 +607,9 @@ class SettingsScreen(ft.Column):
                 ),
                 hint(f"English Practice {__version__}"),
                 title="About",
+                icon=ft.Icons.INFO_ROUNDED,
             ),
+            # The last panel would otherwise end up under the navigation bar.
             padding=ft.Padding.only(bottom=GAP_LARGE),
         )
 
@@ -659,25 +688,43 @@ class SettingsScreen(ft.Column):
         self._check_result = None
         await self._apply(replace(self._config, provider=Provider(chosen)))
 
-    async def _on_thinking(self, event: ft.Event[ft.Dropdown]) -> None:
-        """Change how hard the model should think."""
-        value = event.control.value
-        if value is None:  # pragma: no cover - the dropdown always has a value
-            return
-        await self._apply(self._config.with_active(thinking=ThinkingLevel(value)))
+    def _choose_thinking(self, level: str) -> None:
+        """Change how hard the model should think.
+
+        Args:
+            level: The value of the chip that was tapped. A chip's callback
+                cannot await, so the save is scheduled.
+        """
+        self._page.run_task(self._on_thinking, level)
+
+    async def _on_thinking(self, level: str) -> None:
+        """Save a thinking level.
+
+        Args:
+            level: One of :class:`~practice_app.providers.ThinkingLevel`.
+        """
+        await self._apply(self._config.with_active(thinking=ThinkingLevel(level)))
+
+    def _on_proxy_fold(self, event: ft.Event[ft.ExpansionTile]) -> None:
+        """Remember whether the proxy fold is open."""
+        self._proxy_open = is_open(event)
+
+    def _on_advanced_fold(self, event: ft.Event[ft.ExpansionTile]) -> None:
+        """Remember whether the advanced fold is open."""
+        self._advanced_open = is_open(event)
 
     async def _on_proxy_enabled(self, event: ft.Event[ft.Switch]) -> None:
-        """Turn the proxy on or off."""
+        """Turn the proxy on or off, keeping its fields in view once it is on."""
+        enabled = bool(event.control.value)
+        if enabled:
+            self._proxy_open = True
         await self._apply(
-            replace(
-                self._config,
-                proxy=replace(self._config.proxy, enabled=bool(event.control.value)),
-            )
+            replace(self._config, proxy=replace(self._config.proxy, enabled=enabled))
         )
 
-    async def _on_proxy_scheme(self, event: ft.Event[ft.Dropdown]) -> None:
+    async def _on_proxy_scheme(self, event: ft.Event[ft.SegmentedButton]) -> None:
         """Change the proxy protocol."""
-        scheme = event.control.value or "http"
+        scheme = next(iter(event.control.selected), "http")
         await self._apply(
             replace(self._config, proxy=replace(self._config.proxy, scheme=scheme))
         )

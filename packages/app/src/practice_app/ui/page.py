@@ -51,6 +51,10 @@ class ShellPage(DialogPage, Protocol):
     padding: Any
     appbar: Any
     navigation_bar: Any
+    # The navigation stack. The shell only wants its root, whose ``can_pop``
+    # and ``on_confirm_pop`` are what let it answer the system Back gesture
+    # instead of having the app closed out from under a lesson.
+    views: Any
 
     def add(self, *controls: ft.Control) -> None:
         """Append controls to the page."""

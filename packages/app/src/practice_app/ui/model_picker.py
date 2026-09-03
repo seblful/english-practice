@@ -11,8 +11,14 @@ from collections.abc import Callable, Sequence
 import flet as ft
 
 from practice_app.providers import ModelInfo
-from practice_app.ui.components import hint, pill, text_field
-from practice_app.ui.theme import GAP, GAP_SMALL, RADIUS, RADIUS_SMALL
+from practice_app.ui.components import (
+    STRETCH,
+    filter_chip,
+    hint,
+    pill,
+    text_field,
+)
+from practice_app.ui.theme import GAP, GAP_SMALL, RADIUS_SMALL
 
 __all__ = ["MAX_RESULTS", "ModelPicker", "visible_models"]
 
@@ -84,24 +90,15 @@ class ModelPicker(ft.AlertDialog):
             capitalization=ft.TextCapitalization.NONE,
             on_change=self._refilter,
         )
-        self._vision = ft.Chip(
-            label=ft.Text("Vision"),
+        self._vision = filter_chip(
+            "Vision",
             selected=any(model.supports_images for model in self._models),
-            show_checkmark=True,
             on_select=self._refilter,
         )
-        self._thinking = ft.Chip(
-            label=ft.Text("Thinking"),
-            selected=False,
-            show_checkmark=True,
-            on_select=self._refilter,
+        self._thinking = filter_chip(
+            "Thinking", selected=False, on_select=self._refilter
         )
-        self._free = ft.Chip(
-            label=ft.Text("Free"),
-            selected=False,
-            show_checkmark=True,
-            on_select=self._refilter,
-        )
+        self._free = filter_chip("Free", selected=False, on_select=self._refilter)
         self._count = hint("")
         self._list = ft.ListView(
             spacing=GAP_SMALL - 2,
@@ -122,6 +119,9 @@ class ModelPicker(ft.AlertDialog):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             content=ft.Container(
+                # Wider and taller than any phone, so the picker fills what
+                # the dialog's insets leave it instead of shrinking around
+                # whatever the longest visible model id happens to be.
                 width=560,
                 height=520,
                 content=ft.Column(
@@ -136,13 +136,12 @@ class ModelPicker(ft.AlertDialog):
                         self._list,
                     ],
                     spacing=GAP_SMALL + 2,
+                    horizontal_alignment=STRETCH,
                 ),
             ),
             content_padding=ft.Padding.symmetric(horizontal=GAP, vertical=GAP_SMALL),
-            inset_padding=GAP,
-            actions=[ft.TextButton("Close", on_click=self._close)],
+            actions=[ft.TextButton(content="Close", on_click=self._close)],
             actions_alignment=ft.MainAxisAlignment.END,
-            shape=ft.RoundedRectangleBorder(radius=RADIUS),
         )
         self._render()
 
@@ -266,7 +265,13 @@ class ModelPicker(ft.AlertDialog):
         return ft.Container(
             content=ft.Row(
                 controls=[
-                    ft.Column(controls=details, spacing=4, tight=True, expand=True),
+                    ft.Column(
+                        controls=details,
+                        spacing=4,
+                        tight=True,
+                        expand=True,
+                        horizontal_alignment=STRETCH,
+                    ),
                     ft.Icon(
                         ft.Icons.CHECK_CIRCLE_ROUNDED
                         if is_selected

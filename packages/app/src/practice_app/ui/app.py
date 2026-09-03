@@ -9,6 +9,12 @@ The chrome steps aside for a lesson. While one is running the app bar and the
 navigation bar are hidden, so the question, the answer and the one button that
 moves the lesson on have the screen to themselves — the way out is the cross on
 the lesson's own bar, which asks first.
+
+Back is answered here too. Android's gesture would otherwise close the app
+from whatever the user was in the middle of, so the root view is told it may
+not be popped and this asks the practice screen first: it uses the gesture to
+shut its own picture, or to ask whether to leave a lesson, and only a Back on
+the home tab with nothing open is allowed to end the app.
 """
 
 from collections.abc import Sequence
@@ -134,6 +140,14 @@ class PracticeApp:
                 ),
             ],
         )
+        # Android's Back is not the app's to spend: the practice screen may
+        # have a picture open or a lesson running, and either is worth more
+        # than a fast exit. `can_pop=False` routes the gesture through
+        # `_on_confirm_pop`, which decides.
+        root = page.views[0]
+        root.can_pop = False
+        root.on_confirm_pop = self._on_confirm_pop
+
         page.add(ft.SafeArea(content=self._body, expand=True))
 
         # All three are cheap local reads, and doing them now means the first
@@ -182,6 +196,30 @@ class PracticeApp:
         # this handler would otherwise have got. The title and the swapped
         # pane are the shell's own, so they need this to reach the phone.
         self._page.update()
+
+    async def _on_confirm_pop(self, event: ft.Event[ft.View]) -> None:
+        """Answer the pending Back gesture with what :meth:`handle_back` says.
+
+        Args:
+            event: The root view's confirmation request.
+        """
+        await event.control.confirm_pop(await self.handle_back())
+
+    async def handle_back(self) -> bool:
+        """Use the Back gesture, and say whether the app should close.
+
+        Returns:
+            ``True`` only when there was nothing to go back to: no lesson, no
+            magnified picture, and the practice tab already showing. Anything
+            else is a step back inside the app, and closing it instead is what
+            lost a half-finished lesson to a stray swipe.
+        """
+        if self.practice.handle_back():
+            return False
+        if self._index != PRACTICE_TAB:
+            await self.select_tab(PRACTICE_TAB)
+            return False
+        return True
 
     def _lesson_changed(self, running: bool) -> None:
         """Hide the shell's chrome for the duration of a lesson.

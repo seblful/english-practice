@@ -1,9 +1,11 @@
 """Shared fixtures for the app tests.
 
 Two fakes carry most of the weight. :class:`FakePage` stands in for the Flet
-page, recording the dialogs and snack bars a screen asks for, so a screen can
-be built and driven without a running app. :func:`transport` builds an
-``httpx.MockTransport``, so a provider call can be asserted without a network.
+page — recording the dialogs and snack bars a screen asks for, and carrying a
+:class:`FakeView` whose pop confirmation is how the shell answers Android's
+Back gesture — so a screen can be built and driven without a running app.
+:func:`transport` builds an ``httpx.MockTransport``, so a provider call can be
+asserted without a network.
 
 The content database is built from the schema ``practice-core`` ships: a column
 renamed there should break these tests instead of the phone.
@@ -62,6 +64,19 @@ WEBP_BYTES = b"RIFF\x00\x00\x00\x00WEBPfake"
 
 
 @dataclass
+class FakeView:
+    """The root view, as the shell uses it: it may refuse to be popped."""
+
+    can_pop: bool = True
+    on_confirm_pop: Any = None
+    confirmed: list[bool] = field(default_factory=list)
+
+    async def confirm_pop(self, should_pop: bool) -> None:
+        """Record the shell's answer to a pending Back gesture."""
+        self.confirmed.append(should_pop)
+
+
+@dataclass
 class FakePage:
     """The part of ``ft.Page`` the screens actually touch."""
 
@@ -79,6 +94,7 @@ class FakePage:
     appbar: Any = None
     navigation_bar: Any = None
     controls: list[Any] = field(default_factory=list)
+    views: list[FakeView] = field(default_factory=lambda: [FakeView()])
 
     def show_dialog(self, dialog: Any) -> None:
         """Record a dialog or snack bar the screen opened."""
@@ -105,6 +121,11 @@ class FakePage:
         self.updates += 1
 
     # --- helpers for the tests themselves ---------------------------------
+
+    @property
+    def root_view(self) -> FakeView:
+        """Return the view the shell wired its Back handler to."""
+        return self.views[0]
 
     @property
     def last_dialog(self) -> Any:
