@@ -25,6 +25,7 @@ from practice_app.session import Lesson
 from practice_app.stats import Attempt, DayStat, StatsStore, StatsSummary, TopicStat
 from practice_app.ui.app import PRACTICE_TAB, SETTINGS_TAB, STATS_TAB, PracticeApp
 from practice_app.ui.components import (
+    SEGMENT_LABEL_SIZE,
     action_bar,
     banner,
     field_label,
@@ -45,7 +46,7 @@ from practice_app.ui.components import (
 from practice_app.ui.home_view import MIXED_LESSON_LABEL, HomeState, HomeView
 from practice_app.ui.model_picker import MAX_RESULTS, ModelPicker, visible_models
 from practice_app.ui.practice_view import PracticeScreen
-from practice_app.ui.settings_view import _SEGMENT_LABEL_SIZE, SettingsScreen
+from practice_app.ui.settings_view import SettingsScreen
 from practice_app.ui.stats_view import StatsScreen
 from practice_app.ui.theme import build_theme, theme_mode
 from tests.conftest import FakePage, reply_transport
@@ -599,10 +600,28 @@ class TestLessonFlow:
 
         body = rendered(screen)
         assert "Present Tenses" in body
-        assert "Question 2" in body
         assert "Unit 1" in body
         assert "1/10" in body
         assert "Check" in body
+
+    async def test_the_heading_counts_the_lesson_not_the_book(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """Two numbers labelled alike, meaning different things, read as a bug.
+
+        The bar says how far into the run the user is. The heading used to
+        show the book's own numbering instead, so a first question drawn from
+        sentence 2 of a printed exercise appeared as "Question 2" under a bar
+        reading "1/10".
+        """
+        screen = PracticeScreen(page, services)
+
+        await _start(screen)
+
+        body = rendered(screen)
+        assert "Question 1 of 10" in body
+        # The book's number is still there, told apart from the run's count.
+        assert "Sentence 2" in body
 
     async def test_a_mixed_lesson_labels_the_topic_it_landed_on(
         self, page: FakePage, services: Services
@@ -660,7 +679,11 @@ class TestLessonFlow:
         assert "is doing" in body
         assert "Continue" in body
         # The question is still on screen: nothing scrolled away under a reply.
-        assert "Question 2" in body
+        assert "Sentence 2" in body
+        # And the run has not moved on yet, because the user has not: the
+        # counter used to announce the next question over this one's verdict.
+        assert "Question 1 of 10" in body
+        assert "1/10" in body
 
     async def test_a_correct_answer_keeps_the_sheet_short(
         self, page: FakePage, services: Services
@@ -774,10 +797,66 @@ class TestLessonFlow:
 
         await _answer(screen)
 
-        assert "Could not grade that" in page.snack_texts()[0]
-        assert "is doing" in rendered(screen)
+        body = rendered(screen)
+        # In the sheet, not a snack bar: a snack floats over the bottom of the
+        # screen, which is where the sheet puts the button that moves on.
+        assert "Could not grade that" in body
+        assert page.snack_texts() == []
+        assert "is doing" in body
         assert lesson.outcomes == [False]
         assert (await stats.summary()).total == 0
+
+    async def test_the_reason_a_grading_failed_ends_in_one_full_stop(
+        self,
+        page: FakePage,
+        config_store: ConfigStore,
+        content: ContentLibrary,
+        stats: StatsStore,
+        config: AppConfig,
+    ) -> None:
+        """Some provider messages end in a full stop and some do not."""
+        broken = Services(
+            config_store=config_store,
+            content=content,
+            stats=stats,
+            config=config,
+            transport=httpx.MockTransport(lambda _: httpx.Response(500, json={})),
+        )
+        broken.client._sleep = _instant
+        screen = PracticeScreen(page, broken)
+        await _start(screen)
+
+        await _answer(screen)
+
+        assert ".." not in rendered(screen)
+        assert screen._grading_error is not None
+        assert screen._grading_error.endswith(".")
+
+    async def test_a_fresh_question_drops_the_previous_failure(
+        self,
+        page: FakePage,
+        config_store: ConfigStore,
+        content: ContentLibrary,
+        stats: StatsStore,
+        config: AppConfig,
+    ) -> None:
+        broken = Services(
+            config_store=config_store,
+            content=content,
+            stats=stats,
+            config=config,
+            transport=httpx.MockTransport(lambda _: httpx.Response(500, json={})),
+        )
+        broken.client._sleep = _instant
+        screen = PracticeScreen(page, broken)
+        await _start(screen)
+        await _answer(screen)
+        assert screen._grading_error is not None
+
+        await screen._on_continue()
+
+        assert screen._grading_error is None
+        assert "Could not grade that" not in rendered(screen)
 
     async def test_revealing_spends_the_question_but_earns_nothing(
         self, page: FakePage, services: Services
@@ -1149,8 +1228,23 @@ class TestModelPicker:
             on_refresh=lambda: None,
         )
 
-        assert "more match" in rendered(picker)
+        assert "20 more matches" in rendered(picker)
         assert len(picker._list.controls) == MAX_RESULTS + 1
+
+    def test_one_hidden_match_is_counted_in_the_singular(self) -> None:
+        many = [
+            ModelInfo(id=f"vendor/model-{index:03d}", name=f"Model {index}")
+            for index in range(MAX_RESULTS + 1)
+        ]
+        picker = ModelPicker(
+            provider_label="OpenRouter",
+            models=many,
+            selected="",
+            on_select=lambda _: None,
+            on_refresh=lambda: None,
+        )
+
+        assert "1 more match - " in rendered(picker)
 
     def test_picking_reports_the_model(self, catalogue: list[ModelInfo]) -> None:
         picker, picked, _ = self._picker(catalogue)
@@ -1207,7 +1301,7 @@ class TestSettingsScreen:
         assert len(labels) == len(Provider)
         for label in labels:
             assert isinstance(label, ft.Text)
-            assert label.size == _SEGMENT_LABEL_SIZE
+            assert label.size == SEGMENT_LABEL_SIZE
 
     async def test_the_about_section_counts_the_book(
         self, page: FakePage, services: Services
@@ -1280,6 +1374,49 @@ class TestSettingsScreen:
         assert active.model == "vendor/model"
         assert active.model_supports_thinking is True
         assert active.model_supports_json is True
+
+    async def test_the_catalogue_enables_thinking_for_a_stored_model(
+        self, page: FakePage, services: Services, catalogue: list[ModelInfo]
+    ) -> None:
+        """The stored flag is a cache, not the authority.
+
+        A model restored from the settings file carries whatever the app knew
+        when it was picked -- nothing, for a file written before capabilities
+        were recorded. Once a catalogue is in hand it says what the model can
+        do, and the control has to follow it rather than the stale flag.
+        """
+        services.config = services.config.with_active(model_supports_thinking=False)
+        services._catalogues[Provider.OPENROUTER] = catalogue
+        screen = SettingsScreen(page, services)
+
+        assert _find(screen.controls[2], ft.Dropdown).disabled is False
+        assert "no thinking control" not in rendered(screen)
+
+    async def test_a_fetched_catalogue_corrects_the_stored_capabilities(
+        self, page: FakePage, services: Services, catalogue: list[ModelInfo]
+    ) -> None:
+        """The request is built from the stored flags, so they must agree."""
+        services.config = services.config.with_active(
+            model_supports_thinking=False, model_supports_json=False
+        )
+        services._catalogues[Provider.OPENROUTER] = catalogue
+        screen = SettingsScreen(page, services)
+
+        await screen._reconcile_capabilities()
+
+        active = services.config_store.load().active
+        assert active.model_supports_thinking is True
+        assert active.model_supports_json is True
+
+    async def test_reconciling_an_unlisted_model_changes_nothing(
+        self, page: FakePage, services: Services
+    ) -> None:
+        services.config = services.config.with_active(model="vendor/not-in-catalogue")
+        screen = SettingsScreen(page, services)
+
+        await screen._reconcile_capabilities()
+
+        assert services.config.active.model_supports_thinking is False
 
     async def test_choosing_a_model_that_cannot_think_resets_the_level(
         self, page: FakePage, services: Services, catalogue: list[ModelInfo]
@@ -1608,6 +1745,49 @@ class TestPracticeApp:
         await app.select_tab(STATS_TAB)
 
         assert page.appbar.title.value == "Progress"
+
+    async def test_every_tab_switch_pushes_the_page(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """The swap has to be sent, not just made.
+
+        The screen a switch loads pushes itself, and that first explicit push
+        cancels the automatic one Flet would have sent when the handler
+        returned. So a tab visited a second time -- when the pane already has
+        a parent and its push therefore fires -- used to leave the phone on
+        the previous tab, showing the previous title, with only the navigation
+        bar's own highlight moving.
+        """
+        app = PracticeApp(page, services)
+        await app.start()
+
+        for visit in (STATS_TAB, SETTINGS_TAB, STATS_TAB, PRACTICE_TAB, STATS_TAB):
+            before = page.updates
+            await app.select_tab(visit)
+
+            assert page.updates > before, f"tab {visit} was swapped but not pushed"
+
+    async def test_a_lesson_pushes_the_chrome_it_hid(
+        self, page: FakePage, services: Services
+    ) -> None:
+        app = PracticeApp(page, services)
+        await app.start()
+        before = page.updates
+
+        await app.practice.start_lesson(1, "Present Tenses")
+
+        assert page.updates > before
+
+    async def test_a_theme_change_pushes_the_page(
+        self, page: FakePage, services: Services
+    ) -> None:
+        app = PracticeApp(page, services)
+        await app.start()
+        before = page.updates
+
+        app._settings_changed()
+
+        assert page.updates > before
 
     async def test_switching_tabs_keeps_the_open_lesson(
         self, page: FakePage, services: Services

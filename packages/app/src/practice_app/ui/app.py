@@ -178,6 +178,11 @@ class PracticeApp:
         else:
             await self.settings.refresh()
 
+        # The screen above pushed itself, which cancelled the automatic push
+        # this handler would otherwise have got. The title and the swapped
+        # pane are the shell's own, so they need this to reach the phone.
+        self._page.update()
+
     def _lesson_changed(self, running: bool) -> None:
         """Hide the shell's chrome for the duration of a lesson.
 
@@ -188,6 +193,7 @@ class PracticeApp:
             self._page.appbar.visible = not running
         if self._page.navigation_bar is not None:
             self._page.navigation_bar.visible = not running
+        self._page.update()
 
     # ------------------------------------------------------------------
     # Appearance
@@ -206,6 +212,7 @@ class PracticeApp:
         theme = self._services.config.theme
         self._page.theme_mode = theme_mode(theme)
         self._theme_button.icon = _THEME_ICONS[theme]
+        self._page.update()
 
     def _settings_changed(self) -> None:
         """React to a saved setting: re-theme, and re-check the practice tab."""

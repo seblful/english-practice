@@ -31,23 +31,23 @@ from practice_app.providers import (
 from practice_app.services import Services
 from practice_app.ui.components import (
     banner,
+    dropdown,
     field_label,
     hint,
     panel,
     pill,
     push,
     section_title,
+    segmented,
     show_snack,
     switch_row,
+    text_field,
 )
 from practice_app.ui.model_picker import ModelPicker
 from practice_app.ui.page import DialogPage
 from practice_app.ui.theme import GAP, GAP_LARGE, GAP_SMALL, RADIUS_SMALL
 
 __all__ = ["SettingsScreen"]
-
-# Small enough that the longest provider name stays on one line at 360dp.
-_SEGMENT_LABEL_SIZE = 13
 
 _MIN_TOKENS = 256
 _MAX_TOKENS = 32768
@@ -154,13 +154,11 @@ class SettingsScreen(ft.Column):
             The panel.
         """
         provider = self._config.provider
-        key_field = ft.TextField(
+        key_field = text_field(
             label=f"{provider.label} API key",
             value=self._config.active.api_key,
             password=True,
             can_reveal_password=True,
-            filled=True,
-            border_radius=RADIUS_SMALL,
             autocorrect=False,
             capitalization=ft.TextCapitalization.NONE,
             keyboard_type=ft.KeyboardType.VISIBLE_PASSWORD,
@@ -171,21 +169,9 @@ class SettingsScreen(ft.Column):
         )
 
         return panel(
-            ft.SegmentedButton(
-                segments=[
-                    # A phone is 360dp wide, which leaves each of the three
-                    # segments about 85dp for its label. "OpenRouter" does not
-                    # fit that at the default size and has no space to break
-                    # at, so it wrapped mid-word.
-                    ft.Segment(
-                        value=known.value,
-                        label=ft.Text(known.label, size=_SEGMENT_LABEL_SIZE),
-                    )
-                    for known in Provider
-                ],
-                selected=[provider.value],
-                show_selected_icon=False,
-                allow_empty_selection=False,
+            segmented(
+                [(known.value, known.short_label) for known in Provider],
+                selected=provider.value,
                 on_change=self._on_provider,
             ),
             key_field,
@@ -342,23 +328,21 @@ class SettingsScreen(ft.Column):
             The panel.
         """
         active = self._config.active
+        reasons = self._model_reasons()
         levels = supported_thinking_levels(
-            self._config.provider,
-            supports_thinking=active.model_supports_thinking,
+            self._config.provider, supports_thinking=reasons
         )
-        can_think = active.model_supports_thinking and len(levels) > 1
+        can_think = reasons and len(levels) > 1
         current = active.thinking if active.thinking in levels else levels[0]
 
         return panel(
-            ft.Dropdown(
+            dropdown(
                 label="Thinking level",
                 value=current.value,
                 options=[
                     ft.DropdownOption(key=level.value, text=level.label)
                     for level in levels
                 ],
-                filled=True,
-                border_radius=RADIUS_SMALL,
                 disabled=not can_think,
                 on_select=self._on_thinking,
             ),
@@ -369,6 +353,22 @@ class SettingsScreen(ft.Column):
             ),
             title="Reasoning",
         )
+
+    def _model_reasons(self) -> bool:
+        """Return whether the selected model has reasoning to configure.
+
+        The catalogue is the authority whenever one has been fetched, because
+        it is also what :meth:`_choose_model` records. Falling back on the
+        stored flag keeps the answer right across a restart, when several
+        hundred catalogue entries have not been re-fetched to ask again.
+
+        Returns:
+            Whether to offer the thinking control.
+        """
+        info = self._model()
+        if info is not None:
+            return info.supports_thinking
+        return self._config.active.model_supports_thinking
 
     def _proxy_panel(self) -> ft.Control:
         """Return the proxy switch and, when it is on, its fields.
@@ -390,23 +390,19 @@ class SettingsScreen(ft.Column):
                 [
                     ft.Row(
                         controls=[
-                            ft.Dropdown(
+                            dropdown(
                                 label="Scheme",
                                 value=proxy.scheme,
                                 options=[
                                     ft.DropdownOption(key=scheme, text=scheme)
                                     for scheme in PROXY_SCHEMES
                                 ],
-                                filled=True,
-                                border_radius=RADIUS_SMALL,
                                 width=140,
                                 on_select=self._on_proxy_scheme,
                             ),
-                            ft.TextField(
+                            text_field(
                                 label="Port",
                                 value="" if proxy.port is None else str(proxy.port),
-                                filled=True,
-                                border_radius=RADIUS_SMALL,
                                 keyboard_type=ft.KeyboardType.NUMBER,
                                 input_filter=ft.NumbersOnlyInputFilter(),
                                 expand=True,
@@ -417,12 +413,10 @@ class SettingsScreen(ft.Column):
                         ],
                         spacing=GAP_SMALL,
                     ),
-                    ft.TextField(
+                    text_field(
                         label="Host",
                         value=proxy.host,
                         hint_text="proxy.example.com",
-                        filled=True,
-                        border_radius=RADIUS_SMALL,
                         autocorrect=False,
                         capitalization=ft.TextCapitalization.NONE,
                         keyboard_type=ft.KeyboardType.URL,
@@ -430,24 +424,20 @@ class SettingsScreen(ft.Column):
                         on_blur=self._commit,
                         on_submit=self._commit,
                     ),
-                    ft.TextField(
+                    text_field(
                         label="Username (optional)",
                         value=proxy.username,
-                        filled=True,
-                        border_radius=RADIUS_SMALL,
                         autocorrect=False,
                         capitalization=ft.TextCapitalization.NONE,
                         on_change=self._stage_proxy_username,
                         on_blur=self._commit,
                         on_submit=self._commit,
                     ),
-                    ft.TextField(
+                    text_field(
                         label="Password (optional)",
                         value=proxy.password,
                         password=True,
                         can_reveal_password=True,
-                        filled=True,
-                        border_radius=RADIUS_SMALL,
                         keyboard_type=ft.KeyboardType.VISIBLE_PASSWORD,
                         on_change=self._stage_proxy_password,
                         on_blur=self._commit,
@@ -504,11 +494,9 @@ class SettingsScreen(ft.Column):
                                 "Lower is stricter and more repeatable. "
                                 "Grading rarely wants more than 0.7."
                             ),
-                            ft.TextField(
+                            text_field(
                                 label="Answer token limit",
                                 value=str(config.max_tokens),
-                                filled=True,
-                                border_radius=RADIUS_SMALL,
                                 keyboard_type=ft.KeyboardType.NUMBER,
                                 input_filter=ft.NumbersOnlyInputFilter(),
                                 on_change=self._stage_max_tokens,
@@ -520,11 +508,9 @@ class SettingsScreen(ft.Column):
                                 "reasoning model is never left with nothing to "
                                 "answer with."
                             ),
-                            ft.TextField(
+                            text_field(
                                 label="Request timeout (seconds)",
                                 value=str(int(config.request_timeout)),
-                                filled=True,
-                                border_radius=RADIUS_SMALL,
                                 keyboard_type=ft.KeyboardType.NUMBER,
                                 input_filter=ft.NumbersOnlyInputFilter(),
                                 on_change=self._stage_timeout,
@@ -562,14 +548,9 @@ class SettingsScreen(ft.Column):
             ),
             ft.Container(height=GAP_SMALL - 4),
             field_label("Theme"),
-            ft.SegmentedButton(
-                segments=[
-                    ft.Segment(value=value, label=ft.Text(label))
-                    for value, label in _THEME_LABELS
-                ],
-                selected=[config.theme],
-                show_selected_icon=False,
-                allow_empty_selection=False,
+            segmented(
+                _THEME_LABELS,
+                selected=config.theme,
                 on_change=self._on_theme,
             ),
             title="Practice",
@@ -741,6 +722,7 @@ class SettingsScreen(ft.Column):
                 self._loading_models = False
                 self.render()
                 push(self)
+            await self._reconcile_capabilities()
 
         self._open_picker()
 
@@ -783,7 +765,32 @@ class SettingsScreen(ft.Column):
             self._loading_models = False
             self.render()
             push(self)
+        await self._reconcile_capabilities()
         self._open_picker()
+
+    async def _reconcile_capabilities(self) -> None:
+        """Record what a fresh catalogue says about the model already selected.
+
+        A model chosen through the picker arrives with its capabilities
+        attached. One restored from the settings file does not, and it is the
+        stored flags that :mod:`practice_app.llm` builds the request from — so
+        the first catalogue of a run is also the moment to correct them, rather
+        than waiting for the user to re-pick the model they already have.
+        """
+        info = self._model()
+        active = self._config.active
+        if info is None or (
+            info.supports_thinking == active.model_supports_thinking
+            and info.supports_json == active.model_supports_json
+        ):
+            return
+
+        await self._apply(
+            self._config.with_active(
+                model_supports_thinking=info.supports_thinking,
+                model_supports_json=info.supports_json,
+            )
+        )
 
     async def _choose_model(self, model: ModelInfo) -> None:
         """Select a model, and carry its capabilities into the settings.

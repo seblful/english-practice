@@ -24,8 +24,10 @@ from practice_app.ui.theme import (
 ClickHandler = Callable[..., Any]
 
 __all__ = [
+    "SEGMENT_LABEL_SIZE",
     "action_bar",
     "banner",
+    "dropdown",
     "field_label",
     "hint",
     "panel",
@@ -36,20 +38,34 @@ __all__ = [
     "push",
     "secondary_action",
     "section_title",
+    "segmented",
     "sheet",
     "show_snack",
     "stat_tile",
     "switch_row",
+    "text_field",
 ]
+
+# A phone is 360dp wide, so three segments get about 85dp each for a label.
+# "OpenRouter" does not fit that at the default size and has nowhere to break,
+# so it wrapped mid-word; "Google Gemini" does have a space and wrapped there
+# instead, leaving one two-line segment beside two one-line ones.
+SEGMENT_LABEL_SIZE = 13
 
 
 def push(control: ft.Control) -> None:
     """Send a rebuilt control to the client, if it is on screen.
 
-    Flet applies changes automatically once an event handler returns, so an
-    explicit push is only needed mid-handler — to show a spinner before a
-    request, say. A screen the shell has not attached yet has nothing to push
-    to, and asking raises, so that case is simply skipped.
+    Flet pushes what a handler changed automatically — but only while the
+    handler has not pushed anything itself, because the first explicit
+    ``update()`` cancels the automatic one for the rest of the event. So this
+    sends *this control's* subtree and nothing else: whatever the caller
+    changed elsewhere on the page it must now push itself. The shell does,
+    in :meth:`~practice_app.ui.app.PracticeApp.select_tab` and its
+    neighbours.
+
+    A screen the shell has not attached yet has nothing to push to, and asking
+    raises, so that case is simply skipped.
 
     Args:
         control: The control whose subtree changed.
@@ -166,6 +182,93 @@ def field_label(text: str) -> ft.Text:
         The control.
     """
     return ft.Text(text, size=13, weight=ft.FontWeight.W_600)
+
+
+def _field_style(props: dict[str, Any]) -> dict[str, Any]:
+    """Return the app's field style, with the caller's overrides on top.
+
+    Flet 0.86 has no ``InputDecorationTheme``, so "every field in the app looks
+    the same" cannot be stated once in :mod:`practice_app.ui.theme` and has to
+    be a function instead. Material's default is a full outline, which left the
+    settings fields ruled in heavy dark boxes while the answer field -- set
+    borderless by hand -- sat one tap away in a different style.
+
+    Args:
+        props: What the caller passed.
+
+    Returns:
+        The merged keyword arguments.
+    """
+    return {
+        "filled": True,
+        "border_color": ft.Colors.TRANSPARENT,
+        "border_radius": RADIUS_SMALL,
+    } | props
+
+
+def text_field(**props: Any) -> ft.TextField:
+    """Return a text field in the app's one field style.
+
+    Args:
+        **props: Anything :class:`ft.TextField` takes. Naming a property the
+            shared style sets overrides it.
+
+    Returns:
+        The field.
+    """
+    return ft.TextField(**_field_style(props))
+
+
+def dropdown(**props: Any) -> ft.Dropdown:
+    """Return a dropdown in the same style as :func:`text_field`.
+
+    Args:
+        **props: Anything :class:`ft.Dropdown` takes.
+
+    Returns:
+        The dropdown.
+    """
+    return ft.Dropdown(**_field_style(props))
+
+
+def segmented(
+    options: Sequence[tuple[str, str]],
+    *,
+    selected: str,
+    on_change: ClickHandler,
+) -> ft.Control:
+    """Return a row of mutually exclusive choices, filling its panel.
+
+    Both segmented controls in the app come from here, so they cannot end up
+    with different label sizes and different widths on the same screen.
+
+    Args:
+        options: ``(value, label)`` pairs, left to right.
+        selected: The value currently chosen.
+        on_change: Called with the button's change event.
+
+    Returns:
+        The control, in a row so that it spans the panel rather than shrinking
+        to the width its longest label happens to need.
+    """
+    return ft.Row(
+        controls=[
+            ft.SegmentedButton(
+                segments=[
+                    ft.Segment(
+                        value=value,
+                        label=ft.Text(label, size=SEGMENT_LABEL_SIZE),
+                    )
+                    for value, label in options
+                ],
+                selected=[selected],
+                show_selected_icon=False,
+                allow_empty_selection=False,
+                on_change=on_change,
+                expand=True,
+            )
+        ]
+    )
 
 
 def switch_row(
@@ -357,7 +460,13 @@ def primary_action(
         The button, sized for a thumb.
     """
     return ft.FilledButton(
-        content=ft.Text(text, size=15, weight=ft.FontWeight.W_700),
+        content=ft.Text(
+            text,
+            size=15,
+            weight=ft.FontWeight.W_700,
+            max_lines=1,
+            overflow=ft.TextOverflow.ELLIPSIS,
+        ),
         icon=icon,
         on_click=on_click,
         height=ACTION_HEIGHT,
@@ -391,7 +500,16 @@ def secondary_action(
         as one bar rather than as two controls.
     """
     return ft.OutlinedButton(
-        content=ft.Text(text, size=15, weight=ft.FontWeight.W_600),
+        # These are a fixed height, and the longest label here is a topic name
+        # -- "Again: Questions and auxiliary verbs" -- which a second line
+        # would clip rather than wrap.
+        content=ft.Text(
+            text,
+            size=15,
+            weight=ft.FontWeight.W_600,
+            max_lines=1,
+            overflow=ft.TextOverflow.ELLIPSIS,
+        ),
         icon=icon,
         on_click=on_click,
         tooltip=tooltip,

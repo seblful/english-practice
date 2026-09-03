@@ -91,7 +91,15 @@ class Lesson:
 
     @property
     def position(self) -> int:
-        """Which question is on screen, counting from one."""
+        """Which question is on screen, counting from one.
+
+        An answer is recorded the moment it is given, while its verdict stays
+        on screen until the user moves on. Counting straight off ``answered``
+        therefore announced the next question while the previous one's answer
+        was still being read -- "2/10" over the verdict for question one.
+        """
+        if self.active is not None and self.active.is_revealed:
+            return self.answered
         return min(self.answered + 1, self.length)
 
     @property

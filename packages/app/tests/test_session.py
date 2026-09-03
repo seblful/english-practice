@@ -93,6 +93,27 @@ class TestLesson:
         assert lesson.progress == 0.5
         assert lesson.accuracy == 0.5
 
+    def test_the_counter_waits_for_the_verdict_to_be_dismissed(
+        self, active: ActiveExercise
+    ) -> None:
+        """An answer is recorded at once; its verdict stays until Continue.
+
+        Counting straight off the recorded answers announced the next question
+        while the previous one's answer was still on screen.
+        """
+        lesson = Lesson(topic_id=1, topic_name="Present Tenses", active=active)
+
+        lesson.record(correct=True)
+        active.ungraded = True
+
+        assert lesson.answered == 1
+        assert lesson.position == 1
+
+        # Moving on draws an unanswered question, and the count follows.
+        active.ungraded = False
+
+        assert lesson.position == 2
+
     def test_the_last_answer_completes_it(self) -> None:
         lesson = Lesson(topic_id=None, topic_name="Mixed practice", length=2)
 

@@ -11,7 +11,7 @@ from collections.abc import Callable, Sequence
 import flet as ft
 
 from practice_app.providers import ModelInfo
-from practice_app.ui.components import hint, pill
+from practice_app.ui.components import hint, pill, text_field
 from practice_app.ui.theme import GAP, GAP_SMALL, RADIUS, RADIUS_SMALL
 
 __all__ = ["MAX_RESULTS", "ModelPicker", "visible_models"]
@@ -74,12 +74,14 @@ class ModelPicker(ft.AlertDialog):
         self._selected = selected
         self._on_select = on_select
 
-        self._search = ft.TextField(
+        self._search = text_field(
             hint_text="Search by name or id",
             prefix_icon=ft.Icons.SEARCH_ROUNDED,
-            border_radius=RADIUS_SMALL,
-            filled=True,
             dense=True,
+            # A model id is not prose: autocorrect turning "qwen" into a word
+            # would silently empty the list.
+            autocorrect=False,
+            capitalization=ft.TextCapitalization.NONE,
             on_change=self._refilter,
         )
         self._vision = ft.Chip(
@@ -176,11 +178,12 @@ class ModelPicker(ft.AlertDialog):
         shown = matches[:MAX_RESULTS]
 
         self._list.controls = [self._row(model) for model in shown]
-        if len(matches) > len(shown):
+        hidden = len(matches) - len(shown)
+        if hidden:
             self._list.controls.append(
                 ft.Container(
                     content=hint(
-                        f"{len(matches) - len(shown)} more match — "
+                        f"{hidden} more match{'' if hidden == 1 else 'es'} - "
                         "keep typing to narrow it down.",
                     ),
                     padding=GAP_SMALL,

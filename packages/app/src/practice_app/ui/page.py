@@ -55,3 +55,15 @@ class ShellPage(DialogPage, Protocol):
     def add(self, *controls: ft.Control) -> None:
         """Append controls to the page."""
         ...
+
+    def update(self) -> None:
+        """Push the page's own state: the chrome, the theme, the open pane.
+
+        Flet pushes what a handler changed automatically, but only when the
+        handler never called ``update()`` itself — the first explicit call
+        cancels the automatic one for the rest of the event. A screen's
+        refresh does call it, through :func:`~practice_app.ui.components.push`,
+        so anything the shell changed *outside* that screen has to be sent
+        here or it never reaches the phone.
+        """
+        ...

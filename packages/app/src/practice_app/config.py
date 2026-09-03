@@ -164,18 +164,20 @@ class ProviderConfig:
         }
 
     @classmethod
-    def from_dict(cls, data: Any, *, default_model: str) -> "ProviderConfig":
+    def from_dict(cls, data: Any, *, provider: Provider) -> "ProviderConfig":
         """Build provider settings from stored JSON.
 
         Args:
             data: The decoded object for one provider.
-            default_model: Model to assume when none was stored.
+            provider: Which provider the entry belongs to, for the defaults to
+                fall back on.
 
         Returns:
             The settings, with defaults wherever the stored value was unusable.
         """
+        default = _default_provider(provider)
         if not isinstance(data, dict):
-            return cls(model=default_model)
+            return default
 
         raw_level = _as_str(data.get("thinking")).lower()
         try:
@@ -183,22 +185,47 @@ class ProviderConfig:
         except ValueError:
             thinking = ThinkingLevel.OFF
 
+        model = _as_str(data.get("model")) or default.model
+        # A file written before the app recorded capabilities says nothing
+        # about them, and assuming "no" for the model the app picked itself is
+        # what left a fresh install insisting its own default cannot think. So
+        # the known answer wins while the stored model is still that one.
+        stored_thinking = data.get("model_supports_thinking")
+        supports_thinking = (
+            default.model_supports_thinking
+            if stored_thinking is None and model == default.model
+            else bool(stored_thinking)
+        )
+
         return cls(
             # Stripped here too: a key pasted with a stray newline would
             # otherwise build an illegal header value.
             api_key=_as_str(data.get("api_key")).strip(),
-            model=_as_str(data.get("model")) or default_model,
+            model=model,
             thinking=thinking,
-            model_supports_thinking=bool(data.get("model_supports_thinking", False)),
+            model_supports_thinking=supports_thinking,
             model_supports_json=bool(data.get("model_supports_json", False)),
         )
 
 
+def _default_provider(provider: Provider) -> ProviderConfig:
+    """Return the settings a provider starts from, before anything is stored.
+
+    Args:
+        provider: The provider to describe.
+
+    Returns:
+        Its default model, and what that model is known to support.
+    """
+    return ProviderConfig(
+        model=provider.default_model,
+        model_supports_thinking=provider.default_model_reasons,
+    )
+
+
 def _default_providers() -> dict[Provider, ProviderConfig]:
     """Return one empty configuration per provider, with its default model."""
-    return {
-        provider: ProviderConfig(model=provider.default_model) for provider in Provider
-    }
+    return {provider: _default_provider(provider) for provider in Provider}
 
 
 @dataclass(slots=True)
@@ -220,7 +247,7 @@ class AppConfig:
     def active(self) -> ProviderConfig:
         """Return the selected provider's settings, creating them if needed."""
         return self.providers.setdefault(
-            self.provider, ProviderConfig(model=self.provider.default_model)
+            self.provider, _default_provider(self.provider)
         )
 
     @property
@@ -299,9 +326,7 @@ class AppConfig:
         stored = data.get("providers")
         stored = stored if isinstance(stored, dict) else {}
         providers = {
-            known: ProviderConfig.from_dict(
-                stored.get(known.value), default_model=known.default_model
-            )
+            known: ProviderConfig.from_dict(stored.get(known.value), provider=known)
             for known in Provider
         }
 

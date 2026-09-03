@@ -40,6 +40,7 @@ from practice_app.ui.components import (
     sheet,
     show_snack,
     stat_tile,
+    text_field,
 )
 from practice_app.ui.home_view import HomeState, HomeView
 from practice_app.ui.page import DialogPage
@@ -69,6 +70,13 @@ _GRADING_FAILED = "Could not grade that. Here is the book's answer."
 # A rule can run to a screenful, and the sheet must not push the question it
 # explains off the top of the screen.
 _RULE_HEIGHT = 160
+
+# The exercise crops are wide and short -- ten numbered lines across a book
+# page -- so a tall frame spends most of itself on blank paper either side of
+# the picture and the zoom looks like it did nothing. This is deep enough to
+# read a crop in and to pan a magnified one around.
+_ZOOM_HEIGHT = 260
+_ZOOM_PAN_MARGIN = 80
 
 
 class PracticeScreen(ft.Column):
@@ -106,17 +114,19 @@ class PracticeScreen(ft.Column):
         # Drawn once per verdict rather than once per render, so folding the
         # rule open does not re-roll the praise.
         self._verdict = ""
+        # Why the model could not be asked, when it could not be. It goes in
+        # the sheet rather than a snack bar: a snack floats over the bottom of
+        # the screen, which is exactly where the sheet puts the one button
+        # that moves the lesson on.
+        self._grading_error: str | None = None
         self._rule_open = False
 
-        self._answer = ft.TextField(
+        self._answer = text_field(
             hint_text="Type your answer",
             multiline=True,
             shift_enter=True,
             min_lines=2,
             max_lines=5,
-            filled=True,
-            border_radius=RADIUS_SMALL,
-            border_color=ft.Colors.TRANSPARENT,
             autocorrect=False,
             capitalization=ft.TextCapitalization.NONE,
             on_submit=self._on_check,
@@ -148,7 +158,7 @@ class PracticeScreen(ft.Column):
         else:
             self.controls = [
                 self._lesson_bar(lesson),
-                self._scroller(*self._question_panels(lesson.active)),
+                self._scroller(*self._question_panels(lesson, lesson.active)),
                 self._lesson_foot(lesson, lesson.active),
             ]
 
@@ -243,29 +253,40 @@ class PracticeScreen(ft.Column):
             ),
         )
 
-    def _question_panels(self, active: ActiveExercise) -> list[ft.Control]:
+    def _question_panels(
+        self, lesson: Lesson, active: ActiveExercise
+    ) -> list[ft.Control]:
         """Return the question itself.
 
         Args:
+            lesson: The run in progress, for the heading's count.
             active: The exercise in front of the user.
 
         Returns:
             Where it came from, what to do with it, the picture, and the field.
         """
         return [
-            self._meta(active),
+            self._meta(lesson, active),
             self._image_card(active),
             self._answer_panel(active),
         ]
 
-    def _meta(self, active: ActiveExercise) -> ft.Control:
+    def _meta(self, lesson: Lesson, active: ActiveExercise) -> ft.Control:
         """Return the block above the picture that places the question.
 
+        The heading counts the *lesson*, because the bar directly above it
+        does. The book has its own numbering -- the sentence this question is
+        in the printed exercise -- and that number is what the user needs to
+        find the right line in the picture, so it sits in the pills with the
+        unit rather than in the heading, where "Question 6" read as a
+        contradiction of the bar's "2/10".
+
         Args:
+            lesson: The run in progress.
             active: The exercise in front of the user.
 
         Returns:
-            The topic, the unit, the question number and the instruction.
+            The topic, the unit, the sentence, the count and the instruction.
         """
         return ft.Column(
             controls=[
@@ -284,13 +305,19 @@ class PracticeScreen(ft.Column):
                             on_click=lambda _: self._show_unit(active),
                             tooltip="What this unit covers",
                         ),
+                        pill(
+                            f"Sentence {active.question.question_id}",
+                            icon=ft.Icons.FORMAT_LIST_NUMBERED_ROUNDED,
+                            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
+                        ),
                     ],
                     spacing=GAP_SMALL,
                     wrap=True,
                     run_spacing=GAP_SMALL,
                 ),
                 ft.Text(
-                    f"Question {active.question.question_id}",
+                    f"Question {lesson.position} of {lesson.length}",
                     size=22,
                     weight=ft.FontWeight.W_700,
                 ),
@@ -431,7 +458,7 @@ class PracticeScreen(ft.Column):
             on_tint = ft.Colors.ON_ERROR_CONTAINER
             icon = ft.Icons.CANCEL_ROUNDED
 
-        return sheet(
+        parts: list[ft.Control] = [
             ft.Row(
                 controls=[
                     ft.Icon(icon, color=on_tint, size=22),
@@ -445,8 +472,14 @@ class PracticeScreen(ft.Column):
                 ],
                 spacing=GAP_SMALL + 2,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            self._answer_note(active),
+            )
+        ]
+        if self._grading_error is not None:
+            parts.append(hint(self._grading_error, color=on_tint))
+        parts.append(self._answer_note(active))
+
+        return sheet(
+            *parts,
             ft.Row(
                 controls=[
                     primary_action(
@@ -656,10 +689,14 @@ class PracticeScreen(ft.Column):
                         content=ft.Image(src=active.image, fit=ft.BoxFit.CONTAIN),
                         min_scale=1,
                         max_scale=6,
+                        # Room to drag a magnified crop past the frame's edge,
+                        # rather than being clamped with its margin still cut
+                        # off.
+                        boundary_margin=ft.Margin.all(_ZOOM_PAN_MARGIN),
                     ),
-                    bgcolor=ft.Colors.WHITE,
+                    bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
                     border_radius=RADIUS_SMALL,
-                    height=420,
+                    height=_ZOOM_HEIGHT,
                 ),
                 content_padding=GAP_SMALL,
                 inset_padding=GAP_SMALL,
@@ -751,8 +788,10 @@ class PracticeScreen(ft.Column):
         except PracticeError as exc:
             active.ungraded = True
             self._verdict = _REVEALED_HEADLINE
+            # Some provider messages end in a full stop and some do not, so
+            # the sentence is closed here rather than trusting either.
+            self._grading_error = f"{_GRADING_FAILED} {str(exc).rstrip('.')}."
             lesson.record(correct=False)
-            show_snack(self._page, f"{_GRADING_FAILED} {exc}", error=True)
         else:
             active.evaluation = evaluation
             self._verdict = verdict_phrase(evaluation.is_correct)
@@ -787,6 +826,7 @@ class PracticeScreen(ft.Column):
             lesson.active = drawn
             self._answer.value = ""
             self._rule_open = False
+            self._grading_error = None
 
         self.render()
         push(self)
@@ -812,6 +852,7 @@ class PracticeScreen(ft.Column):
 
         self._answer.value = ""
         self._rule_open = False
+        self._grading_error = None
         lesson = self._session.begin(topic_id, topic_name)
         lesson.active = drawn
 

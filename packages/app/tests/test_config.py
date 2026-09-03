@@ -82,30 +82,74 @@ class TestProxyFromDict:
 
 class TestProviderConfigFromDict:
     def test_a_missing_object_keeps_the_default_model(self) -> None:
-        stored = ProviderConfig.from_dict(None, default_model="vendor/default")
+        stored = ProviderConfig.from_dict(None, provider=Provider.OPENROUTER)
 
-        assert stored.model == "vendor/default"
+        assert stored.model == Provider.OPENROUTER.default_model
 
     def test_an_unknown_thinking_level_falls_back_to_off(self) -> None:
-        stored = ProviderConfig.from_dict({"thinking": "ludicrous"}, default_model="m")
+        stored = ProviderConfig.from_dict(
+            {"thinking": "ludicrous"}, provider=Provider.OPENROUTER
+        )
 
         assert stored.thinking is ThinkingLevel.OFF
 
     def test_a_stored_key_is_stripped(self) -> None:
         """A key with a stray newline would build an illegal header value."""
-        stored = ProviderConfig.from_dict({"api_key": " sk-x\n"}, default_model="m")
+        stored = ProviderConfig.from_dict(
+            {"api_key": " sk-x\n"}, provider=Provider.OPENROUTER
+        )
 
         assert stored.api_key == "sk-x"
 
     def test_a_whitespace_only_key_reads_as_unset(self) -> None:
-        stored = ProviderConfig.from_dict({"api_key": "   "}, default_model="m")
+        stored = ProviderConfig.from_dict(
+            {"api_key": "   "}, provider=Provider.OPENROUTER
+        )
 
         assert stored.api_key == ""
 
     def test_a_blank_model_falls_back_to_the_default(self) -> None:
-        stored = ProviderConfig.from_dict({"model": "  "}, default_model="m")
+        stored = ProviderConfig.from_dict({"model": "  "}, provider=Provider.OPENAI)
 
-        assert stored.model == "m"
+        assert stored.model == Provider.OPENAI.default_model
+
+    def test_the_default_model_keeps_what_it_is_known_to_support(self) -> None:
+        """A file from before capabilities were recorded says nothing at all.
+
+        Reading that silence as "cannot think" is what left a fresh install
+        greying out the reasoning control for the model the app itself chose.
+        """
+        stored = ProviderConfig.from_dict(
+            {"model": Provider.OPENROUTER.default_model},
+            provider=Provider.OPENROUTER,
+        )
+
+        assert stored.model_supports_thinking is True
+
+    def test_a_provider_whose_default_does_not_reason_says_so(self) -> None:
+        stored = ProviderConfig.from_dict(
+            {"model": Provider.OPENAI.default_model}, provider=Provider.OPENAI
+        )
+
+        assert stored.model_supports_thinking is False
+
+    def test_a_recorded_capability_is_believed_over_the_default(self) -> None:
+        stored = ProviderConfig.from_dict(
+            {
+                "model": Provider.OPENROUTER.default_model,
+                "model_supports_thinking": False,
+            },
+            provider=Provider.OPENROUTER,
+        )
+
+        assert stored.model_supports_thinking is False
+
+    def test_another_model_is_not_given_the_defaults_capabilities(self) -> None:
+        stored = ProviderConfig.from_dict(
+            {"model": "vendor/something-else"}, provider=Provider.OPENROUTER
+        )
+
+        assert stored.model_supports_thinking is False
 
 
 class TestAppConfig:

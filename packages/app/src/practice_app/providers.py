@@ -35,6 +35,11 @@ class Provider(StrEnum):
         return _PROVIDER_LABELS[self]
 
     @property
+    def short_label(self) -> str:
+        """Return the name to use where a phone has one line to spare."""
+        return _SHORT_LABELS[self]
+
+    @property
     def console_url(self) -> str:
         """Return the page where a user creates an API key."""
         return _CONSOLE_URLS[self]
@@ -43,6 +48,17 @@ class Provider(StrEnum):
     def default_model(self) -> str:
         """Return the model to start from before the user picks one."""
         return _DEFAULT_MODELS[self]
+
+    @property
+    def default_model_reasons(self) -> bool:
+        """Whether :attr:`default_model` has a thinking control to offer.
+
+        The app chose these models, so what they support is known without
+        fetching a catalogue to ask. Saying so is what stops a fresh install
+        from greying the reasoning control out and claiming that the model it
+        selected itself cannot think.
+        """
+        return _DEFAULT_MODEL_REASONS[self]
 
     @property
     def lists_models_anonymously(self) -> bool:
@@ -56,6 +72,15 @@ _PROVIDER_LABELS: Final[dict[Provider, str]] = {
     Provider.OPENAI: "OpenAI",
 }
 
+# "Google Gemini" is the name Google writes, and it belongs in a sentence such
+# as "Google Gemini API key is not set". It does not fit a third of a 360dp
+# screen, where the vendor is already obvious from the key field beside it.
+_SHORT_LABELS: Final[dict[Provider, str]] = {
+    Provider.OPENROUTER: "OpenRouter",
+    Provider.GEMINI: "Gemini",
+    Provider.OPENAI: "OpenAI",
+}
+
 _CONSOLE_URLS: Final[dict[Provider, str]] = {
     Provider.OPENROUTER: "https://openrouter.ai/keys",
     Provider.GEMINI: "https://aistudio.google.com/apikey",
@@ -66,6 +91,15 @@ _DEFAULT_MODELS: Final[dict[Provider, str]] = {
     Provider.OPENROUTER: "google/gemini-2.5-flash",
     Provider.GEMINI: "gemini-2.5-flash",
     Provider.OPENAI: "gpt-4.1-mini",
+}
+
+
+# Both Gemini 2.5 Flash models reason. `gpt-4.1-mini` is not a reasoning
+# model, so OpenAI's default correctly has no thinking control to offer.
+_DEFAULT_MODEL_REASONS: Final[dict[Provider, bool]] = {
+    Provider.OPENROUTER: True,
+    Provider.GEMINI: True,
+    Provider.OPENAI: False,
 }
 
 

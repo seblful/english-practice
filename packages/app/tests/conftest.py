@@ -70,6 +70,7 @@ class FakePage:
     launched: list[str] = field(default_factory=list)
     tasks: list[tuple[Any, tuple[Any, ...]]] = field(default_factory=list)
 
+    updates: int = 0
     title: str | None = None
     theme: Any = None
     dark_theme: Any = None
@@ -98,6 +99,10 @@ class FakePage:
     def add(self, *controls: Any) -> None:
         """Record controls added to the page."""
         self.controls.extend(controls)
+
+    def update(self) -> None:
+        """Count a page-level push, which is how the shell sends its chrome."""
+        self.updates += 1
 
     # --- helpers for the tests themselves ---------------------------------
 
