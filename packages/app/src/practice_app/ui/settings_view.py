@@ -69,10 +69,7 @@ _MAX_TOKENS = 32768
 _MIN_TIMEOUT = 10.0
 _MAX_TIMEOUT = 600.0
 
-# The panels this screen is a column of. They are named so that a saved
-# setting updates the panel the user is looking at rather than replacing the
-# whole screen under them -- and so that the two panels with a waiting state
-# can animate it. See :mod:`practice_app.ui.motion` on why a list needs keys.
+# The panels, named so a saved setting updates one rather than the screen.
 _PANEL_KEYS = (
     "settings.provider",
     "settings.model",
@@ -139,9 +136,7 @@ class SettingsScreen(Screen):
         self._loading_models = False
         self._check_result: tuple[str, bool] | None = None
         self._checking = False
-        # Which folds are open. The screen rebuilds itself after every saved
-        # setting, so this has to be the screen's state and not the tile's --
-        # otherwise dragging the temperature slider closes the fold it is in.
+        # The screen's state, not the tile's: it rebuilds after every saved setting.
         self._proxy_open = services.config.proxy.enabled
         self._advanced_open = False
 
@@ -150,9 +145,7 @@ class SettingsScreen(Screen):
         )
         self.render()
 
-    # ------------------------------------------------------------------
-    # State helpers
-    # ------------------------------------------------------------------
+    # --- State helpers ---
 
     @property
     def _config(self) -> AppConfig:
@@ -174,9 +167,7 @@ class SettingsScreen(Screen):
         """Return the catalogue entry for the selected model, when known."""
         return self._services.model_info(self._config.active.model)
 
-    # ------------------------------------------------------------------
-    # Rendering
-    # ------------------------------------------------------------------
+    # --- Rendering ---
 
     def render(self) -> None:
         """Rebuild the screen from the current settings.
@@ -253,9 +244,7 @@ class SettingsScreen(Screen):
             )
 
         children: list[ft.Control] = [
-            # Both actions on one line: they are the two things anyone does on
-            # this panel, and a stacked pair of buttons under a field reads as
-            # two unrelated afterthoughts.
+            # One line: a stacked pair under a field reads as two afterthoughts.
             ft.Row(
                 controls=[
                     link_action(
@@ -353,8 +342,7 @@ class SettingsScreen(Screen):
                         )
                     )
 
-        # The chevron becomes a spinner while the catalogue is fetched. It is
-        # the same 18dp slot either way, so this one does not resize.
+        # The same 18dp slot either way, so this one does not resize.
         trailing = motion.swap(
             region=_MODEL_TRAILING_REGION,
             state="loading" if self._loading_models else "ready",
@@ -624,8 +612,7 @@ class SettingsScreen(Screen):
             ),
             title="Advanced",
             icon=ft.Icons.TUNE_ROUNDED,
-            # Short enough for one line at 360dp: a heading that wraps stops
-            # looking like a heading.
+            # Short enough for one line at 360dp: a wrapped heading is not a heading.
             summary=(
                 f"{config.temperature:.1f} temp - "
                 f"{config.max_tokens} tokens - "
@@ -689,9 +676,7 @@ class SettingsScreen(Screen):
             padding=ft.Padding.only(bottom=GAP_LARGE),
         )
 
-    # ------------------------------------------------------------------
-    # Staged edits
-    # ------------------------------------------------------------------
+    # --- Staged edits ---
 
     async def _open_key_page(self) -> None:
         """Open the provider's key page in a browser."""
@@ -782,9 +767,7 @@ class SettingsScreen(Screen):
         """Persist whatever was staged by the field that just lost focus."""
         await self._apply(self._config)
 
-    # ------------------------------------------------------------------
-    # Immediate edits
-    # ------------------------------------------------------------------
+    # --- Immediate edits ---
 
     async def _on_provider(self, event: ft.Event[ft.SegmentedButton]) -> None:
         """Switch provider, keeping every provider's own key and model."""
@@ -854,14 +837,10 @@ class SettingsScreen(Screen):
         chosen = next(iter(event.control.selected), None)
         if chosen is None:  # pragma: no cover - empty selection is disallowed
             return
-        # The button offers nothing else, so this cannot raise -- but it is
-        # where a value that is not a theme stops, rather than being written
-        # to settings.json and quietly reset on the next launch.
+        # Where a value that is not a theme stops, rather than settings.json.
         await self._apply(replace(self._config, theme=ThemeChoice(chosen)))
 
-    # ------------------------------------------------------------------
-    # Long-running actions
-    # ------------------------------------------------------------------
+    # --- Long-running actions ---
 
     async def _on_open_models(self) -> None:
         """Fetch the catalogue if needed, then open the picker."""

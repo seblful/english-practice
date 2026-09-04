@@ -23,7 +23,6 @@ from tests.conftest import extraction_paths
 def extractor(tmp_path) -> RulesExtractor:
     paths = extraction_paths(tmp_path)
 
-    # Write source answers data
     (paths.metadata_dir / "answers.json").write_text(
         json.dumps(
             {
@@ -42,7 +41,7 @@ def extractor(tmp_path) -> RulesExtractor:
         )
     )
 
-    # Write answers_full: the previous stage's output
+    # The previous stage's output.
     (paths.metadata_dir / "answers_full.json").write_text(
         json.dumps(
             {

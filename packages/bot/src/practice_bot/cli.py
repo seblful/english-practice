@@ -57,8 +57,7 @@ def bot() -> None:
     Raises:
         Exit: With code 1 when the bot cannot be configured.
     """
-    # Imported here so that `info` and `check` stay usable — and fast — even
-    # when the bot's dependencies cannot be configured.
+    # Imported here so `info` and `check` work when the bot cannot be configured.
     from practice_bot.app import run  # noqa: PLC0415
 
     try:

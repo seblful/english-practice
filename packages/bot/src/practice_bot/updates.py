@@ -39,8 +39,7 @@ class Interaction:
 
         query = update.callback_query
         message = update.message or (query.message if query else None)
-        # A callback query's message may be an InaccessibleMessage (too old to
-        # act on), which cannot be replied to.
+        # A callback query's message may be an InaccessibleMessage, with no reply.
         if not isinstance(message, Message):
             return None
 

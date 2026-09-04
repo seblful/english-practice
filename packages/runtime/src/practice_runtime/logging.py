@@ -42,8 +42,7 @@ def setup_logging(
         return
 
     config = config or LoggingSettings()
-    # Level names are constrained by the LogLevel Literal, so each maps to a logging
-    # constant. getattr is unambiguous and works on every supported Python version.
+    # The LogLevel Literal constrains the names, so getattr is unambiguous.
     file_level: int = getattr(logging, config.file_level.upper())
     console_level: int = getattr(logging, config.console_level.upper())
 
@@ -94,7 +93,6 @@ def setup_logging(
         cache_logger_on_first_use=True,
     )
 
-    # Suppress noisy third-party loggers.
     for logger_name in _NOISY_LOGGERS:
         logging.getLogger(logger_name).setLevel(logging.WARNING)
 

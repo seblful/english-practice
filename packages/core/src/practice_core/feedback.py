@@ -46,8 +46,7 @@ WRONG_PHRASES = (
     "You'll get it next time!",
 )
 
-# The extraction pipeline leaves the book's own bullet glyphs in the rules, and
-# neither renderer knows them.
+# The pipeline leaves the book's bullet glyphs, and no renderer knows them.
 _BULLET_PATTERNS = (
     (re.compile(r"^- \[ \]\s*", re.MULTILINE), "- "),
     (re.compile(r"^[☐□•●]\s*", re.MULTILINE), "- "),

@@ -35,8 +35,7 @@ from practice_app.ui.theme import (
     RADIUS_SMALL,
 )
 
-# Flet accepts a handler that takes the event or one that takes nothing, and
-# both shapes are used here, so the buttons pass one through as it comes.
+# Flet accepts a handler taking the event or none, so buttons pass it through.
 ClickHandler = Callable[..., Any]
 
 __all__ = [
@@ -73,23 +72,16 @@ __all__ = [
     "text_field",
 ]
 
-# A phone is 360dp wide, so three segments get about 85dp each for a label.
-# "OpenRouter" does not fit that at the default size and has nowhere to break,
-# so it wrapped mid-word; "Google Gemini" does have a space and wrapped there
-# instead, leaving one two-line segment beside two one-line ones.
+# Three segments on a 360dp phone give ~85dp each, and "OpenRouter" wrapped.
 SEGMENT_LABEL_SIZE = 13
 
 # Every column in the app is built with this: see the module docstring.
 STRETCH = ft.CrossAxisAlignment.STRETCH
 
-# A finger scrolls a phone and a thumb drawn over the content says nothing it
-# does not already know. Every scrolling screen names this rather than
-# choosing for itself, so no screen ends up with a bar the others lack.
+# A drawn thumb tells a finger nothing, and every screen names this one.
 SCROLL = ft.ScrollMode.HIDDEN
 
-# The strip pinned under a screen's body. It is one region and not two, which
-# is what lets a sheet grow out of a bar rather than replace it -- see
-# :func:`_foot`.
+# One region and not two, which lets a sheet grow out of a bar -- see :func:`_foot`.
 FOOT = "screen.foot"
 
 
@@ -261,8 +253,7 @@ def collapsible(
         on_change=on_toggle,
         show_trailing_icon=True,
         maintain_state=True,
-        # Every fold's heading is the same height, open or shut, whether or
-        # not it carries a summary line.
+        # The same height open or shut, with a summary line or without.
         min_tile_height=56,
     )
 
@@ -357,8 +348,7 @@ def _field_style(props: dict[str, Any]) -> dict[str, Any]:
         "filled": True,
         "border_color": ft.Colors.TRANSPARENT,
         "border_radius": RADIUS_SMALL,
-        # A filled field with no outline says nothing about which one the
-        # keyboard is typing into, and a phone has only one keyboard.
+        # A filled field with no outline never says which one has the keyboard.
         "focused_border_color": ft.Colors.PRIMARY,
         "focused_border_width": 2,
         "content_padding": ft.Padding.symmetric(horizontal=GAP_SMALL + 4, vertical=14),
@@ -417,10 +407,7 @@ def filter_chip(
     return ft.Chip(
         label=ft.Text(label, size=CHIP_LABEL_SIZE, weight=ft.FontWeight.W_600),
         selected=selected,
-        # A check mark grows the chip by its own width, so turning the filters
-        # on wrapped the picker's one row of them onto two -- which is exactly
-        # the moment the list underneath needs the height most. The fill says
-        # the filter is on, and says it at a constant width.
+        # A check mark grows the chip, which wrapped the picker's row onto two.
         show_checkmark=False,
         selected_color=ft.Colors.PRIMARY_CONTAINER,
         on_select=on_select,
@@ -780,8 +767,7 @@ def inline_action(
             tooltip=tooltip,
             height=INLINE_ACTION_HEIGHT,
             icon_color=ft.Colors.ERROR if danger else None,
-            # An outlined button takes no `color` of its own; Flutter merges
-            # this over the theme's style, so the shared shape survives.
+            # An outlined button takes no `color`; Flutter merges this over the theme.
             style=ft.ButtonStyle(color=ft.Colors.ERROR) if danger else None,
         )
     return ft.Row(controls=[button], tight=True)
@@ -883,9 +869,7 @@ def _foot(
             region=f"{FOOT}.body",
             state=state,
             content=body,
-            # A bar and a sheet are nothing like the same height, and holding
-            # the taller of the two while the shorter fades in is what made
-            # the region stand tall for a moment and then hop down.
+            # A bar and a sheet are nothing like the same height.
             resizes=True,
         ),
         padding=padding,

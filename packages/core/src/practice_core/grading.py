@@ -150,9 +150,7 @@ class EvaluateAnswerOutput(BaseModel):
         try:
             return cls.model_validate(dict(payload))
         except ValidationError as exc:
-            # ``is_correct`` is the only field that can fail: the validator
-            # above turns anything unusable in ``answer_idx`` into an empty
-            # list rather than an error.
+            # ``is_correct`` is the only field that can fail; the rest are emptied.
             raise GradingError(NO_VERDICT_MESSAGE) from exc
 
 

@@ -66,9 +66,7 @@ def _quiet_logging() -> None:
     )
 
 
-# ----------------------------------------------------------------------
-# Reading replies
-# ----------------------------------------------------------------------
+# --- Reading replies ---
 
 
 def replies(message: AsyncMock) -> list[str]:
@@ -96,9 +94,7 @@ def last_reply(message: AsyncMock) -> tuple[str, dict]:
     return call.args[0], call.kwargs
 
 
-# ----------------------------------------------------------------------
-# Database
-# ----------------------------------------------------------------------
+# --- Database ---
 
 
 @pytest.fixture
@@ -112,8 +108,7 @@ def seeded_db_path(tmp_path: Path) -> Path:
     must skip them have something to skip.
     """
     path = tmp_path / "test.db"
-    # `with sqlite3.connect(...)` commits but does not close, which is the very
-    # leak the repository fixes -- so the fixture must not repeat it either.
+    # `with sqlite3.connect(...)` commits but does not close -- the leak itself.
     with closing(sqlite3.connect(path)) as conn, conn:
         create_content_schema(conn)
         conn.executescript(read_packaged_text(SCHEMA_ANCHOR, SCHEMA_DIR, AUTH_SCHEMA))
@@ -150,9 +145,7 @@ def seeded_db_path(tmp_path: Path) -> Path:
     return path
 
 
-# ----------------------------------------------------------------------
-# Domain fixtures
-# ----------------------------------------------------------------------
+# --- Domain fixtures ---
 
 
 @pytest.fixture
@@ -211,9 +204,7 @@ def topics() -> list[Topic]:
     ]
 
 
-# ----------------------------------------------------------------------
-# Telegram fixtures
-# ----------------------------------------------------------------------
+# --- Telegram fixtures ---
 
 
 @pytest.fixture
@@ -268,9 +259,7 @@ def mock_callback_update(mock_user: Mock, mock_callback_query: AsyncMock) -> Moc
     return update
 
 
-# ----------------------------------------------------------------------
-# Dependency fixtures
-# ----------------------------------------------------------------------
+# --- Dependency fixtures ---
 
 
 @pytest.fixture
@@ -283,10 +272,7 @@ def mock_content(
     content.get_topic.return_value = topics[0]
     content.random_exercise.return_value = exercise
 
-    # The handlers draw through `draw`, which is the shared query that hands
-    # back a question ready to be asked: the exercise, the picture and the
-    # book's answers all travel with it. The stand-in labels the topic the way
-    # the real one does, so a handler cannot pass the wrong thing and pass.
+    # `draw` is the shared query, and the stand-in labels the topic as it does.
     async def draw(
         topic_id: int | None = None,
         *,

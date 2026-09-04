@@ -204,8 +204,7 @@ def _summarize(
     practised = sorted(per_day)
     day_streak = 0
     if practised:
-        # A day that is not over yet has not broken anything, so a streak that
-        # ended yesterday still counts until midnight.
+        # A day that is not over has broken nothing, so the streak holds till midnight.
         cursor = today if today in per_day else today - timedelta(days=1)
         while cursor in per_day:
             day_streak += 1

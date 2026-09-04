@@ -1,13 +1,4 @@
--- The practice content, as every front end reads it.
---
--- These are the tables `practice_core.content` queries, so they ship with the
--- package that queries them: the pipeline builds a database from this file, the
--- bot opens it read-write, the app opens a re-encoded copy read-only, and the
--- tests build a scratch copy from the same text. A column renamed here breaks
--- all four at once, which is the point.
---
--- Whoever *writes* to a database owns its other tables: the bot's
--- `authorized_users` lives in `practice_bot/schema/auth.sql`.
+-- The practice content, as every front end reads it: one file, four consumers.
 
 PRAGMA foreign_keys = ON;
 
@@ -18,7 +9,6 @@ CREATE TABLE IF NOT EXISTS units (
     title TEXT NOT NULL
 );
 
--- Individual exercises.
 CREATE TABLE IF NOT EXISTS exercises (
     id INTEGER PRIMARY KEY,
     exercise_id TEXT NOT NULL UNIQUE,  -- e.g., "1.1", "2.3"
@@ -35,7 +25,6 @@ CREATE TABLE IF NOT EXISTS exercise_images (
     FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE
 );
 
--- Questions within exercises.
 CREATE TABLE IF NOT EXISTS questions (
     id INTEGER PRIMARY KEY,
     exercise_id INTEGER NOT NULL,
@@ -66,7 +55,6 @@ CREATE TABLE IF NOT EXISTS topics (
     FOREIGN KEY (parent_topic_id) REFERENCES topics(id)
 );
 
--- Link units to topics (many-to-many).
 CREATE TABLE IF NOT EXISTS unit_topics (
     unit_id INTEGER NOT NULL,
     topic_id INTEGER NOT NULL,

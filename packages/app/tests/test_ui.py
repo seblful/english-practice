@@ -102,9 +102,7 @@ def rendered(control: Any) -> str:
     return "\n".join(texts(control))
 
 
-# ----------------------------------------------------------------------
-# Theme and components
-# ----------------------------------------------------------------------
+# --- Theme and components ---
 
 
 class TestTheme:
@@ -238,9 +236,7 @@ class TestComponents:
         push(ft.Column(controls=[ft.Text("x")]))
 
 
-# ----------------------------------------------------------------------
-# Practice screen
-# ----------------------------------------------------------------------
+# --- Practice screen ---
 
 
 @pytest.fixture
@@ -742,8 +738,7 @@ class TestLessonFlow:
         assert "Continue" in body
         # The question is still on screen: nothing scrolled away under a reply.
         assert "Sentence 2" in body
-        # And the run has not moved on yet, because the user has not: the
-        # bar used to announce the next question over this one's verdict.
+        # The bar used to announce the next question over this one's verdict.
         assert "1/10" in body
         assert "1/10" in body
 
@@ -885,8 +880,7 @@ class TestLessonFlow:
         await _answer(screen)
 
         body = rendered(screen)
-        # In the sheet, not a snack bar: a snack floats over the bottom of the
-        # screen, which is where the sheet puts the button that moves on.
+        # In the sheet, not a snack bar: a snack covers the button that moves on.
         assert "Could not grade that" in body
         assert page.snack_texts() == []
         assert "is doing" in body
@@ -1284,9 +1278,7 @@ async def _instant(_: float) -> None:
     """Skip the retry delay."""
 
 
-# ----------------------------------------------------------------------
-# Stats screen
-# ----------------------------------------------------------------------
+# --- Stats screen ---
 
 
 class TestStatsScreen:
@@ -1383,9 +1375,7 @@ class TestStatsScreen:
         assert "more topics" in rendered(screen)
 
 
-# ----------------------------------------------------------------------
-# Model picker
-# ----------------------------------------------------------------------
+# --- Model picker ---
 
 
 class TestVisibleModels:
@@ -1543,9 +1533,7 @@ class TestModelPicker:
         closers[0].on_click()
 
 
-# ----------------------------------------------------------------------
-# Settings screen
-# ----------------------------------------------------------------------
+# --- Settings screen ---
 
 
 class TestSettingsScreen:
@@ -2113,9 +2101,7 @@ def _event(control: Any, data: Any = None) -> Any:
     return type("Event", (), {"control": control, "data": data})()
 
 
-# ----------------------------------------------------------------------
-# The shell
-# ----------------------------------------------------------------------
+# --- The shell ---
 
 
 class TestPracticeApp:
@@ -2328,8 +2314,7 @@ class TestTheBackGesture:
         await app.select_tab(STATS_TAB)
         await app.select_tab(PRACTICE_TAB)
 
-        # Asserted through what the screen shows rather than through the
-        # session: the question is still up, so nothing was lost.
+        # Through what the screen shows rather than the session: the question is up.
         assert "1/10" in rendered(app.practice)
 
     async def test_a_lesson_takes_the_chrome_off_the_screen(
@@ -2400,9 +2385,7 @@ class TestTheBackGesture:
         assert app._body.content is app._panes[SETTINGS_TAB]
 
 
-# ----------------------------------------------------------------------
-# Motion
-# ----------------------------------------------------------------------
+# --- Motion ---
 
 _KEYED_ATTRIBUTES = (
     "content",
@@ -2415,10 +2398,7 @@ _KEYED_ATTRIBUTES = (
     "trailing",
 )
 
-# Every property Flet can animate implicitly. A control that sets one of these
-# and carries no key is rebuilt from scratch on the next repaint, so the client
-# throws its widget away and has nothing to tween from -- the animation is dead
-# weight. See `practice_app.ui.motion`.
+# Every property Flet can animate implicitly; without a key there is no tween.
 _ANIMATED_ATTRIBUTES = (
     "animate",
     "animate_opacity",

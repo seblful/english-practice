@@ -119,9 +119,7 @@ class SpecificTopic:
         return f"{TOPIC_PREFIX}:{self.topic_id}"
 
 
-# Split in two so that "a specific topic" cannot exist without saying which:
-# the handler binds the id in its `case` instead of defending an invariant the
-# type does not state.
+# Split in two so "a specific topic" cannot exist without saying which.
 type TopicChoice = KeywordChoice | SpecificTopic
 
 
@@ -213,8 +211,7 @@ class AdminAction:
             return None
 
 
-#: The three families of inline button this bot sends. A handler registers with
-#: ``pattern`` and reads with ``parse``, so the two cannot come apart.
+#: The three families of inline button, registered and parsed from one place.
 TOPICS: Family[TopicChoice] = Family(prefix=TOPIC_PREFIX, parse=parse_topic_choice)
 ACTIONS: Family[ExerciseAction] = Family(
     prefix=ACTION_PREFIX, parse=ExerciseAction.parse

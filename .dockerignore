@@ -10,11 +10,7 @@ docs/
 scripts/
 **/tests/
 
-# The other packages. This image is the bot: the Android app is built by
-# `flet build` and never runs here, and the content pipeline runs on a
-# workstation. Their source would only be dead weight in the layer -- the
-# pipeline's manifest is kept because uv reads every workspace member's
-# pyproject.toml to resolve the lock.
+# The other packages: only the pipeline's manifest, which uv reads for the lock.
 packages/app/
 packages/extraction/src/
 packages/extraction/README.md
@@ -31,6 +27,4 @@ packages/extraction/README.md
 .pre-commit-config.yaml
 CLAUDE.md
 
-# NOTE: README.md, LICENSE and uv.lock are intentionally NOT ignored -- the
-# uv-based build reads uv.lock, and each package's pyproject.toml references
-# both its readme and the license, so hatchling fails to build without them.
+# NOTE: README.md, LICENSE and uv.lock are needed by the build, so not ignored.

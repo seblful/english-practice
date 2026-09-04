@@ -27,8 +27,7 @@ logger = get_logger(__name__)
 
 __all__ = ["BundleResult", "build_mobile_content"]
 
-# A phone screen is around 1080 logical pixels wide, and the exercise crops are
-# read at full width, so anything beyond this is detail nobody sees.
+# A phone reads these crops at ~1080px wide; beyond that is detail nobody sees.
 MAX_IMAGE_WIDTH = 1100
 WEBP_QUALITY = 80
 WEBP_METHOD = 4
@@ -66,8 +65,7 @@ class BundleResult:
         Returns:
             The file, its size, and how much the images shrank.
         """
-        # ASCII only: this line goes to a console, and a Windows terminal on
-        # a cp1252 code page raises rather than printing an em dash.
+        # ASCII only: a cp1252 console raises rather than printing an em dash.
         return (
             f"{self.path}: {self.path.stat().st_size / 1_048_576:.1f} MB total, "
             f"{self.images} images "
@@ -101,9 +99,7 @@ def shrink_image(data: bytes) -> bytes:
             buffer = io.BytesIO()
             converted.save(buffer, "WEBP", quality=WEBP_QUALITY, method=WEBP_METHOD)
     except OSError:
-        # Returned unchanged, and identically: :func:`_copy_images` tells a
-        # passthrough from a re-encode by identity, so that the row it names
-        # in the warning is one the operator can go and look at.
+        # Returned by identity, so :func:`_copy_images` can name the row it warns of.
         return data
     return buffer.getvalue()
 
@@ -155,8 +151,7 @@ def _copy_images(
     ):
         original: bytes = row["image_data"]
         if not original:
-            # A zero-length blob is a broken import; the app treats it as no
-            # image, so there is nothing to gain by carrying it.
+            # The app treats a zero-length blob as no image; carrying it gains nothing.
             continue
 
         shrunk = shrink_image(original)
@@ -216,10 +211,7 @@ def build_mobile_content(
         closing(
             sqlite3.connect(f"file:{source_path.as_posix()}?mode=ro", uri=True)
         ) as source,
-        # The same schema the source was built from and the app queries, so a
-        # bundle can never be a table behind -- and the same enforcement, so a
-        # table left out of the copy shows up as a failed insert here rather
-        # than as a row the phone cannot resolve.
+        # The same schema and enforcement, so a missing table fails as an insert.
         closing(connect_content(target_path, create=True)) as target,
     ):
         source.row_factory = sqlite3.Row
@@ -232,8 +224,7 @@ def build_mobile_content(
             say("  re-encoding images...")
             images, source_bytes, bundled_bytes = _copy_images(source, target)
 
-        # VACUUM cannot run inside a transaction, and without it the file keeps
-        # the pages the original PNG blobs would have needed.
+        # VACUUM cannot run in a transaction, and without it the pages stay claimed.
         target.execute("VACUUM")
 
     result = BundleResult(
@@ -243,8 +234,7 @@ def build_mobile_content(
         bundled_bytes=bundled_bytes,
     )
 
-    # The app reads this to tell "already unpacked" from "the bundle changed"
-    # without reading the whole database to find out.
+    # The app reads this to tell "already unpacked" from "the bundle changed".
     sidecar = target_path.with_name(f"{target_path.name}{_SIZE_SIDECAR_SUFFIX}")
     sidecar.write_text(str(target_path.stat().st_size), encoding="utf-8")
 

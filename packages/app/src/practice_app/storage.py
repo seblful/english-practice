@@ -31,9 +31,7 @@ __all__ = [
 CONTENT_PACKAGE = "practice_app"
 CONTENT_DIR_NAME = "content"
 CONTENT_DB_NAME = "english_practice.db"
-# Written next to the database by `practice-content bundle`. Reading a
-# few-byte sidecar is what lets a launch tell "already unpacked" from "the
-# bundle changed" without reading twenty megabytes to find out.
+# A few-byte sidecar tells "already unpacked" from "the bundle changed".
 SIZE_SIDECAR_SUFFIX = ".size"
 
 STATS_DB_NAME = "progress.db"
@@ -136,9 +134,7 @@ def _unpack(source: Traversable, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     handle, temp_name = tempfile.mkstemp(dir=target.parent, prefix=".content-")
     try:
-        # The descriptor is wrapped first so that it is owned -- and therefore
-        # closed -- even when opening the source is what fails. A still-open
-        # descriptor is a file Windows will not let us delete.
+        # Wrapped first: an unclosed descriptor is a file Windows will not delete.
         with os.fdopen(handle, "wb") as unpacked, source.open("rb") as packaged:
             shutil.copyfileobj(packaged, unpacked, length=_COPY_CHUNK_BYTES)
         Path(temp_name).replace(target)

@@ -72,8 +72,7 @@ class Settings(BaseAppSettings):
             problems.append("TELEGRAM_BOT_TOKEN is not set")
 
         if self.telegram.admin_user_id is None:
-            # Without an admin nobody can ever be approved, so the bot would
-            # start and then refuse every user who talks to it.
+            # Without an admin the bot would start and refuse every user.
             problems.append("TELEGRAM_ADMIN_USER_ID is not set")
 
         if not self.paths.database_path.exists():

@@ -58,9 +58,7 @@ PNG_BYTES = b"\x89PNG\r\n\x1a\n"
 WEBP_BYTES = b"RIFF\x00\x00\x00\x00WEBPfake"
 
 
-# ----------------------------------------------------------------------
-# A page a screen can be built against
-# ----------------------------------------------------------------------
+# --- A page a screen can be built against ---
 
 
 @dataclass
@@ -121,7 +119,7 @@ class FakePage:
         """Count a page-level push, which is how the shell sends its chrome."""
         self.updates += 1
 
-    # --- helpers for the tests themselves ---------------------------------
+    # --- Helpers for the tests themselves ---
 
     @property
     def root_view(self) -> FakeView:
@@ -155,9 +153,7 @@ def page() -> FakePage:
     return FakePage()
 
 
-# ----------------------------------------------------------------------
-# Content and progress
-# ----------------------------------------------------------------------
+# --- Content and progress ---
 
 
 @pytest.fixture
@@ -188,9 +184,7 @@ def frozen_clock() -> Callable[[], datetime]:
     return lambda: datetime(2026, 3, 14, 12, 0, tzinfo=UTC)
 
 
-# ----------------------------------------------------------------------
-# Settings
-# ----------------------------------------------------------------------
+# --- Settings ---
 
 
 @pytest.fixture
@@ -215,9 +209,7 @@ def config() -> AppConfig:
     )
 
 
-# ----------------------------------------------------------------------
-# Provider calls
-# ----------------------------------------------------------------------
+# --- Provider calls ---
 
 
 def json_transport(

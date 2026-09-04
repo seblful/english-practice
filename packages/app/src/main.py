@@ -87,10 +87,7 @@ async def main(page: ft.Page) -> None:
         page: The page Flet hands the app.
     """
     try:
-        # The first launch after an install unpacks a twenty-six megabyte
-        # database out of the app zip, synchronously. On the event loop that
-        # is a frozen blank screen for the whole copy, long enough for Android
-        # to call the app unresponsive.
+        # Unpacking twenty-six megabytes on the event loop froze the launch screen.
         services = await asyncio.to_thread(build_services)
     except PracticeError as exc:
         _fatal(page, str(exc))

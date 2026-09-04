@@ -164,8 +164,7 @@ class BaseAgent:
         structured_llm = self.llm.with_structured_output(output_model)
 
         try:
-            # with_structured_output is typed as returning dict | BaseModel; the
-            # runtime value is an instance of output_model.
+            # Typed as dict | BaseModel; the runtime value is an output_model.
             return cast("T", await structured_llm.ainvoke([message]))
         except Exception as exc:
             logger.warning(

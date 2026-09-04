@@ -44,8 +44,7 @@ _OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 _OPENAI_BASE = "https://api.openai.com/v1"
 _GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
-# The app is a listed OpenRouter client; these are the attribution headers
-# OpenRouter asks integrations to send.
+# The attribution headers OpenRouter asks listed integrations to send.
 _OPENROUTER_REFERER = "https://github.com/seblful/english-practice"
 _OPENROUTER_TITLE = "English Practice"
 
@@ -55,18 +54,14 @@ _RETRY_DELAYS: Final = (0.8, 2.4)
 _MAX_ERROR_DETAIL = 300
 _SERVER_ERROR = 500
 
-# Every provider reaches this condition by its own route -- a "length" finish
-# reason here, "MAX_TOKENS" there -- but the student reads one sentence, and
-# it is the one that tells them which setting to move.
+# Every provider reaches this by its own route; the student reads one sentence.
 _OUT_OF_OUTPUT_TOKENS: Final = (
     "The model ran out of output tokens before answering. "
     "Raise the token limit or lower the thinking level."
 )
 _EMPTY_REPLY: Final = "The model returned an empty reply."
 
-# Model ids that are not chat models. Every provider mixes them into the same
-# list, and offering the user "whisper-1" as a grader is worse than a filter
-# that occasionally hides something exotic.
+# Offering "whisper-1" as a grader is worse than a filter that hides a little.
 _NON_CHAT_MARKERS: Final = (
     "aqa",
     "audio",
@@ -598,10 +593,7 @@ class GeminiAdapter(ProviderAdapter):
         raise ProviderError(_EMPTY_REPLY)
 
 
-#: The adapters the app ships. Passed to :class:`LLMClient` by default, and
-#: replaceable there: four adapters already satisfy :class:`ProviderAdapter`,
-#: so the seam is a real one rather than a hypothetical, and a test has no
-#: business reaching for a module-level dict to use it.
+#: The adapters the app ships, replaceable where :class:`LLMClient` takes them.
 DEFAULT_ADAPTERS: Final[Mapping[Provider, ProviderAdapter]] = {
     Provider.OPENROUTER: OpenRouterAdapter(),
     Provider.OPENAI: OpenAIAdapter(),
@@ -660,9 +652,7 @@ class LLMClient:
         """Return the adapter for the configured provider."""
         return self._adapters[self.config.provider]
 
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
+    # --- Lifecycle ---
 
     def _http(self) -> httpx.AsyncClient:
         """Return the HTTP client, building it when there is no live one.
@@ -700,9 +690,7 @@ class LLMClient:
         """Close the connection pool on leaving the context."""
         await self.aclose()
 
-    # ------------------------------------------------------------------
-    # Requests
-    # ------------------------------------------------------------------
+    # --- Requests ---
 
     async def _send(self, call: HttpCall, adapter: ProviderAdapter) -> Any:
         """Send one request, retrying transient failures.
@@ -811,14 +799,10 @@ class LLMClient:
                     f"(HTTP {response.status_code}).{suffix}"
                 )
 
-        # Closed here, once. The provider's own detail is appended after the
-        # sentence and rarely ends in a stop of its own, which had every screen
-        # that shows one of these re-punctuating it on the way to the user.
+        # Closed here, once: the provider's detail rarely ends in a stop of its own.
         return ProviderError(text if text.endswith((".", "!", "?")) else f"{text}.")
 
-    # ------------------------------------------------------------------
-    # Operations
-    # ------------------------------------------------------------------
+    # --- Operations ---
 
     async def list_models(self) -> list[ModelInfo]:
         """Return the provider's model catalogue.
@@ -880,9 +864,6 @@ class LLMClient:
                 nothing — which is what an over-restricted token budget or a
                 content filter looks like from here.
         """
-        # The reply's shape does not matter, only that one arrived: `complete`
-        # already raises when the provider answers with nothing. Parsing it
-        # here made this module depend on the grading contract to run a
-        # settings check, which is a coupling with nothing behind it.
+        # Only that a reply arrived matters; `complete` raises when none does.
         await self.complete('Reply with the JSON object {"ok": true} and nothing else.')
         return f"{self.config.provider.label} answered as {self.config.active.model}."

@@ -91,9 +91,7 @@ class ContentLibrary:
         """Whether this library refuses to write."""
         return self._store.read_only
 
-    # ------------------------------------------------------------------
-    # Content
-    # ------------------------------------------------------------------
+    # --- Content ---
 
     async def counts(self) -> ContentCounts:
         """Return how much material the database holds.

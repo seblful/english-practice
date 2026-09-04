@@ -58,8 +58,7 @@ async def admin_action(who: Interaction, context: BotContext) -> None:
         who.user.id,
     )
     if not approved:
-        # Someone who may no longer use the bot should not keep an exercise in
-        # progress or a conversation transcript in memory.
+        # Someone who may no longer use the bot should keep nothing in memory.
         context.forget_user(action.user_id)
     logger.info(
         "access_decided",

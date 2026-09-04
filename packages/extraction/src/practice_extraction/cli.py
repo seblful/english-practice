@@ -141,9 +141,7 @@ def stage_command(
             if code:
                 raise typer.Exit(code=code)
 
-        # Typer reads the callback's signature to build the command's
-        # options, so the runner's own parameters are handed over minus the
-        # settings it is given: a stage that takes an option declares it once.
+        # Typer reads the callback's signature, so a stage declares its option once.
         visible = signature.replace(
             parameters=[
                 parameter
@@ -193,13 +191,11 @@ def check() -> None:
     else:
         typer.secho("Configuration looks good.", fg=typer.colors.GREEN)
 
-    # Printed either way. Which stages can run is the more useful half of the
-    # answer, and it was unreachable while a missing API key returned first.
+    # Which stages can run was unreachable while a missing API key returned first.
     typer.echo("")
     typer.echo("Stages:")
     for stage in STAGES:
-        # What a stage produced is checked before what it needs: a finished
-        # stage stays finished even once its inputs have been cleared away.
+        # Output before inputs: a finished stage stays finished once inputs are gone.
         if stage.writes and stage.is_done(settings):
             typer.secho(f"  {stage.name}: done", fg=typer.colors.GREEN)
             continue

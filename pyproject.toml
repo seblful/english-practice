@@ -1,14 +1,4 @@
-# The repository is a uv workspace, not a package.
-#
-# Every deliverable lives under `packages/`, so this file carries no `[project]`
-# table of its own: it says how the packages fit together, and holds the lint
-# rules each of them extends. Nothing is privileged by sitting at the root.
-#
-#   packages/core         practice-core        the shared domain
-#   packages/runtime      practice-runtime     settings, logging, the LLM client
-#   packages/bot          english-practice-bot the Telegram bot
-#   packages/app          english-practice-app the Flet Android app
-#   packages/extraction   ...-extraction       the offline content pipeline
+# A uv workspace, not a package: every deliverable lives under `packages/`.
 
 [tool.uv.workspace]
 members = [
@@ -17,17 +7,14 @@ members = [
     "packages/bot",
     "packages/extraction",
 ]
-# The app is excluded on purpose. It resolves a far smaller dependency set than
-# anything else here — Flet's prebuilt Android wheels, and nothing that needs a
-# compiler — so it keeps its own lock file and its own environment.
+# Excluded: Flet's prebuilt Android wheels, so the app keeps its own lock file.
 exclude = ["packages/app"]
 
 [tool.uv.sources]
 practice-core = { workspace = true }
 practice-runtime = { workspace = true }
 
-# Repository-wide tooling. Each package also declares what its own checks need,
-# so a package can be linted and tested from its own directory alone.
+# Each package also declares what its own checks need, so it stands alone.
 [dependency-groups]
 dev = [
     "pytest>=9.0.0",
@@ -44,9 +31,7 @@ docs = [
     "mkdocstrings[python]>=0.25.0",
 ]
 
-# ----------------------------------------------------------------------
-# Lint and format rules, extended by every package
-# ----------------------------------------------------------------------
+# --- Lint and format rules, extended by every package ---
 
 [tool.ruff]
 target-version = "py313"

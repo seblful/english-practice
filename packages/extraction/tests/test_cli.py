@@ -483,8 +483,7 @@ class TestTheStageGate:
 
         result = runner.invoke(cli.app, ["check"])
 
-        # Everything populate reads is in place, so the stages that write those
-        # artifacts are done and populate itself is ready to run.
+        # Everything populate reads is in place, so it is the stage that is ready.
         assert "extract-rules: done" in result.output
         assert "populate: ready" in result.output
 

@@ -30,9 +30,7 @@ repos:
     rev: v8.28.0
     hooks:
       - id: gitleaks
-  # One type check per package. They resolve different dependency sets -- the
-  # app's Flet stack is not in the workspace environment at all -- so each is
-  # checked from its own directory against its own environment.
+  # One type check per package: each resolves a different dependency set.
   - repo: local
     hooks:
       - id: ty-core

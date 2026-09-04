@@ -22,7 +22,6 @@ from tests.conftest import extraction_paths
 def extractor(tmp_path) -> AnswersExtractor:
     paths = extraction_paths(tmp_path)
 
-    # Write source answers data
     (paths.metadata_dir / "answers.json").write_text(
         json.dumps(
             {

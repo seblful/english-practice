@@ -35,9 +35,7 @@ class Screen(ft.Column):
     #: The navigation bar's icon for it.
     tab_icon: ClassVar[ft.IconData] = ft.Icons.CIRCLE_OUTLINED
 
-    #: Whether the shell puts its page margins around this screen. The
-    #: practice screen sets this ``False``: its progress bar and its verdict
-    #: sheet run edge to edge, so it owns its own padding.
+    #: Whether the shell puts its page margins around this screen.
     inset: ClassVar[bool] = True
 
     def render(self) -> None:

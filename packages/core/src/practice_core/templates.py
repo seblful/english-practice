@@ -22,8 +22,7 @@ from practice_core.resources import read_packaged_text
 
 __all__ = ["PROMPTS_DIR", "compiled_template", "render_packaged_template"]
 
-# Every package keeps its prompts in the same place, so an agent only has to
-# name the file.
+# Every package keeps its prompts in the same place, so an agent names a file.
 PROMPTS_DIR = "prompts"
 
 
@@ -33,9 +32,7 @@ def _environment() -> Environment:
         autoescape=False,
         trim_blocks=True,
         lstrip_blocks=True,
-        # Without this a variable the context does not supply renders as empty
-        # text, so a renamed field silently produces a hollow prompt that the
-        # provider still answers and still charges for.
+        # Without this a missing variable renders empty, and the provider charges.
         undefined=StrictUndefined,
     )
 

@@ -42,10 +42,7 @@ __all__ = [
     "register",
 ]
 
-#: Where `packages/app/pyproject.toml` expects the bundled database. It is the
-#: pipeline's actual deliverable, and it lived in the CLI -- so it could not be
-#: declared as an artifact, and `bundle` was the one stage `check` could never
-#: report as done.
+#: Where `packages/app/pyproject.toml` expects the bundled database.
 MOBILE_CONTENT_PATH = (
     BASE_DIR / "packages" / "app" / "src" / "practice_app" / "content"
 ) / DATABASE_FILENAME
@@ -154,13 +151,10 @@ class Stage:
         return runner(settings, *args, **kwargs) or 0
 
 
-#: What each stage does, filled in by :func:`register`. It is separate from the
-#: declarations above because those are cheap to import and these are not: the
-#: runners pull in OpenCV, PyMuPDF and an LLM client.
+#: What each stage does, filled in by :func:`register`; the runners are heavy.
 _RUNNERS: dict[str, "StageRunner"] = {}
 
-#: A stage's work: it takes the settings, plus whatever its own command adds,
-#: and returns an exit code.
+#: A stage's work: the settings, its command's own options, and an exit code.
 type StageRunner = Callable[..., int | None]
 
 
@@ -281,9 +275,7 @@ POPULATE = Stage(
 VALIDATE = Stage("validate", reads=(DATABASE,))
 BUNDLE = Stage("bundle", reads=(DATABASE,), writes=(MOBILE_CONTENT,))
 
-#: Every stage, in the order they run. The order is not declared separately:
-#: each stage names the artifacts it needs, and those name the stage that
-#: writes them, so this sequence is checkable rather than merely conventional.
+#: Every stage, in the order they run -- checkable, since each names its inputs.
 STAGES: tuple[Stage, ...] = (
     CUT_PDF,
     SEPARATE_PAGE_IMAGES,

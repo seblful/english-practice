@@ -94,7 +94,6 @@ class TestImmutability:
             exercise.exercise_id = "9.9"  # ty: ignore[invalid-assignment]
 
     def test_a_unit_cannot_be_edited(self, unit: Unit) -> None:
-        # setattr, not `unit.title = ...`: the latter is a static type error,
-        # and the point here is the runtime guarantee.
+        # setattr, because the assignment is a static type error; this is runtime.
         with pytest.raises(ValidationError):
             setattr(unit, "title", "Changed")  # noqa: B010

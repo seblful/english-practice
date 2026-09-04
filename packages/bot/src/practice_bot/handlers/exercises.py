@@ -38,8 +38,7 @@ async def send_exercise(
         context: The handler context.
         topic: The topic to draw from, or ``None`` to draw from all of them.
     """
-    # The draw only returns exercises that have questions, so an empty result
-    # means the topic itself is empty.
+    # The draw only returns exercises with questions, so empty means empty topic.
     active = await context.content.draw(
         topic.id if topic else None,
         topic_name=topic.name if topic else None,

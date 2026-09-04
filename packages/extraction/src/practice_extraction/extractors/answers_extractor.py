@@ -85,9 +85,7 @@ class AnswersExtractor:
             question_id = q_input.question_id
             q_result = result_map.get(question_id)
             if q_result is None:
-                # The model is asked for one item per question but does not
-                # guarantee it; skipping costs one question, raising would cost
-                # every already-paid call in the unit.
+                # Skipping costs one question; raising costs the unit's paid calls.
                 logger.warning(
                     "question_missing_from_extraction",
                     exercise_id=exercise_id,
@@ -104,8 +102,7 @@ class AnswersExtractor:
                     )
                 )
             else:
-                # zip would drop a short answer the model gave no sentence for;
-                # the bracketed placeholder below is the intended fallback.
+                # zip would drop an answer the model gave no sentence for.
                 full_answers = q_result.full_answers
                 answers = [
                     ExtractedAnswer(

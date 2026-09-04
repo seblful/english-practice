@@ -55,8 +55,7 @@ class TestGrading:
         await answers_handler.text_message(mock_update, mock_context)
 
         call = mock_context.agents.grader.evaluate.await_args
-        # The question goes across whole: its number, its rule and whether it
-        # is open-ended are no longer taken apart and passed back one by one.
+        # The question goes across whole, not taken apart and passed back piecemeal.
         assert call.args == (with_exercise.question,)
         assert call.kwargs["user_input"] == "is doing"
         assert tuple(call.kwargs["answers"]) == tuple(answers)

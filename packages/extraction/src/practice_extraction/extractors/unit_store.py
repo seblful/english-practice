@@ -23,9 +23,7 @@ from tqdm import tqdm
 
 from practice_extraction.models import ExtractedUnitsRoot
 
-# Both names come from `practice_extraction.stages`, the one place the
-# pipeline's filenames are written: they used to be re-declared as literals
-# here and again in the importer.
+# Both names come from `practice_extraction.stages`, not literals here.
 from practice_extraction.stages import SOURCE_ANSWERS_FILENAME, TOPIC_MAP_FILENAME
 
 __all__ = ["ExtractedUnit", "UnitProcessor", "UnitStore"]

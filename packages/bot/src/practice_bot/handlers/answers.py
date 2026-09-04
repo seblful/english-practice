@@ -88,10 +88,7 @@ async def _grade(
             question_id=active.question.id,
             error=str(exc),
         )
-        # The answer goes on screen, so the question counts as revealed --
-        # but no verdict is claimed, which is what leaves it open for another
-        # attempt. The bot used to set neither, and `is_revealed` then said no
-        # with the book's answer in the chat.
+        # Revealed but with no verdict, which leaves it open for another attempt.
         active.give_up()
         await who.say(GRADING_FAILED)
         await _reveal(who, session, active.reveal(show_rule=session.show_rule))
@@ -159,7 +156,6 @@ async def text_message(who: Interaction, context: BotContext) -> None:
         await _explain(who, context, active)
         return
 
-    # Claimed before the first await: updates run concurrently, so two
-    # messages sent at once would otherwise both be graded.
+    # Claimed before the first await: two messages at once would both be graded.
     with active.being_graded():
         await _grade(who, context, session, active)

@@ -21,8 +21,7 @@ from tqdm import tqdm
 
 from practice_extraction.settings import get_settings
 
-# The four filenames below used to be fresh literals here, two of them already
-# declared by the stages that write the files.
+# Declared by `stages`, the one place the pipeline's filenames are written.
 from practice_extraction.stages import (
     ANSWERS_FULL_FILENAME,
     RULES_FILENAME,
@@ -64,8 +63,7 @@ def import_units(conn: sqlite3.Connection, paths: PathSettings) -> None:
     with unit_titles_path.open(encoding="utf-8") as f:
         units_data = json.load(f)
 
-    # A unit with no grammar page never made it through the pipeline, so it
-    # would arrive with no rules and nothing to explain.
+    # A unit with no grammar page never made it through the pipeline.
     existing_grammar = {int(f.stem) for f in paths.grammar_md_dir.glob("*.md")}
 
     cursor = conn.cursor()
@@ -183,8 +181,7 @@ def _import_answers(
             """,
             (question_db_id, answer["short_answer"], answer["full_answer"]),
         )
-        # An ignored INSERT leaves lastrowid pointing at the previous insert,
-        # so rowcount is the only reliable "did this row land" signal.
+        # An ignored INSERT leaves lastrowid stale, so rowcount is the only signal.
         if cursor.rowcount == 1:
             added += 1
     return added
@@ -321,7 +318,6 @@ def import_topics(conn: sqlite3.Connection, paths: PathSettings) -> None:
             "SELECT id FROM topics WHERE name = ?", (topic_name,)
         ).fetchone()[0]
 
-        # Link to units
         for unit_num in unit_ids:
             cursor.execute(
                 """
@@ -352,7 +348,6 @@ def main(*, force: bool = False, paths: PathSettings | None = None) -> int:
     paths = paths or get_settings().paths
     db_path = paths.database_path
 
-    # Ensure data directory exists
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     if db_path.exists():
@@ -363,12 +358,9 @@ def main(*, force: bool = False, paths: PathSettings | None = None) -> int:
         print(f"Removing existing database: {db_path}")
         db_path.unlink()
 
-    # Initialize database
     init_database(db_path)
 
-    # Every insert below goes through a connection that enforces the schema's
-    # own foreign keys, so a row pointing at nothing fails here rather than
-    # being found afterwards by a separate program re-checking the same rules.
+    # The connection enforces the schema's foreign keys, so a bad row fails here.
     conn = connect_content(db_path)
 
     try:
@@ -376,7 +368,6 @@ def main(*, force: bool = False, paths: PathSettings | None = None) -> int:
         import_exercises_and_questions(conn, paths)
         import_topics(conn, paths)
 
-        # Show summary
         cursor = conn.cursor()
         print("\n" + "=" * 50)
         print("DATABASE IMPORT SUMMARY")
@@ -386,7 +377,6 @@ def main(*, force: bool = False, paths: PathSettings | None = None) -> int:
             count = cursor.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             print(f"{table:20s}: {count:5d} rows")
 
-        # Show image storage size
         total_bytes = cursor.execute(
             "SELECT COALESCE(SUM(LENGTH(image_data)), 0) FROM exercise_images"
         ).fetchone()[0]
@@ -395,15 +385,10 @@ def main(*, force: bool = False, paths: PathSettings | None = None) -> int:
         print("=" * 50)
 
     except Exception:
-        # The progress report is the deliverable and stays on stdout; a
-        # run that could not finish is a failure that needs a level and a
-        # traceback in the log file, not a terminal nobody kept.
+        # The report is the deliverable; a failure needs a level and a traceback.
         logger.error("populate_failed", db_path=str(db_path), exc_info=True)
         print("Error importing data. See the log for the traceback.")
-        # The file this run created holds whatever landed before the failure,
-        # and nothing downstream can tell that from a finished database:
-        # `check` reads its mere existence as "populate: done", `bundle` ships
-        # it into the APK, and a re-run refuses without --force.
+        # A partial file is indistinguishable from a finished one downstream.
         conn.close()
         db_path.unlink(missing_ok=True)
         print(f"Removed the partial database at {db_path}.")

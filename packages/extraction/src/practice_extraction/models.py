@@ -34,9 +34,7 @@ __all__ = [
 ]
 
 
-# ----------------------------------------------------------------------
-# What an agent is asked, and what it must answer
-# ----------------------------------------------------------------------
+# --- What an agent is asked, and what it must answer ---
 
 
 class AnswersQuestion(BaseModel):
@@ -108,9 +106,7 @@ class ExerciseRulesOutput(BaseModel):
     )
 
 
-# ----------------------------------------------------------------------
-# What a stage writes for the next one
-# ----------------------------------------------------------------------
+# --- What a stage writes for the next one ---
 
 
 class ExtractedUnitsRoot[UnitT: BaseModel](BaseModel):

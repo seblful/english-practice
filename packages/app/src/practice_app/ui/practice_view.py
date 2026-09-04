@@ -74,52 +74,38 @@ __all__ = ["PracticeScreen"]
 
 _REVEALED_HEADLINE = "Here is the answer"
 
-# The three slots this screen is built out of, named once. Every state of the
-# screen fills the same three, which is what lets the client animate a change
-# of state instead of mounting a new screen -- see :meth:`PracticeScreen.render`.
+# The slots every state fills -- see :meth:`PracticeScreen.render`.
 _BAR_REGION = "practice.bar"
 _BODY_REGION = "practice.body"
 
-# The padding around whichever bar is showing. It is outside the region rather
-# than inside it, so the inset does not fade along with the bar's contents.
+# Outside the region, so the inset does not fade with the bar's contents.
 _BAR_FRAME_KEY = "practice.bar.frame"
 
-# The three things inside a question that come and go on their own: the picture
-# (or the note that there is none), the line saying what the unit covers, and
-# the rule behind the answer. Each is a slot rather than a control that appears,
-# so unfolding one fades it in the way the settings screen's folds do.
+# The parts of a question that come and go on their own, each one a slot.
 _IMAGE_REGION = "practice.body.image"
 _UNIT_REGION = "practice.body.unit"
 _RULE_REGION = "practice.foot.rule"
 
-# The card the book's answer sits on, inside the verdict sheet. Keyed because
-# the rule folds open inside it, and a slot only animates if every list between
-# it and the screen is keyed too.
+# Keyed because the rule folds open inside it, and a slot needs keys above.
 _NOTE_KEY = "practice.foot.note"
 
-# The lesson's progress bar. It keeps its identity from one question to the
-# next so that the client updates the bar it already has.
+# Kept across questions, so the client updates the bar it already has.
 _PROGRESS_KEY = "practice.progress"
 
-# The answer field. Keyed so that a rebuild of it is an update of the field the
-# user is already typing into -- see :meth:`PracticeScreen._answer_field`.
+# Keyed so a rebuild updates the field the user is already typing into.
 _ANSWER_KEY = "practice.answer"
 
 _NO_EXERCISES = "No exercises found for this topic. Try another one."
 _EMPTY_ANSWER = "Type your answer first."
 _GRADING_FAILED = "Could not grade that. Here is the book's answer."
 
-# A rule can run to a screenful, and the sheet must not push the question it
-# explains off the top of the screen.
+# Capped, so the sheet cannot push the question it explains off screen.
 _RULE_HEIGHT = 160
 
-# Room to drag a magnified crop past the frame's edge. Without it the picture
-# is clamped with its own margin still cut off, and the zoom reads as broken.
+# Without it a magnified crop is clamped with its own margin still cut off.
 _ZOOM_PAN_MARGIN = 80
 
-# Room for three lines of typing without scrolling -- most answers are one
-# clause, but an open-ended question asks for a sentence -- and up to six
-# before the field starts scrolling instead of pushing the picture off screen.
+# Three lines for a sentence-long answer, six before the field scrolls.
 _ANSWER_MIN_LINES = 3
 _ANSWER_MAX_LINES = 6
 
@@ -162,35 +148,24 @@ class PracticeScreen(Screen):
         self._topic_stats: dict[str, TopicStat] = {}
         self._topics: tuple[Topic, ...] = ()
         self._busy = False
-        # Drawn once per verdict rather than once per render, so folding the
-        # rule open does not re-roll the praise.
+        # Drawn once per verdict, so folding the rule open does not re-roll it.
         self._verdict = ""
-        # Why the model could not be asked, when it could not be. It goes in
-        # the sheet rather than a snack bar: a snack floats over the bottom of
-        # the screen, which is exactly where the sheet puts the one button
-        # that moves the lesson on.
+        # In the sheet, not a snack bar: a snack covers the button that moves on.
         self._grading_error: str | None = None
         self._rule_open = False
-        # Whether the unit's chip has been tapped to say what the unit covers.
-        # It shuts again with every new question: the line belongs to the
-        # question being read, not to the lesson.
+        # Shuts with every new question: it belongs to the question, not the run.
         self._unit_open = False
-        # Two panes the lesson can put over itself, both part of the screen
-        # rather than a dialog above it: the magnified picture, and the
-        # question asked on the way out.
+        # Two panes the lesson puts over itself, part of the screen not dialogs.
         self._zoom_open = False
         self._leaving = False
 
-        # The field the user is typing into, as it was last built. It is
-        # rebuilt rather than reconfigured -- see :meth:`_answer_field`.
+        # Rebuilt rather than reconfigured -- see :meth:`_answer_field`.
         self._answer = self._answer_field(answered=False, typed="")
 
         super().__init__(spacing=0, expand=True, horizontal_alignment=STRETCH)
         self.render()
 
-    # ------------------------------------------------------------------
-    # Rendering
-    # ------------------------------------------------------------------
+    # --- Rendering ---
 
     def render(self) -> None:
         """Rebuild the screen from the current state.
@@ -279,9 +254,7 @@ class PracticeScreen(Screen):
             expand=True,
         )
 
-    # ------------------------------------------------------------------
-    # Home
-    # ------------------------------------------------------------------
+    # --- Home ---
 
     def _home_state(self) -> HomeState:
         """Return what the home screen should draw itself from.
@@ -311,9 +284,7 @@ class PracticeScreen(Screen):
         """
         self._page.run_task(self.start_lesson, topic_id, topic_name)
 
-    # ------------------------------------------------------------------
-    # The lesson
-    # ------------------------------------------------------------------
+    # --- The lesson ---
 
     def _bar(self, state: str, content: ft.Control) -> ft.Control:
         """Return the strip across the top of the screen, in one of its states.
@@ -380,10 +351,7 @@ class PracticeScreen(Screen):
             motion.keyed(self._meta(active), f"{_BODY_REGION}.meta"),
             motion.swap(
                 region=_IMAGE_REGION,
-                # An exercise with no picture puts a note where the crop goes.
-                # They are different shapes, so they are different states: one
-                # key over both would have the client patch a banner into a
-                # picture card rather than replace it.
+                # Different shapes: a shared key patches instead of replacing.
                 state="picture" if active.image is not None else "none",
                 content=self._image_card(active),
                 resizes=True,
@@ -429,11 +397,7 @@ class PracticeScreen(Screen):
                 run_spacing=GAP_SMALL,
             )
         ]
-        # What the unit covers, unfolded from the chip it belongs to rather
-        # than standing under the heading whether it was asked for or not. The
-        # shut state is a box of no height rather than nothing at all, because
-        # a slot has to exist in both states for the client to fade between
-        # them -- and the title stays out of the tree while it is shut.
+        # Unfolded from the chip it belongs to; shut, it is a box of no height.
         children.append(
             motion.swap(
                 region=_UNIT_REGION,
@@ -493,18 +457,13 @@ class PracticeScreen(Screen):
         return ft.Container(
             content=ft.Column(
                 controls=[
-                    # Nothing rounds the crop itself. A radius on the
-                    # picture clips its corners, and the corners of a page
-                    # from the book carry the exercise number and the last
-                    # word of the first line.
+                    # A radius would clip the exercise number out of a corner.
                     ft.Image(
                         src=active.image,
                         fit=ft.BoxFit.FIT_WIDTH,
                         gapless_playback=True,
                     ),
-                    # Under the crop rather than floating over a corner of it.
-                    # The exercise is ten printed lines edge to edge, and a
-                    # badge on top of it covers one of them.
+                    # Under the crop: a badge on top would cover a printed line.
                     ft.Row(
                         controls=[
                             ft.Icon(
@@ -715,9 +674,7 @@ class PracticeScreen(Screen):
                 ]
             ),
             bgcolor=tint,
-            # Right, wrong and revealed are three different things to be told,
-            # so each gets its own state: the words cross-fade while the
-            # sheet's tint tweens underneath them.
+            # Three things to be told, so three states cross-fading over the tint.
             state=verdict_state,
         )
 
@@ -751,8 +708,7 @@ class PracticeScreen(Screen):
             if reveal.show_full_answer:
                 children.append(
                     ft.Markdown(
-                        # A markdown renderer reads a single newline as a soft
-                        # wrap, so two answers need a blank line between them.
+                        # One newline is a soft wrap to a markdown renderer.
                         full_answer_text(reveal.answers, separator="\n\n"),
                         selectable=True,
                     )
@@ -762,10 +718,7 @@ class PracticeScreen(Screen):
                 hint("This question is open-ended, so the book prints no answer.")
             )
         else:
-            # An empty reveal means one of two different things, and only the
-            # question can say which. A closed question with no rows in
-            # `question_answers` is a gap in the import -- `validate` reports
-            # it as a failure -- not an invitation to write your own sentence.
+            # A closed question with no answers is a gap in the import, not an offer.
             children.append(hint("The book records no answer for this question."))
 
         children.extend(self._rule_controls(reveal))
@@ -835,9 +788,7 @@ class PracticeScreen(Screen):
             ),
         ]
 
-    # ------------------------------------------------------------------
-    # The result
-    # ------------------------------------------------------------------
+    # --- The result ---
 
     def _result_panels(self, lesson: Lesson) -> list[ft.Control]:
         """Return the screen shown when a lesson is over.
@@ -906,9 +857,7 @@ class PracticeScreen(Screen):
             state="result",
         )
 
-    # ------------------------------------------------------------------
-    # The picture, magnified
-    # ------------------------------------------------------------------
+    # --- The picture, magnified ---
 
     def _zoom_pane(self, active: ActiveExercise, image: bytes) -> list[ft.Control]:
         """Return the whole screen given over to the exercise image.
@@ -950,16 +899,10 @@ class PracticeScreen(Screen):
             self._body(
                 "zoom",
                 ft.Container(
-                    # The viewer takes the frame itself. Centring it in the
-                    # container instead handed it loose constraints, under which
-                    # it measured itself at nothing and drew an empty screen --
-                    # the bar on top of a blank page, with the crop nowhere.
+                    # The viewer takes the frame: loose constraints drew nothing.
                     content=ft.InteractiveViewer(
                         content=ft.Container(
-                            # The white sheet hugs the picture instead of
-                            # filling the frame: these crops are wide and
-                            # short, and a full-height sheet around one is
-                            # mostly blank paper.
+                            # The sheet hugs the picture, not the frame.
                             content=ft.Container(
                                 content=ft.Image(src=image, fit=ft.BoxFit.FIT_WIDTH),
                                 padding=GAP_SMALL,
@@ -970,9 +913,6 @@ class PracticeScreen(Screen):
                         ),
                         min_scale=1,
                         max_scale=6,
-                        # Room to drag a magnified crop past the frame's edge,
-                        # rather than being clamped with its margin still cut
-                        # off.
                         boundary_margin=ft.Margin.all(_ZOOM_PAN_MARGIN),
                         expand=True,
                     ),
@@ -982,9 +922,7 @@ class PracticeScreen(Screen):
             ),
         ]
 
-    # ------------------------------------------------------------------
-    # Leaving a lesson
-    # ------------------------------------------------------------------
+    # --- Leaving a lesson ---
 
     def _leave_sheet(self) -> ft.Control:
         """Return the question asked on the way out of a lesson.
@@ -1038,9 +976,7 @@ class PracticeScreen(Screen):
             state="leaving",
         )
 
-    # ------------------------------------------------------------------
-    # What the back gesture asks for
-    # ------------------------------------------------------------------
+    # --- What the back gesture asks for ---
 
     def handle_back(self) -> bool:
         """Take the system Back gesture, if this screen has a use for it.
@@ -1063,8 +999,7 @@ class PracticeScreen(Screen):
         if lesson is None:
             return False
         if lesson.active is None:
-            # The run is over and its result is on screen. There is nothing
-            # left to lose, so Back means "done" rather than a question.
+            # The result is on screen; there is nothing left to lose.
             self._page.run_task(self._end_lesson)
             return True
         self.request_leave()
@@ -1092,9 +1027,7 @@ class PracticeScreen(Screen):
         self._zoom_open = False
         self.repaint()
 
-    # ------------------------------------------------------------------
-    # Events
-    # ------------------------------------------------------------------
+    # --- Events ---
 
     async def _on_leave(self) -> None:
         """Leave the lesson, once the user has confirmed it."""
@@ -1119,8 +1052,7 @@ class PracticeScreen(Screen):
         lesson = self._session.lesson
         if lesson is None or lesson.active is None:  # pragma: no cover - guarded
             return
-        # Revealing spends the question but earns nothing, which is the
-        # lesson's rule to keep rather than this handler's to remember.
+        # The lesson keeps the rule that revealing earns nothing.
         lesson.reveal_answer()
         self._verdict = _REVEALED_HEADLINE
         self.repaint()
@@ -1191,9 +1123,7 @@ class PracticeScreen(Screen):
 
         self.repaint()
 
-    # ------------------------------------------------------------------
-    # Running a lesson
-    # ------------------------------------------------------------------
+    # --- Running a lesson ---
 
     async def start_lesson(self, topic_id: int | None, topic_name: str) -> None:
         """Draw the first question of a run and hand the screen over to it.
@@ -1269,9 +1199,7 @@ class PracticeScreen(Screen):
         if self._on_lesson_change is not None:
             self._on_lesson_change(self._session.lesson is not None)
 
-    # ------------------------------------------------------------------
-    # Loading
-    # ------------------------------------------------------------------
+    # --- Loading ---
 
     async def reload(self) -> None:
         """Load what the home screen shows: the topics, and today's progress.

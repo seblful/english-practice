@@ -54,8 +54,7 @@ class TestAnswersAgent:
 
             assert result == expected
             mock_invoke.assert_called_once()
-            # The stage hands over the path. Reading it, and deciding what to do
-            # when it is not there, is the base agent's job now.
+            # Reading the path, and what to do without it, is the base agent's job.
             assert mock_invoke.call_args[1]["image"] == img_path
             assert mock_invoke.call_args[1]["output_model"] == ExerciseAnswersOutput
 

@@ -12,14 +12,7 @@ authors = [
 ]
 keywords = ["android", "flet", "english", "grammar", "llm"]
 
-# `practice-core` is the domain this app shares with the Telegram bot: the
-# content models, the exercise queries and the grading prompt. It carries
-# pydantic and jinja2, both of which Flet's package index publishes Android
-# wheels for.
-#
-# What is deliberately absent is a provider SDK. LangChain's tree does not fit
-# in an APK, and the useful part of it here is five HTTP calls, so this app
-# talks to the providers over httpx directly (see `practice_app/llm.py`).
+# `practice-core` is the domain shared with the bot; no provider SDK fits an APK.
 dependencies = [
     "practice-core",
     "flet>=0.86.5",
@@ -68,13 +61,11 @@ extend = "../../pyproject.toml"
 src = ["src"]
 
 [tool.ruff.lint.isort]
-# Only this package is first-party here. The others are dependencies, and read
-# more clearly grouped with the libraries than with the code that imports them.
+# Only this package is first-party; the rest read as libraries.
 known-first-party = ["practice_app"]
 
 [tool.ruff.lint.per-file-ignores]
-# Repeated from the root because a child table replaces its parent's, and this
-# package has one more directory to exempt than the others.
+# Repeated because a child table replaces its parent's, with one more directory.
 "**/tests/**" = ["D", "S101", "PLR2004", "ARG"]
 "tools/**" = ["D103"]
 
@@ -87,21 +78,16 @@ org = "com.seblful"
 product = "English Practice"
 company = "Aliaksei Chymba"
 copyright = "Copyright (C) 2026 by Aliaksei Chymba"
-# `practice-core` lives in this repository rather than on PyPI, so the build
-# installs it from source into the bundle.
+# `practice-core` lives in this repository, so the build installs it from source.
 dev_packages = { practice-core = "../core" }
 
 [tool.flet.app]
 path = "src"
-# `.flet/` is the per-project development storage `flet run` creates inside the
-# app directory. It holds a local settings file, so it must not travel into a
-# bundle and hand every install the developer's API key.
+# `.flet/` holds a local settings file, and must not hand an install a key.
 exclude = [".flet"]
 
 [tool.flet.android]
-# The bundled content database is opened by sqlite3, which needs a real file.
-# Shipping the package extracted saves the first launch from unpacking it out
-# of the app zip; `practice_app/storage.py` copes either way.
+# sqlite3 needs a real file, and shipping it extracted saves the first launch.
 extract_packages = ["practice_app"]
 
 [tool.flet.splash]

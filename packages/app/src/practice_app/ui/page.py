@@ -51,13 +51,9 @@ class ShellPage(DialogPage, Protocol):
     padding: Any
     appbar: Any
     navigation_bar: Any
-    # Called when the page's connection goes away, which on a phone is the app
-    # being closed. It is the only shutdown the app gets, and the one chance to
-    # release the provider connection pool.
+    # The only shutdown the app gets, and the one chance to release the pool.
     on_disconnect: Any
-    # The navigation stack. The shell only wants its root, whose ``can_pop``
-    # and ``on_confirm_pop`` are what let it answer the system Back gesture
-    # instead of having the app closed out from under a lesson.
+    # The shell wants the root's ``can_pop`` and ``on_confirm_pop`` for Back.
     views: Any
 
     def add(self, *controls: ft.Control) -> None:

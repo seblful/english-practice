@@ -67,8 +67,7 @@ class ChatHistoryManager:
             return
         kept = transcripts.get(exercise_id)
         if kept is None:
-            # Nothing to keep, so drop the user's entry rather than leaving an
-            # empty mapping behind for every user who ever asked a question.
+            # Drop the entry rather than leave an empty mapping behind for ever.
             del self._history[user_id]
             return
         self._history[user_id] = {exercise_id: kept}

@@ -12,10 +12,7 @@ authors = [
 ]
 keywords = ["english", "grammar", "sqlite", "prompt"]
 
-# Deliberately tiny, and deliberately transport-free. Every front end ships
-# this package: the bot into a container, the app into an APK. Anything added
-# here has to work in both, which is why there is no HTTP client, no LLM SDK
-# and no settings library below.
+# Deliberately tiny and transport-free: every front end ships this package.
 dependencies = [
     "pydantic>=2.12.5",
     "jinja2>=3.1.2",
@@ -26,8 +23,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-# Includes `prompts/` and `schema/`: the prompt and the SQL are read as package
-# resources, so they have to travel in the wheel.
+# Includes `prompts/` and `schema/`: both are read as package resources.
 packages = ["src/practice_core"]
 
 [dependency-groups]
@@ -64,8 +60,7 @@ extend = "../../pyproject.toml"
 src = ["src"]
 
 [tool.ruff.lint.isort]
-# Only this package is first-party here. The others are dependencies, and read
-# more clearly grouped with the libraries than with the code that imports them.
+# Only this package is first-party; the rest read as libraries.
 known-first-party = ["practice_core"]
 
 [tool.ty.environment]

@@ -84,9 +84,7 @@ class DatabaseValidator:
     def __init__(self, db_path: Path):
         """Open a connection to the database at ``db_path``."""
         self.db_path = db_path
-        # Opened the way the pipeline writes it, so that
-        # `PRAGMA foreign_key_check` reports against the same rules the
-        # inserts were made under.
+        # Opened the way the pipeline writes it, so the same rules are checked.
         self.conn = connect_content(db_path)
         self.cursor = self.conn.cursor()
 
@@ -324,8 +322,7 @@ def print_report(results: Sequence[CheckResult]) -> int:
 
     for result in results:
         print(f"\n{result.title}")
-        # Not derived from `passed`, which is False for a check that found only
-        # warnings: that stamped [FAIL] on the facts of a run exiting 0.
+        # Not derived from `passed`, which is False for warnings-only: that read [FAIL].
         if result.errors:
             marker = "[FAIL]"
         elif result.warnings:
@@ -376,9 +373,7 @@ def main(db_path: Path | None = None) -> int:
         with DatabaseValidator(db_path) as validator:
             return print_report(validator.run())
     except Exception:
-        # The report is the deliverable and stays on stdout; a run that
-        # could not produce one is a failure that needs a level and a
-        # traceback in the log file, not a terminal nobody kept.
+        # The report is the deliverable; a failure needs a level and a traceback.
         logger.error("validate_failed", db_path=str(db_path), exc_info=True)
         print("Error during validation. See the log for the traceback.")
         return 1

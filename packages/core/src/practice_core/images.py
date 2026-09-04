@@ -19,8 +19,7 @@ from typing import Final
 
 __all__ = ["data_uri", "image_media_type"]
 
-# Enough of each format's header to tell it apart from the others. WebP is
-# checked separately: its magic is split across two ranges of a RIFF header.
+# Enough header to tell each apart; WebP's magic is split across a RIFF header.
 _MAGIC: Final = (
     (b"\x89PNG\r\n\x1a\n", "image/png"),
     (b"\xff\xd8\xff", "image/jpeg"),

@@ -51,15 +51,13 @@ PRACTICE_TAB = 0
 STATS_TAB = 1
 SETTINGS_TAB = 2
 
-# The app bar already supplies the top inset, so a screen only needs breathing
-# room under it.
+# The app bar supplies the top inset, so a screen needs only room under it.
 _BODY_TOP_GAP = GAP // 2
 
 # The slot the three tabs take turns in.
 _BODY_REGION = "shell.body"
 
-# Cycled by the app-bar button. Declaration order is the order a user expects
-# a toggle to go, so the enum is the list -- one place to add a fourth theme.
+# Declaration order is the order a toggle is expected to step through.
 _THEME_CYCLE: Sequence[ThemeChoice] = tuple(ThemeChoice)
 
 _THEME_ICONS = {
@@ -111,13 +109,9 @@ class PracticeApp:
         self.settings = SettingsScreen(
             page, services, on_changed=self._settings_changed
         )
-        # The shell knows its panes only as `Screen`. Naming each one in an
-        # `if` chain is what made a fourth tab six edits, and what let one
-        # reload be called without awaiting it.
+        # Held as `Screen` only: an if-chain per screen made a fourth tab six edits.
         self.screens: tuple[Screen, ...] = (self.practice, self.stats, self.settings)
-        # Each pane keeps the key that names it, because the shell keeps the
-        # panes: `select_tab` then only has to hand the switcher a different
-        # one, and the key it already carries is what says a tab changed.
+        # The pane keeps its key, so a tab change is one hand-off to the switcher.
         self._panes = tuple(
             motion.keyed(
                 _pane(screen), motion.state_key(_BODY_REGION, screen.tab_label)
@@ -125,11 +119,7 @@ class PracticeApp:
             for screen in self.screens
         )
 
-        # One pane at a time, cross-fading. The switcher is built once and kept,
-        # so swapping what it holds is a change *to* it rather than a rebuild
-        # *of* it -- which is the only way the client has an outgoing pane left
-        # to fade out. The panes are kept too, by `_panes`, because a lesson
-        # part-way through lives in one of them.
+        # Built once and kept, so a swap leaves the client a pane to fade out.
         self._body = motion.swap(
             region=_BODY_REGION,
             state=self.screens[self._index].tab_label,
@@ -143,9 +133,7 @@ class PracticeApp:
             on_click=self._cycle_theme,
         )
 
-    # ------------------------------------------------------------------
-    # Startup
-    # ------------------------------------------------------------------
+    # --- Startup ---
 
     async def start(self) -> None:
         """Put the app on screen and load what each tab needs."""
@@ -170,29 +158,21 @@ class PracticeApp:
                 for screen in self.screens
             ],
         )
-        # Android's Back is not the app's to spend: the practice screen may
-        # have a picture open or a lesson running, and either is worth more
-        # than a fast exit. `can_pop=False` routes the gesture through
-        # `_on_confirm_pop`, which decides.
+        # Back is not the app's to spend: `_on_confirm_pop` decides what it means.
         root = page.views[0]
         root.can_pop = False
         root.on_confirm_pop = self._on_confirm_pop
 
-        # The one shutdown a phone app gets. Without it the provider's
-        # connection pool is opened for the life of the process and released
-        # by nothing -- `Services.aclose` existed and had no caller.
+        # The one shutdown a phone app gets; without it the pool is never released.
         page.on_disconnect = self._shutdown
 
         page.add(ft.SafeArea(content=self._body, expand=True))
 
-        # All three are cheap local reads, and doing them now means the first
-        # visit to any tab is already populated.
+        # Cheap local reads, so the first visit to any tab is already populated.
         for screen in self.screens:
             await screen.reload()
 
-    # ------------------------------------------------------------------
-    # Navigation
-    # ------------------------------------------------------------------
+    # --- Navigation ---
 
     def _open_settings(self) -> None:
         """Jump to the settings tab, from the practice screen's setup notice."""
@@ -222,9 +202,7 @@ class PracticeApp:
 
         await screen.reload()
 
-        # The screen above pushed itself, which cancelled the automatic push
-        # this handler would otherwise have got. The title and the swapped
-        # pane are the shell's own, so they need this to reach the phone.
+        # The screen's own push cancelled the automatic one for the shell's parts.
         self._page.update()
 
     async def _on_confirm_pop(self, event: ft.Event[ft.View]) -> None:
@@ -263,9 +241,7 @@ class PracticeApp:
             self._page.navigation_bar.visible = not running
         self._page.update()
 
-    # ------------------------------------------------------------------
-    # Appearance
-    # ------------------------------------------------------------------
+    # --- Appearance ---
 
     async def _cycle_theme(self) -> None:
         """Step the theme through system, light and dark."""
@@ -285,8 +261,7 @@ class PracticeApp:
     def _settings_changed(self) -> None:
         """React to a saved setting: re-theme, and re-check the practice tab."""
         self._apply_theme()
-        # The practice screen by name, because it is the one whose "not
-        # configured yet" notice a saved setting can remove.
+        # By name: it is the one whose "not configured yet" notice a setting removes.
         self.practice.repaint()
 
     async def _shutdown(self) -> None:

@@ -35,8 +35,7 @@ class TestRenderEvaluatePrompt:
     def test_a_closed_question_lists_the_expected_answers(self) -> None:
         prompt = render_evaluate_prompt(_context())
 
-        # The grading rules mention the tag by name, so only the closing tag
-        # tells the block apart from the prose that refers to it.
+        # The rules mention the tag by name, so only the closing tag is distinctive.
         assert "</ExpectedAnswers>" in prompt
         assert '0: short: "is doing"' in prompt
         assert "<QuestionType>CLOSED</QuestionType>" in prompt

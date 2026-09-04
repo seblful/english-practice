@@ -12,11 +12,7 @@ authors = [
 ]
 keywords = ["pdf", "ocr", "opencv", "sqlite", "llm"]
 
-# This is a build tool, not part of anything that serves a user: it runs on a
-# workstation, reads a PDF, and writes a database. That is why the heavy
-# dependencies live here — OpenCV to find the exercises on a page, PyMuPDF to
-# render it, Mistral to read the grammar, Pillow to re-encode the crops — and
-# why the bot's container no longer installs any of them.
+# A build tool, not a server: this is why the heavy dependencies live here.
 dependencies = [
     "practice-core",
     "practice-runtime",
@@ -72,11 +68,9 @@ extend = "../../pyproject.toml"
 src = ["src"]
 
 [tool.ruff.lint.isort]
-# Only this package is first-party here. The others are dependencies, and read
-# more clearly grouped with the libraries than with the code that imports them.
+# Only this package is first-party; the rest read as libraries.
 known-first-party = ["practice_extraction"]
 
 [tool.ty.environment]
-# The package, and this directory so the tests' own `tests.conftest`
-# resolves the way pytest resolves it.
+# The package, and this directory so `tests.conftest` resolves as pytest does.
 root = ["./src", "."]

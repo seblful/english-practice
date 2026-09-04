@@ -6,9 +6,7 @@ services:
     env_file:
       - path: .env
         required: true
-      # Secrets live per environment and .dockerignore keeps them out of the
-      # image, so compose injects them at runtime. Optional: a VPS deploy puts
-      # everything in .env and never creates this file.
+      # .dockerignore keeps secrets out of the image, so compose injects them.
       - path: .env.production
         required: false
     environment:

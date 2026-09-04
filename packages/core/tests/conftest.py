@@ -54,8 +54,7 @@ def seeded_db_path(tmp_path: Path) -> Path:
     to skip.
     """
     path = tmp_path / "content.db"
-    # `with sqlite3.connect(...)` commits but does not close, which is the very
-    # leak the library fixes -- so the fixture must not repeat it either.
+    # `with sqlite3.connect(...)` commits but does not close -- the leak itself.
     with closing(sqlite3.connect(path)) as conn, conn:
         create_content_schema(conn)
         conn.executescript(SEED)

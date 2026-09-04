@@ -22,9 +22,7 @@ __all__ = [
     "get_settings",
 ]
 
-#: The OCR model the pipeline calls unless the environment names another. The
-#: extractor's own default reads it from here, so bumping the model in one
-#: place cannot leave the test suite exercising a retired one.
+#: The OCR model the pipeline calls unless the environment names another.
 DEFAULT_OCR_MODEL = "mistral-ocr-latest"
 
 

@@ -58,41 +58,23 @@ __all__ = [
     "swap",
 ]
 
-# How long a change is given, in milliseconds. Three speeds and no fourth,
-# picked the way the radii were: a property tweening in place is the smallest
-# thing that moves and gets the least time, a region swapping its contents sits
-# in the middle, and one screen replacing another is both the largest change
-# and the slowest.
+# How long a change is given, in milliseconds. Three speeds and no fourth.
 FAST = 120
 MEDIUM = 200
 SLOW = 280
 
-# What is leaving always gets out of the way faster than what is arriving takes
-# to appear. This is Material's "fade through", and the reason for it is
-# concrete: a switcher stacks the outgoing pane on the incoming one for the
-# length of the overlap, so two panes fading at the same rate spend that time
-# as a double exposure of each other's text.
+# Material's fade-through: two panes at one rate are a double exposure.
 LEAVE = 90
 
-# For a region whose two states are not the same height, the outgoing one is
-# dropped rather than faded. A switcher holds its region at the size of the
-# taller of the two while both are mounted, so fading the old one out over
-# even 90ms means 90ms of the region standing too tall and then hopping down
-# as the old child is finally released. Letting it go at once costs a
-# cross-fade and buys a region that settles at its real height immediately,
-# with the incoming half still fading in over the full duration.
+# A switcher holds the taller size while both are mounted, so drop the old.
 LEAVE_AT_ONCE = 1
 
-# Something arriving decelerates into place; something leaving accelerates
-# away; a property changing where it already is does both, on Material 3's
-# emphasized curve.
+# Arriving decelerates, leaving accelerates, settling in place does both.
 ENTER_CURVE = ft.AnimationCurve.EASE_OUT_CUBIC
 LEAVE_CURVE = ft.AnimationCurve.EASE_IN_CUBIC
 SETTLE_CURVE = ft.AnimationCurve.EASE_IN_OUT_CUBIC_EMPHASIZED
 
-# Ready to hand to ``animate``, ``animate_opacity`` and their neighbours. The
-# control that carries one of these needs a key as well -- see the module
-# docstring -- so these and :func:`keyed` are nearly always used together.
+# For ``animate`` and its neighbours; the control needs a key as well.
 SETTLE = ft.Animation(duration=FAST, curve=SETTLE_CURVE)
 SETTLE_SLOW = ft.Animation(duration=MEDIUM, curve=SETTLE_CURVE)
 
@@ -105,16 +87,13 @@ class Swap(Enum):
     same job at every size.
     """
 
-    #: A detail inside a panel: a spinner where a button was, a result where
-    #: neither was yet.
+    #: A detail inside a panel: a spinner where a button was.
     DETAIL = FAST
 
-    #: One region of a screen swapping its contents: the bar under a lesson,
-    #: the notice at the top of the home screen.
+    #: One region of a screen swapping its contents: the bar under a lesson.
     REGION = MEDIUM
 
-    #: One screen replacing another: a tab, or a lesson taking over from the
-    #: home screen.
+    #: One screen replacing another: a tab, or a lesson taking over.
     SCREEN = SLOW
 
 

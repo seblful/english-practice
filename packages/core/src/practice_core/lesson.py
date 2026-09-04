@@ -37,8 +37,7 @@ __all__ = [
 # Long enough to be worth starting, short enough to finish on a bus.
 LESSON_LENGTH = 10
 
-# What a question drawn from every topic is filed under when the book does not
-# say which topic its unit belongs to.
+# Where a question is filed when the book does not say which topic it is.
 RANDOM_TOPIC_LABEL = "Random"
 
 
@@ -75,11 +74,9 @@ class ActiveExercise:
     image: bytes | None = None
     answers: tuple[QuestionAnswer, ...] = ()
     evaluation: EvaluateAnswerOutput | None = None
-    # Set when the answer was revealed without a verdict -- either the user
-    # asked, or grading failed. No verdict is then claimed.
+    # Set when the answer was revealed without a verdict, so none is claimed.
     ungraded: bool = False
-    # Held for the length of one grading call. Public so a front end can see
-    # a claim it did not make; claimed only through `being_graded`.
+    # Public so a front end can see a claim it did not make; set by `being_graded`.
     grading: bool = False
 
     @property
@@ -172,9 +169,7 @@ class Lesson:
     topic_name: str
     length: int = LESSON_LENGTH
     active: ActiveExercise | None = None
-    # One entry per question already answered, in the order they were answered.
-    # A revealed answer counts as done but never as correct, which is what
-    # stops "reveal ten times" from reading as a perfect run.
+    # A revealed answer counts as done but never as correct.
     outcomes: list[bool] = field(default_factory=list)
 
     @property

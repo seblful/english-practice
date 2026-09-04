@@ -38,10 +38,7 @@ class RulesExtractor:
         """
         self._tree = UnitStore(paths, RULES_FILENAME)
         self._extractor_agent = agent
-        # This stage reads what the answers stage wrote. Both names come from
-        # `stages`, which is where the pipeline's filenames are declared --
-        # this used to reach into the other extractor for its class attribute,
-        # so two stages of the pipeline knew about each other.
+        # Both names come from `stages`, so two stages need not know each other.
         self._answers_full_path = paths.metadata_dir / ANSWERS_FULL_FILENAME
 
     def _load_answers_full_data(self) -> dict[str, Any]:
@@ -79,8 +76,7 @@ class RulesExtractor:
 
         if not rules_md:
             logger.warning("grammar_markdown_missing", unit_number=unit_number)
-            # RulesContext requires a string; the prompt renders an empty
-            # rules section rather than failing validation.
+            # RulesContext requires a string; the prompt renders an empty section.
             rules_md = ""
 
         exercises = [
@@ -143,8 +139,7 @@ class RulesExtractor:
             question_id = q_input.question_id
             q_result = result_map.get(question_id)
             if q_result is None:
-                # Skipping costs one question's rule; raising would discard
-                # every already-paid call in the unit.
+                # Skipping costs one rule; raising costs the unit's paid calls.
                 logger.warning(
                     "question_missing_from_extraction",
                     exercise_id=exercise_id,

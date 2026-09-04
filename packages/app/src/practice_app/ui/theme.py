@@ -41,26 +41,16 @@ __all__ = [
 # Sampled from the book cover the bot uses as its avatar.
 SEED = "#4582c3"
 
-# Material 3 has no role for "right", so a correct answer used to borrow the
-# brand blue -- the same blue as the hero card, the pills and every heading,
-# which made the one verdict worth celebrating read as another announcement.
-# These are the only literal colours in the app, and they are saturated rather
-# than a pale container pair on purpose: the theme is followed on both
-# brightnesses, and a pale green sheet that works under a light theme is a
-# bright block in the middle of a dark one.
+# Material 3 has no role for "right"; saturated, to work on both brightnesses.
 CORRECT = ft.Colors.GREEN_700
 ON_CORRECT = ft.Colors.WHITE
 
-# Three radii, and no fourth. Fields, pills and the cards nested inside a
-# panel take the small one; panels and the tiles in a row take the middle one;
-# the two surfaces that stand apart from the page -- the hero card and the
-# verdict sheet -- take the large one.
+# Three radii: fields and nested cards, panels and tiles, surfaces apart.
 RADIUS_SMALL = 12
 RADIUS = 20
 RADIUS_LARGE = 28
 
-# Buttons sit between a field and a panel: rounded enough to read as pressable,
-# square enough not to become a stadium beside a rounded-rectangle field.
+# Between a field and a panel: pressable, but not a stadium beside a field.
 RADIUS_BUTTON = 14
 
 GAP_TINY = 4
@@ -68,13 +58,10 @@ GAP_SMALL = 8
 GAP = 16
 GAP_LARGE = 24
 
-# The one button a lesson screen is driven by sits under a thumb, so it is
-# sized for one — Material's 48dp minimum with room to spare.
+# Sized for a thumb: Material's 48dp minimum with room to spare.
 ACTION_HEIGHT = 52
 
-# A button inside a panel — "Test connection", "Reset progress" — answers for
-# that panel rather than for the screen, so it is the smaller of the two while
-# staying above the 44dp a thumb needs.
+# Answers for its panel rather than the screen, and clears 44dp for a thumb.
 INLINE_ACTION_HEIGHT = 44
 
 # Every button label, wherever the button was built.
@@ -115,16 +102,9 @@ def build_theme() -> ft.Theme:
         appbar_theme=ft.AppBarTheme(
             center_title=False,
             elevation=0,
-            # Material still tints the bar while content scrolls under it --
-            # `elevation_on_scroll` is not wired through Flet 0.86's theme, so
-            # there is nothing to set here that would stop it. The tint is
-            # conventional on Android, so it stays.
+            # Flet 0.86 does not wire `elevation_on_scroll`, so the tint stays.
             color=ft.Colors.ON_SURFACE,
-            # The colour has to be named in the style itself. Flutter only
-            # tints its *default* title style with the app bar's foreground
-            # colour, so supplying a style replaces that default wholesale and
-            # a style without a colour leaves the title unpainted — which on a
-            # light app bar came out white on white.
+            # Named here: a style without a colour leaves the title unpainted.
             title_text_style=ft.TextStyle(
                 size=22,
                 weight=ft.FontWeight.W_600,
@@ -143,14 +123,11 @@ def build_theme() -> ft.Theme:
             behavior=ft.SnackBarBehavior.FLOATING,
             shape=ft.RoundedRectangleBorder(radius=RADIUS_SMALL),
         ),
-        # Three button roles, one shape. The app's own helpers set the height
-        # of the two that drive a screen; this is what the rest of them —
-        # a dialog's actions, a link out to a provider's console — inherit.
+        # Three button roles, one shape, including the ones the app never builds.
         filled_button_theme=ft.FilledButtonTheme(style=_button_style()),
         outlined_button_theme=ft.OutlinedButtonTheme(style=_button_style()),
         text_button_theme=ft.TextButtonTheme(
-            # A text button carries no surface, so the horizontal padding of a
-            # filled one leaves its label floating away from what it labels.
+            # No surface, so a filled button's padding leaves the label floating.
             style=_button_style(
                 padding=ft.Padding.symmetric(
                     horizontal=GAP_SMALL + 2, vertical=GAP_SMALL + 2
@@ -184,8 +161,7 @@ def build_theme() -> ft.Theme:
             collapsed_bgcolor=ft.Colors.SURFACE_CONTAINER_LOW,
             icon_color=ft.Colors.PRIMARY,
             collapsed_icon_color=ft.Colors.PRIMARY,
-            # A tile that keeps its rounded corners open as well as shut is
-            # what lets a fold read as one more panel in the column.
+            # Rounded open as well as shut, so a fold reads as one more panel.
             shape=ft.RoundedRectangleBorder(radius=RADIUS),
             collapsed_shape=ft.RoundedRectangleBorder(radius=RADIUS),
             tile_padding=ft.Padding.symmetric(horizontal=GAP, vertical=GAP_TINY),
@@ -198,8 +174,7 @@ def build_theme() -> ft.Theme:
         divider_theme=ft.DividerTheme(
             color=ft.Colors.OUTLINE_VARIANT, thickness=1, space=1
         ),
-        # Every scrolling screen asks for `ScrollMode.HIDDEN` already; this is
-        # what covers the lists the app does not build itself.
+        # Covers the lists the app does not build itself.
         scrollbar_theme=ft.ScrollbarTheme(thickness=0, thumb_visibility=False),
     )
 

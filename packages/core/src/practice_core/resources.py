@@ -42,8 +42,7 @@ def read_packaged_text(anchor: str, *parts: str) -> str:
     try:
         return resource.read_text(encoding="utf-8")
     except OSError as exc:
-        # A zip entry that is absent raises OSError rather than the
-        # FileNotFoundError a real directory would; callers get one type.
+        # An absent zip entry raises OSError, so callers are given one type.
         raise FileNotFoundError(
             f"{'/'.join(parts)} is not packaged in {anchor}"
         ) from exc

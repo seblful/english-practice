@@ -136,7 +136,6 @@ class ExerciseOrganizer:
 
         img = self._crop_image(img)
 
-        # Detect exercise header boxes
         search_width = int(img.shape[1] * EXERCISE_SEARCH_WIDTH_RATIO)
         left_region = img[:, :search_width]
         boxes = self._detect_exercise_headers(left_region)
@@ -144,7 +143,6 @@ class ExerciseOrganizer:
         if not boxes:
             return [img]
 
-        # Extract individual exercises
         exercises = self._split_into_exercises(img, boxes)
 
         return exercises if exercises else [img]
@@ -158,7 +156,6 @@ class ExerciseOrganizer:
         Returns:
             The detected header boxes, top to bottom.
         """
-        # Create HSV mask for teal/blue exercise headers
         hsv_range = self._create_hsv_range(
             EXERCISE_HSV_LOWER_HUE,
             EXERCISE_HSV_LOWER_SAT,
@@ -176,7 +173,6 @@ class ExerciseOrganizer:
             erode_iterations=EXERCISE_ERODE_ITERATIONS,
         )
 
-        # Find and filter contours
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         boxes: list[BoundingBox] = []
@@ -235,20 +231,12 @@ class ExerciseOrganizer:
         for i, box in enumerate(boxes):
             start_y = max(0, box.y - EXERCISE_PADDING)
 
-            # End at next exercise or bottom of page
             is_last = i == len(boxes) - 1
             end_y = height if is_last else boxes[i + 1].y - EXERCISE_PADDING
 
             exercise_img = img[start_y:end_y, 0:width]
 
-            # A slice's position becomes its exercise number when it is saved,
-            # so dropping one renumbers every exercise below it on the page --
-            # and every later stage keys on that number. The crop the student
-            # is shown then holds a different sentence from the one they are
-            # asked to answer, and nothing downstream can tell: the row counts
-            # stay consistent and `validate` passes. Whether the right answer
-            # is to renumber, leave a gap, or re-tune the detector depends on
-            # the page, so this refuses it and says which one to look at.
+            # Dropping a slice renumbers the page, and every later stage keys on that.
             if exercise_img.shape[0] < EXERCISE_MIN_HEIGHT:
                 raise UnusableSlice(
                     f"header {i + 1} of {len(boxes)} yielded a "
@@ -256,7 +244,6 @@ class ExerciseOrganizer:
                     f"{EXERCISE_MIN_HEIGHT}px minimum"
                 )
 
-            # Crop bottom white space only for the last exercise
             if is_last:
                 exercise_img = self._crop_bottom_white_space(exercise_img)
 
@@ -281,38 +268,30 @@ class ExerciseOrganizer:
         """
         height = img.shape[0]
 
-        # Only search in the bottom portion of the image
         search_height = int(height * BOTTOM_WHITE_SEARCH_HEIGHT_RATIO)
         start_y = height - search_height
 
-        # Convert to grayscale for easier white detection
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # Scan from bottom to top to find where content ends
         content_end_y = None
 
         for y in range(height - 1, start_y - 1, -1):
             row = gray[y, :]
 
-            # Check if this row is mostly white
             white_pixels = np.sum(row >= BOTTOM_WHITE_THRESHOLD)
             white_ratio = white_pixels / len(row)
 
-            # If row has significant content (not white), this is where content ends
             if white_ratio < BOTTOM_WHITE_MIN_RATIO:
                 content_end_y = y
                 break
 
-        # If we found where content ends, crop there (with margin)
         if content_end_y is not None:
             crop_y = content_end_y + BOTTOM_WHITE_MARGIN
 
-            # Make sure we're actually removing something meaningful
             removed_pixels = height - crop_y
             if removed_pixels > MIN_MEANINGFUL_CROP_PIXELS:
                 return img[:crop_y, :]
 
-        # No significant white space found
         return img
 
     def _crop_image(self, img: np.ndarray) -> np.ndarray:
@@ -399,13 +378,11 @@ class ExerciseOrganizer:
 
         for page_path in tqdm(page_files, desc="Processing pages"):
             page_num = int(page_path.stem)
-            # Always at least one image: a page with no detected header is kept
-            # whole rather than dropped.
+            # A page with no detected header is kept whole rather than dropped.
             try:
                 exercises = self._extract_from_page(page_path)
             except UnusableSlice as exc:
-                # Nothing is written for this page, so the gap is visible to
-                # every later stage instead of being a silent renumbering.
+                # The gap stays visible to later stages instead of renumbering.
                 refused.append(page_num)
                 logger.warning("page_refused", page=page_num, reason=str(exc))
                 continue

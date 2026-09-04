@@ -29,10 +29,7 @@ from practice_app.ui.theme import GAP, GAP_LARGE, GAP_SMALL, RADIUS, RADIUS_SMAL
 
 __all__ = ["StatsScreen"]
 
-# The panels this screen is a column of, named so that reloading the figures
-# updates the panels rather than remounting them -- which is also what lets the
-# weekly bars grow to their new heights instead of jumping. See
-# :mod:`practice_app.ui.motion` on why a list needs keys.
+# The panels, named so a reload updates them and the bars grow, not jump.
 _PANEL_KEYS = (
     "stats.hero",
     "stats.streaks",
@@ -93,9 +90,7 @@ class StatsScreen(Screen):
         )
         self.render()
 
-    # ------------------------------------------------------------------
-    # Rendering
-    # ------------------------------------------------------------------
+    # --- Rendering ---
 
     def render(self) -> None:
         """Rebuild the screen from the held summary."""
@@ -225,9 +220,7 @@ class StatsScreen(Screen):
                 ft.Icons.CALENDAR_MONTH_ROUNDED,
             ),
         )
-        # Two by two. Four across a 360dp phone leaves each tile 80dp, which
-        # is not enough for "in a row now" to sit under its figure without
-        # breaking into three lines.
+        # Two by two: four across 360dp breaks "in a row now" into three lines.
         return ft.Column(
             controls=[
                 ft.Row(controls=list(pair), spacing=GAP_SMALL)
@@ -275,8 +268,7 @@ class StatsScreen(Screen):
         share = day.attempts / busiest if busiest else 0
         height = max(_MIN_BAR_HEIGHT, round(share * _MAX_BAR_HEIGHT))
 
-        # STRETCH is what gives the bar a width: a Container with only a height
-        # shrink-wraps to nothing under any other cross-axis alignment.
+        # STRETCH is what gives the bar a width; anything else shrink-wraps it away.
         return motion.keyed(
             ft.Column(
                 controls=[
@@ -286,9 +278,7 @@ class StatsScreen(Screen):
                         color=ft.Colors.ON_SURFACE_VARIANT,
                         text_align=ft.TextAlign.CENTER,
                     ),
-                    # Keyed and animated: answering a question and coming back to
-                    # this tab grows the day's bar to its new height rather than
-                    # redrawing the chart at it.
+                    # Keyed and animated, so the day's bar grows to its new height.
                     motion.keyed(
                         ft.Container(
                             height=height,
@@ -408,9 +398,7 @@ class StatsScreen(Screen):
             padding=ft.Padding.only(bottom=GAP_LARGE),
         )
 
-    # ------------------------------------------------------------------
-    # Events
-    # ------------------------------------------------------------------
+    # --- Events ---
 
     def _confirm_reset(self) -> None:
         """Ask before deleting the progress history."""

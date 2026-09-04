@@ -12,13 +12,7 @@ authors = [
 ]
 keywords = ["settings", "logging", "langchain", "llm"]
 
-# What the bot and the content pipeline both need, and neither should own: how
-# settings are read, how logs are written, how a chat-model client is built,
-# and what an LLM call with a prompt and a typed result looks like.
-#
-# The Android app is not a consumer and cannot be one — LangChain's dependency
-# tree does not fit in an APK — which is why the domain the app *does* share
-# lives one level down, in `practice-core`.
+# What the bot and the pipeline both need; the app cannot be a consumer.
 dependencies = [
     "practice-core",
     "pydantic>=2.12.5",
@@ -72,8 +66,7 @@ extend = "../../pyproject.toml"
 src = ["src"]
 
 [tool.ruff.lint.isort]
-# Only this package is first-party here. The others are dependencies, and read
-# more clearly grouped with the libraries than with the code that imports them.
+# Only this package is first-party; the rest read as libraries.
 known-first-party = ["practice_runtime"]
 
 [tool.ty.environment]

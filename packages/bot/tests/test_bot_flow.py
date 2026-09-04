@@ -91,8 +91,7 @@ def _deterministic_draw(monkeypatch: pytest.MonkeyPatch) -> None:
     The seeded exercise carries one closed and one open-ended question, and
     which one a real draw picks would change what the bot replies.
     """
-    # Replace the module reference inside the shared draw only: patching
-    # random.choice itself would also hijack the formatter's phrase picker.
+    # Only the reference inside the draw: random.choice also picks phrases.
     monkeypatch.setattr(
         content,
         "random",

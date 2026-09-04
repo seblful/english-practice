@@ -45,14 +45,10 @@ __all__ = ["MIXED_LESSON_LABEL", "HomeState", "HomeView"]
 # What a run across every topic is called on screen.
 MIXED_LESSON_LABEL = "Mixed practice"
 
-# The slot at the top of the screen that says why the app cannot grade yet.
-# It is a region rather than a control that comes and goes, so fixing the
-# setting fades the notice out instead of making the whole screen jump up.
+# A region rather than a control, so fixing the setting fades the notice.
 _NOTICE_REGION = "home.notice"
 
-# The cards below it, named so that a reloaded figure updates the card the user
-# is looking at rather than remounting the list. See
-# :mod:`practice_app.ui.motion` on why a list needs keys.
+# The cards, named so a reloaded figure updates one rather than the list.
 _TODAY_KEY = "home.today"
 _AGAIN_KEY = "home.again"
 _TOPICS_KEY = "home.topics"
@@ -137,9 +133,7 @@ class HomeView:
             resizes=True,
         )
 
-    # ------------------------------------------------------------------
-    # Pieces
-    # ------------------------------------------------------------------
+    # --- Pieces ---
 
     def _setup_banner(self, problem: str) -> ft.Control:
         """Return the notice shown while the app cannot grade yet.
@@ -157,8 +151,7 @@ class HomeView:
                 inline_action(
                     "Open settings",
                     icon=ft.Icons.SETTINGS_ROUNDED,
-                    # The notice already carries a tint, and an outline drawn
-                    # on top of that tint disappears into it.
+                    # An outline drawn on the notice's own tint disappears into it.
                     filled=True,
                     on_click=lambda _: open_settings(),
                 )

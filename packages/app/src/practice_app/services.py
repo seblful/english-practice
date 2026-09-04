@@ -53,16 +53,12 @@ class Services:
         self._config = config if config is not None else config_store.load()
         self._transport = transport
         self._client: LLMClient | None = None
-        # Clients whose settings have been typed over. Closing a pool is a
-        # coroutine and staging is not, so they wait here for the next await.
+        # Closing a pool is a coroutine and staging is not, so they wait for an await.
         self._retired: list[LLMClient] = []
-        # Catalogues are per provider and cost a round trip, so a fetched one
-        # is kept for as long as the app runs.
+        # A catalogue costs a round trip, so a fetched one is kept for the run.
         self._catalogues: dict[Provider, list[ModelInfo]] = {}
 
-    # ------------------------------------------------------------------
-    # Provider access
-    # ------------------------------------------------------------------
+    # --- Provider access ---
 
     @property
     def client(self) -> LLMClient:
@@ -126,9 +122,7 @@ class Services:
             None,
         )
 
-    # ------------------------------------------------------------------
-    # Settings
-    # ------------------------------------------------------------------
+    # --- Settings ---
 
     @property
     def config(self) -> AppConfig:

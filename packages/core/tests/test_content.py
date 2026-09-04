@@ -197,8 +197,7 @@ class TestDraw:
         self, library: ContentLibrary
     ) -> None:
         """Emptying the only usable exercise leaves nothing to practise."""
-        # `with sqlite3.connect(...)` commits but does not close, which is the
-        # very leak the library fixes -- so a test must not repeat it either.
+        # `with sqlite3.connect(...)` commits but does not close -- the leak itself.
         with closing(sqlite3.connect(library.db_path)) as conn, conn:
             conn.execute("DELETE FROM questions")
 

@@ -126,24 +126,19 @@ def reveal_for(
         The answers to print and the decisions around them.
     """
     if question.is_open_ended:
-        # The book prints no answer for a free-form question, and the grading
-        # prompt is explicit that none should be shown: revealing a stored
-        # phrasing invites the student to match it instead of writing their
-        # own. Whatever is in the table for one of these is not an answer.
+        # The prompt forbids an answer here: a stored one invites matching it.
         shown: tuple[QuestionAnswer, ...] = ()
     elif evaluation is not None:
         shown = answers_to_show(answers, evaluation.answer_idx)
     else:
-        # Nothing was graded, so nothing was matched: fall back to the
-        # canonical first answer.
+        # Nothing was graded, so nothing was matched.
         shown = tuple(answers[:1])
 
     is_correct = evaluation.is_correct if evaluation is not None else None
 
     show_full = False
     if shown and not is_correct:
-        # A correct answer gets the short form only: it is confirmation, and
-        # confirmation should be quick to dismiss.
+        # Confirmation should be quick to dismiss.
         short = ", ".join(answer.short_answer for answer in shown)
         full = "\n".join(answer.full_answer for answer in shown)
         show_full = _adds_context(full, short)

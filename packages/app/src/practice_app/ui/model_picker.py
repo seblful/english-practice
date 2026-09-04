@@ -31,9 +31,7 @@ __all__ = ["MAX_RESULTS", "ModelPicker", "visible_models"]
 
 MAX_RESULTS = 60
 
-# Taller and wider than any phone, so the picker takes whatever the dialog's
-# insets and the keyboard leave it rather than shrinking to the longest model
-# id on screen. Material clamps both to the space actually available.
+# Bigger than any phone: Material clamps it to what the insets leave.
 _PICKER_WIDTH = 560
 _PICKER_HEIGHT = 900
 
@@ -101,11 +99,9 @@ class ModelPicker(ft.AlertDialog):
             content_padding=ft.Padding.symmetric(
                 horizontal=GAP_SMALL, vertical=GAP_SMALL
             ),
-            # How many models the filters leave, in the field they are typed
-            # in. On its own line it cost a whole entry of the list.
+            # In the field the filters are typed in; its own line cost an entry.
             suffix=self._count,
-            # A model id is not prose: autocorrect turning "qwen" into a word
-            # would silently empty the list.
+            # Autocorrect turning "qwen" into a word would silently empty the list.
             autocorrect=False,
             capitalization=ft.TextCapitalization.NONE,
             on_change=self._refilter,
@@ -142,8 +138,7 @@ class ModelPicker(ft.AlertDialog):
                         tooltip="Reload the catalogue",
                         on_click=lambda _: on_refresh(),
                     ),
-                    # Closing is an icon up here rather than a button along
-                    # the bottom, where its row cost the list one model.
+                    # An icon up here; a row along the bottom cost the list a model.
                     ft.IconButton(
                         icon=ft.Icons.CLOSE_ROUNDED,
                         icon_size=20,
@@ -176,15 +171,12 @@ class ModelPicker(ft.AlertDialog):
             content_padding=ft.Padding.symmetric(
                 horizontal=GAP, vertical=GAP_SMALL - 2
             ),
-            # The keyboard already takes half the screen; the dialog is not
-            # spending another 80dp of it on margins.
+            # The keyboard already takes half the screen; margins take no more.
             inset_padding=ft.Padding.symmetric(horizontal=GAP_SMALL, vertical=GAP),
         )
         self._render()
 
-    # ------------------------------------------------------------------
-    # Behaviour
-    # ------------------------------------------------------------------
+    # --- Behaviour ---
 
     def _close(self) -> None:
         """Dismiss the picker, if it is on screen."""
@@ -235,8 +227,7 @@ class ModelPicker(ft.AlertDialog):
                 )
             )
 
-        # Short, because it sits inside the search field: a sentence there
-        # would take the room the query is typed in.
+        # Short: it sits inside the search field, where the query is typed.
         self._count.value = f"{len(matches)}/{len(self._models)}"
 
     def _pick(self, model: ModelInfo) -> None:
@@ -267,8 +258,7 @@ class ModelPicker(ft.AlertDialog):
             badges.append(pill("vision", icon=ft.Icons.IMAGE_ROUNDED))
         if model.supports_thinking:
             badges.append(pill("thinking", icon=ft.Icons.PSYCHOLOGY_ROUNDED))
-        # The window and the price on one badge rather than two: they are
-        # both numbers about the same model, and two pills of them wrapped.
+        # One badge rather than two: two pills of the same numbers wrapped.
         facts = " - ".join(
             label for label in (model.context_label, model.price_label) if label
         )

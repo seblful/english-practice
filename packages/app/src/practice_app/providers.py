@@ -88,9 +88,7 @@ _PROVIDER_LABELS: Final[dict[Provider, str]] = {
     Provider.OPENAI: "OpenAI",
 }
 
-# "Google Gemini" is the name Google writes, and it belongs in a sentence such
-# as "Google Gemini API key is not set". It does not fit a third of a 360dp
-# screen, where the vendor is already obvious from the key field beside it.
+# The short name: "Google Gemini" does not fit a third of a 360dp screen.
 _SHORT_LABELS: Final[dict[Provider, str]] = {
     Provider.OPENROUTER: "OpenRouter",
     Provider.GEMINI: "Gemini",
@@ -103,25 +101,18 @@ _CONSOLE_URLS: Final[dict[Provider, str]] = {
     Provider.OPENAI: "https://platform.openai.com/api-keys",
 }
 
-# What a fresh install grades with: each provider's newest mid-tier vision
-# model. Every exercise is a picture, so vision is not optional; grading one
-# sentence is a short call, so a flagship's price buys nothing here.
+# Every exercise is a picture, so vision is not optional; a flagship is waste.
 _DEFAULT_MODELS: Final[dict[Provider, str]] = {
     Provider.OPENROUTER: "google/gemini-3.8-flash",
     Provider.GEMINI: "gemini-3.8-flash",
-    # The balanced tier of the GPT-5.6 series, between Luna and the flagship
-    # Sol.
+    # The balanced tier of the GPT-5.6 series, between Luna and Sol.
     Provider.OPENAI: "gpt-5.6-terra",
 }
 
-# All three reason, so a fresh install offers the thinking control rather than
-# greying it out on the model it selected itself.
+# All three reason, so the thinking control is offered rather than greyed out.
 _DEFAULT_MODEL_REASONS: Final[dict[Provider, bool]] = dict.fromkeys(Provider, True)
 
-# The defaults earlier versions shipped. A stored model that is still one of
-# these was never a choice the user made -- it is a previous default left
-# behind -- so it is replaced rather than pinning the grader to a superseded
-# model for the life of the install.
+# A stored model that is still one of these is a default left behind, not a choice.
 _SUPERSEDED_MODELS: Final[dict[Provider, frozenset[str]]] = {
     Provider.OPENROUTER: frozenset({"google/gemini-2.5-flash"}),
     Provider.GEMINI: frozenset({"gemini-2.5-flash"}),
@@ -168,9 +159,7 @@ _THINKING_DESCRIPTIONS: Final[dict[ThinkingLevel, str]] = {
     ThinkingLevel.DYNAMIC: "The model decides how long to think.",
 }
 
-# Gemini takes a token budget rather than a named effort. 0 disables thinking
-# and -1 hands the decision to the model; the rest are budgets that keep a
-# grading call well inside a flash model's output allowance.
+# Gemini takes a budget: 0 disables, -1 defers to the model, the rest are caps.
 _GEMINI_BUDGETS: Final[dict[ThinkingLevel, int]] = {
     ThinkingLevel.OFF: 0,
     ThinkingLevel.MINIMAL: 512,
@@ -180,9 +169,7 @@ _GEMINI_BUDGETS: Final[dict[ThinkingLevel, int]] = {
     ThinkingLevel.DYNAMIC: -1,
 }
 
-# OpenRouter and OpenAI share OpenAI's named efforts. "Auto" has no equivalent
-# there: omitting the field is what "let the model decide" means, which is what
-# OFF already does on a model that cannot reason, so the level is not offered.
+# OpenAI's named efforts; "Auto" is omission, which is what OFF already does.
 _EFFORT_LEVELS: Final[tuple[ThinkingLevel, ...]] = (
     ThinkingLevel.OFF,
     ThinkingLevel.MINIMAL,
@@ -332,8 +319,7 @@ def thinking_payload(
     if provider is Provider.OPENROUTER:
         if level is ThinkingLevel.OFF:
             return {"reasoning": {"enabled": False}}
-        # `exclude` keeps the reasoning trace out of the reply: the app parses
-        # the answer as JSON and never shows the thinking.
+        # `exclude` keeps the reasoning trace out of a reply the app parses as JSON.
         return {"reasoning": {"effort": level.value, "exclude": True}}
 
     return {"reasoning_effort": "none" if level is ThinkingLevel.OFF else level.value}

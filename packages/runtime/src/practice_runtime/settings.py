@@ -49,8 +49,7 @@ __all__ = [
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 LLMProvider = Literal["dashscope", "gemini", "openrouter"]
 
-# Environment is chosen by an OS variable (set in the shell, Dockerfile, or CI).
-# Missing env files are silently ignored, so .env.<environment> is optional.
+# Chosen by an OS variable; a missing .env.<environment> is ignored.
 _ENVIRONMENT_VAR = "APP__ENVIRONMENT"
 _DEFAULT_ENVIRONMENT = "development"
 _ROOT_VAR = "APP__PROJECT_ROOT"
@@ -90,18 +89,10 @@ BASE_DIR = project_root()
 #: The database every front end opens, inside whatever content tree is set.
 DATABASE_FILENAME = "english_practice.db"
 
-#: What a path field holds until the layout below fills it in. A field's
-#: default cannot see its siblings, so the tree cannot be spelled in the class
-#: body without stating it a second time -- which is what this replaces: the
-#: defaults were expressions over the import-time ``BASE_DIR`` and a validator
-#: restated all ten to undo them, so ``data_dir=`` moved a directory whose
-#: children stayed in the developer's real ``data/`` tree whenever the two
-#: lists drifted.
+#: What a path field holds until the layout below fills it in.
 _DERIVED = Path()
 
-#: The content tree, declared once: each entry is a field, the field it hangs
-#: off, and the name it adds. Order is dependency order -- every parent is
-#: settled by an entry above it.
+#: The tree, declared once: field, parent, name. Order is dependency order.
 LAYOUT: tuple[tuple[str, str, str], ...] = (
     ("source_dir", "data_dir", "source"),
     ("content_dir", "data_dir", "content"),
@@ -158,8 +149,7 @@ def load_env(
     root = base_dir or BASE_DIR
     env_name = environment or os.getenv(_ENVIRONMENT_VAR, _DEFAULT_ENVIRONMENT)
 
-    # Later files win over earlier ones, so the environment-specific file
-    # overrides the shared base file.
+    # Later files win, so the environment-specific file overrides the base.
     from_files: dict[str, str] = {}
     for env_file in (root / ".env", root / f".env.{env_name}"):
         if not env_file.exists():
@@ -206,8 +196,7 @@ class PathSettings(BaseSettings):
     bot opens the one file at the end of it.
     """
 
-    # populate_by_name lets tests and callers pass `database_path=...` directly,
-    # which an explicit validation_alias would otherwise shadow.
+    # populate_by_name lets callers pass `database_path=` an alias would shadow.
     model_config = SettingsConfigDict(
         env_prefix="PATHS_", case_sensitive=False, populate_by_name=True
     )
@@ -223,8 +212,7 @@ class PathSettings(BaseSettings):
     exercises_dir: Path = _DERIVED
     metadata_dir: Path = _DERIVED
 
-    # DATABASE_PATH is accepted as a legacy alias: this group was unprefixed
-    # before, and existing .env files set the bare name.
+    # DATABASE_PATH is accepted as a legacy alias: the group was unprefixed.
     database_path: Path = Field(
         default=_DERIVED,
         validation_alias=AliasChoices("PATHS_DATABASE_PATH", "DATABASE_PATH"),
@@ -351,9 +339,7 @@ class BaseAppSettings(BaseSettings):
     llm: LLMSettings = Field(default_factory=LLMSettings)
     langsmith: LangSmithSettings = Field(default_factory=LangSmithSettings)
 
-    # `extra="ignore"` rather than the template's "forbid": the env files also
-    # carry the flat, prefixed variables consumed by the groups above, which are
-    # not fields of this model.
+    # "ignore" rather than "forbid": the env files carry the flat variables too.
     model_config = SettingsConfigDict(
         env_file_encoding="utf-8",
         case_sensitive=False,

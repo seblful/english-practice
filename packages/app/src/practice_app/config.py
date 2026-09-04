@@ -37,8 +37,7 @@ DEFAULT_TIMEOUT = 90.0
 
 PROXY_SCHEMES = ("http", "https", "socks5")
 
-#: The highest port a proxy can sit on. Public because the settings screen
-#: has to reject what it is typed, not only what is read back.
+#: Public because the settings screen rejects what is typed, not only stored.
 MAX_PORT = 65535
 
 
@@ -161,8 +160,7 @@ class ProviderConfig:
     api_key: str = ""
     model: str = ""
     thinking: ThinkingLevel = ThinkingLevel.OFF
-    # Cached from the catalogue so a restart still knows whether the chosen
-    # model reasons, without re-fetching several hundred entries to find out.
+    # Cached so a restart knows whether the model reasons without re-fetching.
     model_supports_thinking: bool = False
     model_supports_json: bool = False
 
@@ -199,18 +197,11 @@ class ProviderConfig:
             thinking = default.thinking
 
         stored_model = _as_str(data.get("model"))
-        # A model that is still an older version's default was never picked;
-        # it is a default left behind. Replacing it -- with the level and the
-        # capabilities that belong to the new one, since all three were the
-        # old default together -- is what lets a new release's grader reach an
-        # install that has been through an upgrade.
+        # A model that is still an older default was never picked; replace all three.
         if not stored_model or stored_model in provider.superseded_models:
             return replace(default, api_key=_as_str(data.get("api_key")).strip())
 
-        # A file written before the app recorded capabilities says nothing
-        # about them, and assuming "no" for the model the app picked itself is
-        # what left a fresh install insisting its own default cannot think. So
-        # the known answer wins while the stored model is still that one.
+        # A file written before capabilities were recorded says nothing about them.
         stored_thinking = data.get("model_supports_thinking")
         supports_thinking = (
             default.model_supports_thinking
@@ -219,8 +210,7 @@ class ProviderConfig:
         )
 
         return cls(
-            # Stripped here too: a key pasted with a stray newline would
-            # otherwise build an illegal header value.
+            # A key pasted with a stray newline builds an illegal header value.
             api_key=_as_str(data.get("api_key")).strip(),
             model=stored_model,
             thinking=thinking,

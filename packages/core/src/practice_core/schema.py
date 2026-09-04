@@ -98,8 +98,7 @@ def connect_content(db_path: Path, *, create: bool = False) -> sqlite3.Connectio
             create_content_schema(connection)
             connection.commit()
     except (sqlite3.Error, ContentError):
-        # The caller only owns a connection it was handed, so one that fails
-        # on the way out has to be closed here or it leaks for the process.
+        # The caller owns only what it handed in, so a failure here must not leak.
         connection.close()
         raise
     return connection

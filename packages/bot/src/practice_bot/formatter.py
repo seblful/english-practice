@@ -36,10 +36,7 @@ from practice_core.feedback import full_answer_text, short_answer_text, to_markd
 from practice_core.feedback import verdict_phrase as _verdict_phrase
 from practice_core.models import QuestionAnswer
 
-# The book's own bullet glyphs are normalised to dashes by
-# `practice_core.feedback.to_markdown`, which is the one place that knows
-# what the pipeline leaves behind. All that is left here is Telegram's
-# preferred glyph.
+# `to_markdown` already normalises the book's glyphs; this is Telegram's.
 _DASH_BULLET = re.compile(r"^- ", re.MULTILINE)
 _BOLD = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
 _ITALIC = re.compile(r"\*(.+?)\*", re.DOTALL)

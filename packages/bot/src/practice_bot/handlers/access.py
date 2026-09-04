@@ -94,8 +94,7 @@ async def notify_admin(
     try:
         await _send(context, admin_user_id, text, reply_markup)
     except Exception as exc:
-        # The admin may never have started a chat with the bot; that must not
-        # break the request the user is waiting on.
+        # The admin may never have started a chat; the user's request must not fail.
         logger.warning(
             "admin_notify_failed",
             admin_user_id=admin_user_id,

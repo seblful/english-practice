@@ -18,13 +18,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-# The book and how it is graded come from `practice-core`; settings, logging
-# and the chat-model client from `practice-runtime`. What is left here is
-# Telegram, which is why this is the only package that depends on it.
-#
-# Nothing that only the offline pipeline needs — OpenCV, PyMuPDF, the OCR
-# client — is in this list, so the container no longer ships a computer-vision
-# stack it never calls.
+# Telegram only: the book comes from `practice-core`, the plumbing from runtime.
 dependencies = [
     "practice-core",
     "practice-runtime",
@@ -81,11 +75,9 @@ extend = "../../pyproject.toml"
 src = ["src"]
 
 [tool.ruff.lint.isort]
-# Only this package is first-party here. The others are dependencies, and read
-# more clearly grouped with the libraries than with the code that imports them.
+# Only this package is first-party; the rest read as libraries.
 known-first-party = ["practice_bot"]
 
 [tool.ty.environment]
-# The package, and this directory so the tests' own `tests.conftest`
-# resolves the way pytest resolves it.
+# The package, and this directory so `tests.conftest` resolves as pytest does.
 root = ["./src", "."]
