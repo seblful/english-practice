@@ -115,11 +115,7 @@ class TestProviderConfigFromDict:
         assert stored.model == Provider.OPENAI.default_model
 
     def test_the_default_model_keeps_what_it_is_known_to_support(self) -> None:
-        """A file from before capabilities were recorded says nothing at all.
-
-        Reading that silence as "cannot think" is what left a fresh install
-        greying out the reasoning control for the model the app itself chose.
-        """
+        """A file from before capabilities were recorded says nothing at all."""
         stored = ProviderConfig.from_dict(
             {"model": Provider.OPENROUTER.default_model},
             provider=Provider.OPENROUTER,

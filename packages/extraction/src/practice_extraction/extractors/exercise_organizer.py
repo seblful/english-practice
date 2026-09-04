@@ -40,12 +40,7 @@ logger = get_logger(__name__)
 
 
 class UnusableSlice(PracticeError):
-    """A page produced a slice too small to be an exercise.
-
-    Raised rather than skipped: the slice's position is what becomes its
-    exercise number on disk, so dropping one renumbers every exercise below
-    it and every later stage keys on that number.
-    """
+    """A page produced a slice too small to be an exercise."""
 
 
 class BoundingBox(NamedTuple):
@@ -76,19 +71,7 @@ class ExerciseOrganizer:
         upper_s: int,
         upper_v: int,
     ) -> HSVRange:
-        """Create HSV range arrays for color filtering.
-
-        Args:
-            lower_h: Lower bound for hue.
-            lower_s: Lower bound for saturation.
-            lower_v: Lower bound for value.
-            upper_h: Upper bound for hue.
-            upper_s: Upper bound for saturation.
-            upper_v: Upper bound for value.
-
-        Returns:
-            HSVRange with lower and upper numpy arrays
-        """
+        """Create HSV range arrays for color filtering."""
         lower = np.array([lower_h, lower_s, lower_v])
         upper = np.array([upper_h, upper_s, upper_v])
         return HSVRange(lower, upper)
@@ -101,18 +84,7 @@ class ExerciseOrganizer:
         dilate_iterations: int = 0,
         erode_iterations: int = 0,
     ) -> np.ndarray:
-        """Create an HSV-based binary mask for color detection.
-
-        Args:
-            region: BGR image region to process
-            hsv_range: HSV color range to detect
-            kernel_size: Size of morphological operation kernel (optional)
-            dilate_iterations: Number of dilation iterations
-            erode_iterations: Number of erosion iterations
-
-        Returns:
-            Binary mask where detected colors are white (255)
-        """
+        """Create an HSV-based binary mask for color detection."""
         hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, hsv_range.lower, hsv_range.upper)
 
@@ -148,14 +120,7 @@ class ExerciseOrganizer:
         return exercises if exercises else [img]
 
     def _detect_exercise_headers(self, region: np.ndarray) -> list[BoundingBox]:
-        """Detect exercise header boxes using HSV color filtering and contour detection.
-
-        Args:
-            region: Left region of the image to search for headers
-
-        Returns:
-            The detected header boxes, top to bottom.
-        """
+        """Return the header boxes found by HSV colour and contour."""
         hsv_range = self._create_hsv_range(
             EXERCISE_HSV_LOWER_HUE,
             EXERCISE_HSV_LOWER_SAT,
@@ -187,15 +152,7 @@ class ExerciseOrganizer:
 
     @staticmethod
     def _is_valid_exercise_header(box: BoundingBox, area: float) -> bool:
-        """Check if a bounding box matches the expected exercise header dimensions.
-
-        Args:
-            box: Bounding box to validate
-            area: Contour area
-
-        Returns:
-            True if box matches exercise header criteria
-        """
+        """Check if a bounding box matches the expected exercise header dimensions."""
         return (
             EXERCISE_BOX_MIN_WIDTH < box.w < EXERCISE_BOX_MAX_WIDTH
             and EXERCISE_BOX_MIN_HEIGHT < box.h < EXERCISE_BOX_MAX_HEIGHT
@@ -207,24 +164,7 @@ class ExerciseOrganizer:
         img: np.ndarray,
         boxes: list[BoundingBox],
     ) -> list[np.ndarray]:
-        """Split page image into individual exercises based on header positions.
-
-        The bounds come off ``img`` rather than from the caller: they have
-        to agree with the array being sliced, and numpy clips a slice that
-        runs past the end instead of raising, so a stale pair would show up
-        as a truncated crop rather than as an error.
-
-        Args:
-            img: Full page image
-            boxes: Detected exercise header boxes
-
-        Returns:
-            List of exercise images
-
-        Raises:
-            UnusableSlice: If a header yields a slice under the minimum
-                height, which cannot be dropped without renumbering the page.
-        """
+        """Split page image into individual exercises based on header positions."""
         height, width = img.shape[:2]
         exercises = []
 
@@ -252,20 +192,7 @@ class ExerciseOrganizer:
         return exercises
 
     def _crop_bottom_white_space(self, img: np.ndarray) -> np.ndarray:
-        """Detect and crop white space from the bottom of the image.
-
-        This removes empty white space that may appear after the last exercise content,
-        keeping any text (including cyan reference text and page numbers).
-
-        The method scans from bottom to top looking for rows that are mostly white.
-        Once it finds content (non-white rows), it crops there.
-
-        Args:
-            img: The exercise image to process
-
-        Returns:
-            Image with bottom white space removed (if detected)
-        """
+        """Detect and crop white space from the bottom of the image."""
         height = img.shape[0]
 
         search_height = int(height * BOTTOM_WHITE_SEARCH_HEIGHT_RATIO)
@@ -326,15 +253,7 @@ class ExerciseOrganizer:
         file_path: Path,
         output_dir: Path,
     ) -> list[Path]:
-        """Extract and organize exercises from page images.
-
-        Args:
-            file_path: Directory containing page images (1.png, 2.png...)
-            output_dir: Destination directory for organized exercises
-
-        Returns:
-            List of created exercise paths
-        """
+        """Extract and organize exercises from page images."""
         file_path = Path(file_path)
         output_dir = Path(output_dir)
 
@@ -361,17 +280,7 @@ class ExerciseOrganizer:
         page_files: list[Path],
         output_dir: Path,
     ) -> list[Path]:
-        """Process all page files and save organized exercises.
-
-        Args:
-            page_files: List of page image paths
-            output_dir: Output directory
-
-        Returns:
-            List of created exercise file paths. A page whose split could not
-            be numbered contributes nothing and is named in the log, so the
-            gap is visible to every later stage.
-        """
+        """Process all page files and save organized exercises."""
         output_paths = []
 
         refused: list[int] = []
@@ -401,21 +310,7 @@ class ExerciseOrganizer:
         output_dir: Path,
         page_num: int,
     ) -> list[Path]:
-        """Save exercises to disk.
-
-        Args:
-            exercises: List of exercise images
-            output_dir: Base output directory
-            page_num: Page number for directory structure
-
-        Returns:
-            List of saved file paths
-
-        Raises:
-            OSError: If a file could not be written. ``cv2.imwrite`` reports
-                failure by returning ``False``, so an unchecked call would
-                leave the caller believing an image exists.
-        """
+        """Save exercises to disk."""
         page_dir = output_dir / str(page_num)
         page_dir.mkdir(parents=True, exist_ok=True)
 

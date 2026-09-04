@@ -1,23 +1,4 @@
-"""What to show a student once their answer has been graded.
-
-The two front ends render a reveal very differently -- a stack of Telegram
-messages, a Material sheet over the question -- but *what* belongs in it is a
-domain decision rather than a rendering one: which of the book's answers,
-whether the whole sentence adds anything to the short form, whether the rule
-follows, and whether an open-ended question has an answer to print at all.
-
-Written twice, those rules drifted. The bot printed the book's full sentence
-under every answer, including the ones the app had already decided were
-redundant, and both front ends fell back to the first stored answer for an
-open-ended question -- which the grading prompt forbids, because handing over
-a phrasing invites matching it. This module decides once, and each front end
-renders what it is given.
-
-What a failed grading *costs* is deliberately not decided here. The bot's
-endless stream can offer another attempt where the app's fixed-length lesson
-cannot, so both read :attr:`Reveal.was_graded` and apply their own policy to
-it -- one field, rather than a flag each invented for itself.
-"""
+"""What to show a student once their answer has been graded."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -29,50 +10,19 @@ __all__ = ["Reveal", "reveal_for"]
 
 
 def _plain(text: str) -> str:
-    """Return text stripped of everything that is not a word.
-
-    Args:
-        text: Markdown from the book.
-
-    Returns:
-        The words alone: no emphasis, no end stop, one space between them, and
-        case folded, so two spellings of the same answer compare equal.
-    """
+    """Return text stripped of everything that is not a word."""
     words = text.replace("*", "").replace("_", "").split()
     return " ".join(words).strip(".").casefold()
 
 
 def _adds_context(full: str, short: str) -> bool:
-    """Return whether the book's whole sentence says more than the answer.
-
-    A question that asks for a complete sentence prints the same words in both
-    of the book's fields, and showing them one under the other reads as a
-    rendering bug rather than as a correction.
-
-    Args:
-        full: The full answers, joined.
-        short: The short answers, joined.
-
-    Returns:
-        Whether the sentence is worth printing under the answer.
-    """
+    """Return whether the book's whole sentence says more than the answer."""
     return _plain(full) != _plain(short)
 
 
 @dataclass(frozen=True, slots=True)
 class Reveal:
-    """The book's answer to one question, and how much of it to show.
-
-    The text itself is not built here: the bot joins the full sentences with a
-    single newline inside a preformatted block and the app with a blank line,
-    because a markdown renderer reads a single newline as a soft wrap. So this
-    carries the answers and the decisions, and
-    :mod:`practice_core.feedback` turns them into strings.
-
-    Nor is the praise. :func:`practice_core.feedback.verdict_phrase` picks one
-    at random, so a value computed here would reshuffle itself on every
-    repaint; each front end calls it once, when the verdict arrives.
-    """
+    """The book's answer to one question, and how much of it to show."""
 
     answers: tuple[QuestionAnswer, ...]
     """The answers to print, in book order. Empty for an open-ended question."""
@@ -91,11 +41,7 @@ class Reveal:
 
     @property
     def was_graded(self) -> bool:
-        """Whether a verdict was reached.
-
-        ``False`` covers both a student who asked for the answer and a grading
-        that failed. What that costs is the front end's to decide.
-        """
+        """Whether a verdict was reached."""
         return self.is_correct is not None
 
     @property
@@ -112,19 +58,7 @@ def reveal_for(
     evaluation: EvaluateAnswerOutput | None,
     show_rule: bool = True,
 ) -> Reveal:
-    """Decide what to reveal for one attempt.
-
-    Args:
-        question: The question that was answered.
-        answers: Every accepted answer the book stores, in order.
-        unit_number: The unit the question came from, as printed.
-        evaluation: The verdict, or ``None`` when the answer was revealed
-            without one -- the student asked, or grading failed.
-        show_rule: Whether the student has rules turned on.
-
-    Returns:
-        The answers to print and the decisions around them.
-    """
+    """Decide what to reveal for one attempt."""
     if question.is_open_ended:
         # The prompt forbids an answer here: a stored one invites matching it.
         shown: tuple[QuestionAnswer, ...] = ()

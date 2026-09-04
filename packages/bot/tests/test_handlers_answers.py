@@ -81,12 +81,7 @@ class TestGrading:
     async def test_a_correct_answer_gets_the_short_form_only(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        """Confirmation should be quick to dismiss.
-
-        This is the app's rule, and since the decision moved into
-        `practice_core.reveal` it is the bot's too -- the bot used to print the
-        book's whole sentence under every answer, right ones included.
-        """
+        """Confirmation should be quick to dismiss."""
         await answers_handler.text_message(mock_update, mock_context)
 
         texts = replies(mock_update.message)
@@ -189,11 +184,7 @@ class TestTwoMessagesAtOnce:
     async def test_a_message_arriving_mid_grading_is_not_graded_again(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        """`answered` is only set once the verdict is back.
-
-        Until then a second message saw an unanswered question, so one answer
-        cost two provider calls and posted two verdicts for the same question.
-        """
+        """`answered` is only set once the verdict is back."""
         grading = asyncio.Event()
         finish = asyncio.Event()
 
@@ -291,12 +282,7 @@ class TestGradingFailure:
     async def test_the_question_still_counts_as_revealed(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        """The book's answer is in the chat, so saying otherwise is a lie.
-
-        The bot used to set neither flag on this path, so the shared
-        ``is_revealed`` reported False for a question whose answer the user
-        was looking at.
-        """
+        """The book's answer is in the chat, so saying otherwise is a lie."""
         mock_context.agents.grader.evaluate.side_effect = AgentError("provider down")
 
         await answers_handler.text_message(mock_update, mock_context)

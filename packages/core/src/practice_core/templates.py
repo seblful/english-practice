@@ -1,16 +1,4 @@
-"""Rendering the prompts that ship inside a package.
-
-Every prompt in the project renders through here: the grading prompt this
-package owns, the bot's assistant prompt, and the pipeline's extraction
-prompts. Each names its own package as the anchor, so a prompt lives next to
-the agent that sends it while the rendering rules — strict undefined variables,
-one compiled template per process — are written once.
-
-The template is compiled from text read out of the package rather than loaded
-from a directory. Jinja's ``FileSystemLoader`` needs a real path, and inside an
-Android build a package lives in a zip that is never unpacked, so a
-filesystem loader would work in the container and fail on the phone.
-"""
+"""Rendering the prompts that ship inside a package."""
 
 from functools import lru_cache
 
@@ -39,18 +27,7 @@ def _environment() -> Environment:
 
 @lru_cache(maxsize=16)
 def compiled_template(anchor: str, name: str) -> Template:
-    """Return a packaged prompt template, compiled once per process.
-
-    Args:
-        anchor: Import name of the package holding ``prompts/``.
-        name: The template's file name inside that directory.
-
-    Returns:
-        The compiled template.
-
-    Raises:
-        ConfigurationError: If the template was not packaged.
-    """
+    """Return a packaged prompt template, compiled once per process."""
     try:
         source = read_packaged_text(anchor, PROMPTS_DIR, name)
     except (FileNotFoundError, ModuleNotFoundError) as exc:
@@ -59,21 +36,7 @@ def compiled_template(anchor: str, name: str) -> Template:
 
 
 def render_packaged_template(anchor: str, name: str, context: BaseModel) -> str:
-    """Render a packaged prompt with a validated context.
-
-    Args:
-        anchor: Import name of the package holding ``prompts/``.
-        name: The template's file name inside that directory.
-        context: Pydantic model holding the template's variables.
-
-    Returns:
-        The prompt text.
-
-    Raises:
-        ConfigurationError: If the template was not packaged, or if it asks for
-            something the context does not carry — a mismatch to fix rather
-            than a prompt to send.
-    """
+    """Render a packaged prompt with a validated context."""
     try:
         return compiled_template(anchor, name).render(**context.model_dump())
     except UndefinedError as exc:

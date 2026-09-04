@@ -12,15 +12,7 @@ UNEXPECTED_ERROR = "⚠️ Something went wrong on my side. Please try again."
 
 
 async def report_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Log an exception no handler caught, and apologise to the user.
-
-    Registered with ``Application.add_error_handler``, this is what keeps an
-    unforeseen failure from leaving the user staring at silence.
-
-    Args:
-        update: The update being processed, when there was one.
-        context: The context carrying ``error``.
-    """
+    """Log an exception no handler caught, and apologise to the user."""
     logger.error(
         "unhandled_error",
         error=str(context.error),

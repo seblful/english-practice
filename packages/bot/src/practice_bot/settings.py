@@ -1,15 +1,4 @@
-"""The bot's settings: the shared groups, plus Telegram.
-
-Everything about where the data lives, how to log and which LLM to call is
-:class:`~practice_runtime.settings.BaseAppSettings`, shared with the content
-pipeline. This adds what only a Telegram bot has — a token, an admin, transport
-timeouts, how much of a conversation to keep — and the checks only the bot can
-make.
-
-Read them through :func:`get_settings`, never a module-level instance: the
-environment is seeded from the ``.env`` files on the first call, and the whole
-process then shares one resolved copy.
-"""
+"""The bot's settings: the shared groups, plus Telegram."""
 
 from functools import lru_cache
 
@@ -61,11 +50,7 @@ class Settings(BaseAppSettings):
     bot: BotSettings = Field(default_factory=BotSettings)
 
     def missing_required(self) -> list[str]:
-        """Return human-readable reasons the bot cannot start.
-
-        Returns:
-            One message per misconfiguration; empty when the bot can run.
-        """
+        """Return human-readable reasons the bot cannot start."""
         problems = super().missing_required()
 
         if secret_value(self.telegram.bot_token) is None:
@@ -86,9 +71,5 @@ class Settings(BaseAppSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return the process-wide settings, loading env files on first use.
-
-    Returns:
-        The cached settings instance.
-    """
+    """Return the process-wide settings, loading env files on first use."""
     return load_settings(Settings)

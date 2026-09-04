@@ -92,11 +92,7 @@ class TestAdminAction:
 
 
 class TestTheFamilies:
-    """A family ties its prefix, its handler pattern and its parse together.
-
-    These three used to sit in three files, so a keyboard could emit a payload
-    no handler claimed and nothing would say so until a button went dead.
-    """
+    """A family ties its prefix, its handler pattern and its parse together."""
 
     @pytest.mark.parametrize(
         ("family", "example"),
@@ -131,11 +127,7 @@ class TestTheFamilies:
         assert family.parse(payload) is None
 
     def test_every_family_has_a_handler_registered_for_it(self) -> None:
-        """The check that makes adding a button a one-file edit.
-
-        Define a payload family and forget to register it and this fails,
-        rather than the button silently doing nothing when pressed.
-        """
+        """The check that makes adding a button a one-file edit."""
         registered = {
             handler.pattern.pattern
             for handler in build_handlers()

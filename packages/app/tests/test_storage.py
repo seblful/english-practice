@@ -1,9 +1,4 @@
-"""Tests for the storage paths and unpacking the bundled database.
-
-The Android case — the database inside a zip that only ``zipimport`` can read —
-is reproduced with a real zip, because that is the whole point of the code
-under test.
-"""
+"""Tests for the storage paths and unpacking the bundled database."""
 
 import shutil
 import zipfile
@@ -25,15 +20,7 @@ DB_BYTES = b"SQLite format 3\x00" + b"\x00" * 200
 
 
 def _packaged_dir(root: Path, *, sidecar: bool = True) -> Path:
-    """Write a fake packaged content directory on disk.
-
-    Args:
-        root: Where to create it.
-        sidecar: Whether to write the size sidecar next to the database.
-
-    Returns:
-        The directory.
-    """
+    """Write a fake packaged content directory on disk."""
     directory = root / "packaged"
     directory.mkdir(parents=True, exist_ok=True)
     (directory / CONTENT_DB_NAME).write_bytes(DB_BYTES)
@@ -45,16 +32,7 @@ def _packaged_dir(root: Path, *, sidecar: bool = True) -> Path:
 
 
 def _zipped_dir(root: Path, *, sidecar: bool = True) -> zipfile.Path:
-    """Return a content directory that lives inside a zip.
-
-    Args:
-        root: Where to write the archive.
-        sidecar: Whether to include the size sidecar.
-
-    Returns:
-        A traversable pointing inside the archive, as ``zipimport`` hands one
-        to :mod:`importlib.resources` on Android.
-    """
+    """Return a content directory that lives inside a zip."""
     archive = root / "app.zip"
     with zipfile.ZipFile(archive, "w") as zipped:
         zipped.writestr(f"content/{CONTENT_DB_NAME}", DB_BYTES)

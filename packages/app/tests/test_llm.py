@@ -1,9 +1,4 @@
-"""Tests for the provider adapters and the HTTP client around them.
-
-The adapters return requests as data, so what a given setting actually sends
-can be asserted exactly — which is the only way to catch, say, sending
-``max_tokens`` to a model that rejects it.
-"""
+"""Tests for the provider adapters and the HTTP client around them."""
 
 import json
 from dataclasses import replace
@@ -56,12 +51,7 @@ class TestOpenRouterRequests:
     def test_a_blank_key_sends_no_authorization_at_all(
         self, config: AppConfig, blank: str
     ) -> None:
-        """The catalogue is the one call meant to work without a key.
-
-        ``Bearer `` with nothing after it is not a legal header value, so httpx
-        used to reject the request before it left the device — reported as the
-        provider being unreachable.
-        """
+        """The catalogue is the one call meant to work without a key."""
         call = OpenRouterAdapter().models_call(blank)
 
         assert "Authorization" not in call.headers
@@ -578,11 +568,7 @@ class TestCheck:
         assert "OpenRouter" in message
 
     async def test_any_reply_at_all_passes_the_check(self, config: AppConfig) -> None:
-        """The check asks whether the settings work, not whether JSON parses.
-
-        Reading the reply as a grading verdict made the transport module
-        depend on the grading contract to answer a settings question.
-        """
+        """The check asks whether the settings work, not whether JSON parses."""
         transport = httpx.MockTransport(
             lambda _: httpx.Response(
                 200, json={"choices": [{"message": {"content": "sure thing!"}}]}
@@ -708,13 +694,7 @@ class TestPoolLiveness:
 
 
 class TestTheAdapterSeam:
-    """The port is published, so a fake can stand at it.
-
-    Every test above builds a real client over an `httpx.MockTransport`,
-    because the only substitution point used to be the transport. The retry,
-    pooling and error-mapping behaviour that `LLMClient` actually owns can be
-    exercised without one.
-    """
+    """The port is published, so a fake can stand at it."""
 
     async def test_a_substituted_adapter_is_the_one_asked(
         self, config: AppConfig

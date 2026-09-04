@@ -63,11 +63,7 @@ class TestPDFHandler:
         return [call.args[0] for call in mock_pixmap.save.call_args_list]
 
     def test_even_start_page_pairs_each_unit(self, tmp_path) -> None:
-        """The counter advances on exercise pages, so the run must start odd.
-
-        ``START_UNIT_PAGE`` is even, which makes the first iterated page odd
-        and every unit's grammar page land before its exercise page.
-        """
+        """The counter advances on exercise pages, so the run must start odd."""
         saved = self._run(tmp_path, start_page=2, end_page=5, page_count=5)
 
         assert saved == [

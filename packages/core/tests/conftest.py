@@ -1,9 +1,4 @@
-"""Shared fixtures for the core tests.
-
-The database is built from the schema this package ships rather than a
-hand-written copy: a column renamed there should break these tests instead of
-production.
-"""
+"""Shared fixtures for the core tests."""
 
 import sqlite3
 from contextlib import closing
@@ -47,12 +42,7 @@ VALUES (1, 'is doing', 'He is doing.'),
 
 @pytest.fixture
 def seeded_db_path(tmp_path: Path) -> Path:
-    """Build a database from the project schema, with a little content.
-
-    Exercise 2 deliberately has no questions, topic 3 no units, and exercise 3
-    a zero-length image blob, so the queries that must skip them have something
-    to skip.
-    """
+    """Build a database from the project schema, with a little content."""
     path = tmp_path / "content.db"
     # `with sqlite3.connect(...)` commits but does not close -- the leak itself.
     with closing(sqlite3.connect(path)) as conn, conn:

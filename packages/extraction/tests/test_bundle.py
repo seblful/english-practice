@@ -21,13 +21,7 @@ from practice_extraction.bundle import (
 
 @lru_cache(maxsize=8)
 def _png(width: int, height: int) -> bytes:
-    """Return a PNG of a given size, roughly as a scanned page compresses.
-
-    A flat or dithered fixture would be the wrong shape for this test: PNG
-    stores those better than WebP does, and the whole point of the code under
-    test is that a scan of a book page does not compress that way. A gradient
-    with fine noise stands in for one.
-    """
+    """Return a PNG of a given size, roughly as a scanned page compresses."""
     noise = random.Random(20260314)
     image = Image.new("RGB", (width, height))
     pixels = image.load()
@@ -45,12 +39,7 @@ def _png(width: int, height: int) -> bytes:
 
 @pytest.fixture
 def source_db(tmp_path: Path) -> Path:
-    """A small database in the shape ``populate.py`` writes.
-
-    Exercise 3 carries a zero-length blob, which is a broken import rather
-    than a picture, and exercise 4 carries something that is not an image at
-    all.
-    """
+    """A small database in the shape ``populate.py`` writes."""
     path = tmp_path / "source.db"
     with closing(sqlite3.connect(path)) as conn, conn:
         create_content_schema(conn)

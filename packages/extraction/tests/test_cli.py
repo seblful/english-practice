@@ -1,9 +1,4 @@
-"""Tests for the content pipeline CLI.
-
-Each command is wiring: it reads the configured layout, builds one collaborator
-and calls it. These tests assert the wiring, with the collaborators mocked --
-the stages themselves are covered by their own tests.
-"""
+"""Tests for the content pipeline CLI."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -36,12 +31,7 @@ runner = CliRunner()
 
 @pytest.fixture
 def staged(settings: Settings) -> Callable[[str], None]:
-    """Return a helper that puts a stage's inputs in place.
-
-    The CLI now refuses a stage whose inputs are absent, so a test that drives
-    one has to say what it is standing on. That is the point of the check: a
-    stage used to run happily on an empty tree.
-    """
+    """Return a helper that puts a stage's inputs in place."""
 
     def stage(name: str) -> None:
         for artifact in STAGE_BY_NAME[name].reads:
@@ -314,11 +304,7 @@ class TestBundle:
 
     @pytest.fixture(autouse=True)
     def _database(self, settings: Settings) -> None:
-        """The database `bundle` reads.
-
-        It is `bundle`'s declared input, and it is now enforced like every
-        other stage's: this was the one command that never called the gate.
-        """
+        """The database `bundle` reads."""
         settings.paths.database_path.parent.mkdir(parents=True, exist_ok=True)
         settings.paths.database_path.write_bytes(b"")
 
@@ -400,14 +386,7 @@ class TestBundle:
 
 
 class TestStageRegistration:
-    """Every stage has a command, and every command is a stage.
-
-    The two halves used to be joined by a string typed twice -- once in the
-    ``Stage`` record, once in the ``@app.command(name=...)`` above the body --
-    and nothing checked that they matched, or that a stage had a command at
-    all. `bundle` slipped through: it declared an input and never consulted
-    the gate that enforces one.
-    """
+    """Every stage has a command, and every command is a stage."""
 
     def test_every_stage_declares_what_it_does(self) -> None:
         assert [stage.name for stage in STAGES if stage.runner is None] == []
@@ -427,12 +406,7 @@ class TestStageRegistration:
 
 
 class TestTheStageGate:
-    """A stage refuses to run on inputs that are not there.
-
-    `extract-rules` run early used to return an empty mapping, send 566
-    exercises to the model with no answers in the prompt, and cache every
-    ruined unit so a re-run skipped them.
-    """
+    """A stage refuses to run on inputs that are not there."""
 
     def test_a_stage_without_its_inputs_exits_non_zero(self) -> None:
         result = runner.invoke(cli.app, ["extract-rules"])

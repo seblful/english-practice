@@ -1,9 +1,4 @@
-"""Tests for what the app remembers across lessons.
-
-The lesson itself is :mod:`practice_core.lesson` now, and is tested through
-its own interface in the core suite -- so what is left here is the one thing
-only this front end keeps: the topic the home screen offers again.
-"""
+"""Tests for what the app remembers across lessons."""
 
 from practice_app.session import LESSON_LENGTH, PracticeSession
 

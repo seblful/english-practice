@@ -1,20 +1,4 @@
-"""Small pieces every screen reuses.
-
-Each function returns a plain control, so a screen composes them rather than
-inheriting from them, and a test can build one and read its parts.
-
-Three rules hold the screens together, and all three live here rather than in
-each screen. Everything that sits in a column **stretches**: Flet's ``Column``
-packs its children to the start of the cross axis unless told otherwise, so a
-panel whose contents happen to be narrow ends up narrower than the panel above
-it — which is what made the settings screen look ragged. Every surface,
-button and fold comes from one of these builders, so "the same kind of thing
-looks the same" is a property of this module instead of a habit. And anything
-here that *changes* does so over time rather than between frames, on the
-durations :mod:`~practice_app.ui.motion` names — which is why the pieces that
-animate carry a key: without one Flet rebuilds them from scratch on every
-repaint, and a control that was just built has no previous value to tween from.
-"""
+"""Small pieces every screen reuses."""
 
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -86,22 +70,7 @@ FOOT = "screen.foot"
 
 
 def push(control: ft.Control) -> None:
-    """Send a rebuilt control to the client, if it is on screen.
-
-    Flet pushes what a handler changed automatically — but only while the
-    handler has not pushed anything itself, because the first explicit
-    ``update()`` cancels the automatic one for the rest of the event. So this
-    sends *this control's* subtree and nothing else: whatever the caller
-    changed elsewhere on the page it must now push itself. The shell does,
-    in :meth:`~practice_app.ui.app.PracticeApp.select_tab` and its
-    neighbours.
-
-    A screen the shell has not attached yet has nothing to push to, and asking
-    raises, so that case is simply skipped.
-
-    Args:
-        control: The control whose subtree changed.
-    """
+    """Send a rebuilt control to the client, if it is on screen."""
     try:
         _ = control.page
     except RuntimeError:
@@ -110,28 +79,13 @@ def push(control: ft.Control) -> None:
 
 
 def is_open(event: ft.Event[ft.ExpansionTile]) -> bool:
-    """Return whether a fold is open, after the tap that just changed it.
-
-    Args:
-        event: The fold's change event.
-
-    Returns:
-        The new state. Flet documents the payload as a boolean and delivers a
-        string over the wire, so both are read here rather than at each call.
-    """
+    """Return whether a fold is open, after the tap that just changed it."""
     data = event.data
     return data if isinstance(data, bool) else str(data).lower() == "true"
 
 
 def section_title(text: str) -> ft.Text:
-    """Return the small capitalised label that heads a group of settings.
-
-    Args:
-        text: The label.
-
-    Returns:
-        The control.
-    """
+    """Return the small capitalised label that heads a group of settings."""
     return ft.Text(
         text.upper(),
         size=11,
@@ -141,16 +95,7 @@ def section_title(text: str) -> ft.Text:
 
 
 def _header(title: str, icon: ft.IconData | None = None) -> ft.Control:
-    """Return a panel's or a fold's heading.
-
-    Args:
-        title: The label.
-        icon: Optional leading icon, which is what makes a column of panels
-            scannable without reading every heading.
-
-    Returns:
-        The control.
-    """
+    """Return a panel's or a fold's heading."""
     if icon is None:
         return section_title(title)
     return ft.Row(
@@ -177,19 +122,7 @@ def panel(
     spacing: int = GAP_SMALL,
     bgcolor: str | None = None,
 ) -> ft.Container:
-    """Return a rounded surface holding a column of controls.
-
-    Args:
-        *controls: What goes inside, top to bottom.
-        title: Optional section label above the contents.
-        icon: Optional icon beside that label.
-        padding: Inner padding.
-        spacing: Vertical gap between the contents.
-        bgcolor: Surface colour. Defaults to the low container role.
-
-    Returns:
-        The panel, its contents stretched to its width.
-    """
+    """Return a rounded surface holding a column of controls."""
     children = list(controls)
     if title is not None:
         children.insert(0, _header(title, icon))
@@ -215,29 +148,7 @@ def collapsible(
     expanded: bool = False,
     on_toggle: ClickHandler | None = None,
 ) -> ft.Control:
-    """Return a panel that is folded away until it is asked for.
-
-    The two long settings groups — the proxy and the sampling controls — are
-    both this, so a phone shows a short list of headings rather than a screen
-    of fields most people never touch. It is shaped like :func:`panel` on
-    purpose: the theme gives the tile the same radius and the same surface, so
-    a fold reads as one more panel in the column.
-
-    Args:
-        *controls: What is inside the fold, top to bottom.
-        title: The heading.
-        icon: Optional icon beside it.
-        summary: One line under the heading saying what the fold holds, or
-            what it is currently set to.
-        expanded: Whether it starts open.
-        on_toggle: Called with the fold's change event, whose ``data`` is the
-            new state. A screen that rebuilds itself on every saved setting
-            has to record this, or moving a slider inside a fold shuts the
-            fold under the finger moving it.
-
-    Returns:
-        The fold.
-    """
+    """Return a panel that is folded away until it is asked for."""
     return ft.ExpansionTile(
         title=_header(title, icon),
         subtitle=None if summary is None else hint(summary),
@@ -268,21 +179,7 @@ def pill(
     on_click: ClickHandler | None = None,
     tooltip: str | None = None,
 ) -> ft.Container:
-    """Return a compact rounded label, used for topics, units and badges.
-
-    Args:
-        text: The label.
-        icon: Optional leading icon.
-        trailing: Optional icon after the label, which is what a pill that
-            folds something open uses to say so.
-        color: Foreground colour.
-        bgcolor: Background colour.
-        on_click: Makes the pill tappable, with the ink to prove it.
-        tooltip: What tapping it does.
-
-    Returns:
-        The pill.
-    """
+    """Return a compact rounded label, used for topics, units and badges."""
     foreground = color or ft.Colors.ON_SECONDARY_CONTAINER
     children: list[ft.Control] = []
     if icon is not None:
@@ -305,45 +202,17 @@ def pill(
 
 
 def hint(text: str, *, color: str | None = None) -> ft.Text:
-    """Return the small explanatory line under a control.
-
-    Args:
-        text: The hint.
-        color: Foreground colour.
-
-    Returns:
-        The control.
-    """
+    """Return the small explanatory line under a control."""
     return ft.Text(text, size=12, color=color or ft.Colors.ON_SURFACE_VARIANT)
 
 
 def field_label(text: str) -> ft.Text:
-    """Return the label shown above a field or a group of buttons.
-
-    Args:
-        text: The label.
-
-    Returns:
-        The control.
-    """
+    """Return the label shown above a field or a group of buttons."""
     return ft.Text(text, size=13, weight=ft.FontWeight.W_600)
 
 
 def _field_style(props: dict[str, Any]) -> dict[str, Any]:
-    """Return the app's field style, with the caller's overrides on top.
-
-    Flet 0.86 has no ``InputDecorationTheme``, so "every field in the app looks
-    the same" cannot be stated once in :mod:`practice_app.ui.theme` and has to
-    be a function instead. Material's default is a full outline, which left the
-    settings fields ruled in heavy dark boxes while the answer field -- set
-    borderless by hand -- sat one tap away in a different style.
-
-    Args:
-        props: What the caller passed.
-
-    Returns:
-        The merged keyword arguments.
-    """
+    """Return the app's field style, with the caller's overrides on top."""
     return {
         "filled": True,
         "border_color": ft.Colors.TRANSPARENT,
@@ -356,31 +225,12 @@ def _field_style(props: dict[str, Any]) -> dict[str, Any]:
 
 
 def text_field(**props: Any) -> ft.TextField:
-    """Return a text field in the app's one field style.
-
-    Args:
-        **props: Anything :class:`ft.TextField` takes. Naming a property the
-            shared style sets overrides it.
-
-    Returns:
-        The field.
-    """
+    """Return a text field in the app's one field style."""
     return ft.TextField(**_field_style(props))
 
 
 def dropdown(**props: Any) -> ft.Control:
-    """Return a list of choices in the same style as :func:`text_field`.
-
-    Material sizes a dropdown to its longest entry rather than to its parent,
-    which left one sitting two thirds the width of every field above it. The
-    row is what fixes that here, once, so a caller cannot forget it.
-
-    Args:
-        **props: Anything :class:`ft.Dropdown` takes.
-
-    Returns:
-        The dropdown, filling the width of its panel.
-    """
+    """Return a list of choices in the same style as :func:`text_field`."""
     return ft.Row(controls=[ft.Dropdown(expand=True, **_field_style(props))])
 
 
@@ -393,17 +243,7 @@ def filter_chip(
     selected: bool,
     on_select: ClickHandler,
 ) -> ft.Chip:
-    """Return one of the model picker's filters.
-
-    Args:
-        label: What it filters by.
-        selected: Whether the filter is on.
-        on_select: Called with the chip's select event.
-
-    Returns:
-        The chip, in the same type size as the settings screen's choices, so
-        the app has one chip and not two.
-    """
+    """Return one of the model picker's filters."""
     return ft.Chip(
         label=ft.Text(label, size=CHIP_LABEL_SIZE, weight=ft.FontWeight.W_600),
         selected=selected,
@@ -420,20 +260,7 @@ def segmented(
     selected: str,
     on_change: ClickHandler,
 ) -> ft.Control:
-    """Return a row of mutually exclusive choices, filling its panel.
-
-    Both segmented controls in the app come from here, so they cannot end up
-    with different label sizes and different widths on the same screen.
-
-    Args:
-        options: ``(value, label)`` pairs, left to right.
-        selected: The value currently chosen.
-        on_change: Called with the button's change event.
-
-    Returns:
-        The control, in a row so that it spans the panel rather than shrinking
-        to the width its longest label happens to need.
-    """
+    """Return a row of mutually exclusive choices, filling its panel."""
     return ft.Row(
         controls=[
             ft.SegmentedButton(
@@ -460,20 +287,7 @@ def switch_row(
     value: bool,
     on_change: ClickHandler,
 ) -> ft.Row:
-    """Return a switch whose label wraps instead of running off the panel.
-
-    ``ft.Switch``'s own ``label`` shares one unwrapped row with the track, so
-    a sentence-length label is clipped at the panel's edge on a phone. Keeping
-    the text as a sibling lets it take a second line.
-
-    Args:
-        label: The sentence beside the switch.
-        value: Whether the switch is on.
-        on_change: Called with the switch's change event.
-
-    Returns:
-        The control.
-    """
+    """Return a switch whose label wraps instead of running off the panel."""
     return ft.Row(
         controls=[
             ft.Text(label, size=14, expand=True),
@@ -491,17 +305,7 @@ def stat_tile(
     *,
     color: str | None = None,
 ) -> ft.Container:
-    """Return one figure of the stats screen.
-
-    Args:
-        value: The number, already formatted.
-        label: What the number counts.
-        icon: The icon above it.
-        color: Accent colour for the icon and the number.
-
-    Returns:
-        The tile, sized to share a row with its siblings.
-    """
+    """Return one figure of the stats screen."""
     accent = color or ft.Colors.PRIMARY
     return ft.Container(
         content=ft.Column(
@@ -535,18 +339,7 @@ def banner(
     bgcolor: str,
     actions: Sequence[ft.Control] = (),
 ) -> ft.Container:
-    """Return an inline notice: a warning, or the verdict on an answer.
-
-    Args:
-        message: The text.
-        icon: The leading icon.
-        color: Foreground colour.
-        bgcolor: Background colour.
-        actions: Buttons shown under the message.
-
-    Returns:
-        The banner.
-    """
+    """Return an inline notice: a warning, or the verdict on an answer."""
     body: list[ft.Control] = [
         ft.Row(
             controls=[
@@ -584,19 +377,7 @@ def placeholder(
     actions: Sequence[ft.Control] = (),
     expand: bool = False,
 ) -> ft.Container:
-    """Return the centred block shown when a screen has nothing to show yet.
-
-    Args:
-        icon: The illustration.
-        title: The headline.
-        message: One or two sentences saying what to do next.
-        actions: Buttons under the message.
-        expand: Whether to take the rest of the screen, which is what centres
-            it on a screen that holds nothing else.
-
-    Returns:
-        The placeholder.
-    """
+    """Return the centred block shown when a screen has nothing to show yet."""
     children: list[ft.Control] = [
         ft.Container(
             content=ft.Icon(icon, size=40, color=ft.Colors.PRIMARY),
@@ -629,20 +410,7 @@ def placeholder(
 
 
 def _label(text: str, *, size: int = LABEL_SIZE, weight: ft.FontWeight) -> ft.Text:
-    """Return a button label that ellipsises rather than wrapping.
-
-    Buttons here are a fixed height, and the longest label in the app is a
-    topic name — "Again: Questions and auxiliary verbs" — which a second line
-    would clip rather than wrap.
-
-    Args:
-        text: The label.
-        size: Its size.
-        weight: Its weight.
-
-    Returns:
-        The control.
-    """
+    """Return a button label that ellipsises rather than wrapping."""
     return ft.Text(
         text,
         size=size,
@@ -661,21 +429,7 @@ def primary_action(
     color: str | None = None,
     expand: bool = True,
 ) -> ft.FilledButton:
-    """Return the one big button a screen is driven by.
-
-    Args:
-        text: The label.
-        icon: Optional leading icon.
-        on_click: What tapping it does.
-        bgcolor: Background colour, for a button sitting on a tinted sheet.
-        color: Foreground colour, to match.
-        expand: Whether to fill the row it is in. It must be in a row: in a
-            column the same flag would stretch it down the whole screen.
-
-    Returns:
-        The button, sized for a thumb. Its shape comes from the theme, which
-        is what the dialogs' buttons inherit too.
-    """
+    """Return the one big button a screen is driven by."""
     return ft.FilledButton(
         content=_label(text, weight=ft.FontWeight.W_700),
         icon=icon,
@@ -695,20 +449,7 @@ def secondary_action(
     tooltip: str | None = None,
     expand: bool = False,
 ) -> ft.OutlinedButton:
-    """Return the quieter button beside a :func:`primary_action`.
-
-    Args:
-        text: The label.
-        icon: Optional leading icon.
-        on_click: What tapping it does.
-        tooltip: Optional long-press explanation.
-        expand: Whether to fill the row it is in. Off by default, which is
-            what leaves the loud button the wider of the two.
-
-    Returns:
-        The button, the same height as its louder neighbour so the pair reads
-        as one bar rather than as two controls.
-    """
+    """Return the quieter button beside a :func:`primary_action`."""
     return ft.OutlinedButton(
         content=_label(text, weight=ft.FontWeight.W_600),
         icon=icon,
@@ -728,25 +469,7 @@ def inline_action(
     filled: bool = False,
     danger: bool = False,
 ) -> ft.Control:
-    """Return the button that answers for one panel rather than the screen.
-
-    "Test connection", "Open settings", "Reset progress": each belongs to the
-    surface it sits on, so it is shorter than a screen's action and never
-    stretches across it.
-
-    Args:
-        text: The label.
-        icon: Optional leading icon.
-        on_click: What tapping it does.
-        tooltip: Optional long-press explanation.
-        filled: Whether to carry a surface. A notice already has a tint of its
-            own, and an outline on top of that tint disappears into it.
-        danger: Whether this destroys something, which paints it in the error
-            colour rather than the brand's.
-
-    Returns:
-        The button, in a row so it takes its own width and not the panel's.
-    """
+    """Return the button that answers for one panel rather than the screen."""
     label = _label(text, size=14, weight=ft.FontWeight.W_600)
     button: ft.Control
     if filled:
@@ -780,17 +503,7 @@ def link_action(
     on_click: ClickHandler | None = None,
     tooltip: str | None = None,
 ) -> ft.TextButton:
-    """Return the quietest button: a link out, or a fold's toggle.
-
-    Args:
-        text: The label.
-        icon: Optional leading icon.
-        on_click: What tapping it does.
-        tooltip: Optional long-press explanation.
-
-    Returns:
-        The button.
-    """
+    """Return the quietest button: a link out, or a fold's toggle."""
     return ft.TextButton(
         content=_label(text, size=14, weight=ft.FontWeight.W_600),
         icon=icon,
@@ -808,20 +521,7 @@ def progress_track(
     height: int = 10,
     expand: bool = True,
 ) -> ft.ProgressBar:
-    """Return the rounded bar that says how far along something is.
-
-    Args:
-        value: How much is done, from 0 to 1.
-        color: The filled colour.
-        bgcolor: The empty colour.
-        height: How thick to draw it.
-        expand: Whether to take the space left in the row it is in. It must be
-            off in a column, where the same flag would stretch the bar down
-            the screen instead of across it.
-
-    Returns:
-        The bar.
-    """
+    """Return the rounded bar that says how far along something is."""
     return ft.ProgressBar(
         value=value,
         bar_height=height,
@@ -841,28 +541,7 @@ def _foot(
     radius: int,
     border: ft.Border | None,
 ) -> ft.Container:
-    """Return the one surface pinned under the body of a screen.
-
-    Both shapes a screen's bottom takes -- the bar of buttons and the tinted
-    sheet -- are this same keyed container wearing different clothes, and that
-    is deliberate. Because the key does not change, the client keeps the widget
-    and tweens what did change: the colour floods, the corners round off, the
-    padding grows. A verdict therefore *becomes* the bar it replaces instead of
-    appearing where the bar was, which is the difference between the screen
-    answering and the screen blinking.
-
-    Args:
-        body: What goes inside.
-        state: Which shape this is, so the contents cross-fade when it changes
-            while the surface underneath them tweens.
-        bgcolor: The surface colour.
-        padding: The inner padding.
-        radius: The radius of the two top corners.
-        border: The rule along the top, for the shape that has one.
-
-    Returns:
-        The surface.
-    """
+    """Return the one surface pinned under the body of a screen."""
     return ft.Container(
         key=FOOT,
         content=motion.swap(
@@ -881,16 +560,7 @@ def _foot(
 
 
 def action_bar(*controls: ft.Control, state: str = "actions") -> ft.Container:
-    """Return the bar pinned under the body of a screen.
-
-    Args:
-        *controls: What goes in it, left to right.
-        state: What this bar is showing, told apart from the other things the
-            same slot holds -- see :func:`_foot`.
-
-    Returns:
-        The bar, ruled off from the content it acts on.
-    """
+    """Return the bar pinned under the body of a screen."""
     return _foot(
         ft.Row(
             controls=list(controls),
@@ -906,23 +576,7 @@ def action_bar(*controls: ft.Control, state: str = "actions") -> ft.Container:
 
 
 def sheet(*controls: ft.Control, bgcolor: str, state: str = "sheet") -> ft.Container:
-    """Return the panel that rises over the bottom of the screen.
-
-    This is where a verdict goes. It covers the action bar rather than joining
-    the page's flow, so the question the user just answered stays where it was
-    instead of scrolling away under a growing transcript.
-
-    Args:
-        *controls: What goes in it, top to bottom.
-        bgcolor: The tint that carries the verdict.
-        state: What this sheet is saying, told apart from the other things the
-            same slot holds -- see :func:`_foot`. Two sheets that say different
-            things need different states, or the second one's words arrive in
-            the first one's sheet with nothing to mark the change.
-
-    Returns:
-        The sheet, its contents stretched to the full width of the screen.
-    """
+    """Return the panel that rises over the bottom of the screen."""
     return _foot(
         ft.Column(
             controls=list(controls),
@@ -946,23 +600,7 @@ def dialog(
     modal: bool = False,
     content_padding: Any = None,
 ) -> ft.AlertDialog:
-    """Return a dialog in the app's one dialog shape.
-
-    The shape, the title style and the insets come from the theme, so a dialog
-    built here and a dialog built by the model picker cannot drift apart.
-
-    Args:
-        title: The heading.
-        body: What the dialog says or shows.
-        actions: The buttons along its bottom.
-        modal: Whether a tap outside is ignored, which is what a question the
-            user must answer needs.
-        content_padding: Override the padding around ``body``, for a dialog
-            whose content is a picture rather than a sentence.
-
-    Returns:
-        The dialog.
-    """
+    """Return a dialog in the app's one dialog shape."""
     return ft.AlertDialog(
         modal=modal,
         title=ft.Text(title),
@@ -983,21 +621,7 @@ def confirm_dialog(
     cancel: str = "Cancel",
     danger: bool = False,
 ) -> ft.AlertDialog:
-    """Return a question with a way out, in the app's one dialog shape.
-
-    Args:
-        page: The page holding the dialog, so cancelling can close it.
-        title: The question.
-        message: What confirming will do.
-        confirm: The label of the button that does it.
-        on_confirm: What that button does. It is responsible for closing the
-            dialog, because it is also what has work to do afterwards.
-        cancel: The label of the button that does not.
-        danger: Whether confirming destroys something.
-
-    Returns:
-        The dialog.
-    """
+    """Return a question with a way out, in the app's one dialog shape."""
     return dialog(
         title,
         ft.Text(message),
@@ -1015,14 +639,7 @@ def confirm_dialog(
 
 
 def show_snack(page: DialogPage, message: str, *, error: bool = False) -> None:
-    """Show a transient message at the bottom of the screen.
-
-    Args:
-        page: The page to show it on.
-        message: The text.
-        error: Whether to use the error colours, which is what tells a failed
-            grading apart from a saved setting at a glance.
-    """
+    """Show a transient message at the bottom of the screen."""
     page.show_dialog(
         ft.SnackBar(
             content=ft.Text(

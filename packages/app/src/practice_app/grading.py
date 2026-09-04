@@ -1,10 +1,4 @@
-"""Grading one answer: render the shared prompt, call the model, read the verdict.
-
-Every decision about *how* an answer is graded belongs to
-:mod:`practice_core` — the prompt, the rules inside it, and how the reply is
-parsed — so the app and the bot cannot drift into marking the same answer
-differently. What is left here is the call itself.
-"""
+"""Grading one answer: render the shared prompt, call the model, read the verdict."""
 
 from collections.abc import Sequence
 
@@ -25,11 +19,7 @@ class Grader:
     """Asks the configured model whether an answer is right."""
 
     def __init__(self, client: LLMClient) -> None:
-        """Initialize the grader.
-
-        Args:
-            client: The provider client to grade through.
-        """
+        """Initialize the grader."""
         self._client = client
 
     async def grade(
@@ -41,23 +31,7 @@ class Grader:
         topic_name: str,
         image: bytes | None = None,
     ) -> EvaluateAnswerOutput:
-        """Grade one answer.
-
-        Args:
-            question: The question being answered.
-            user_input: What the student typed.
-            answers: The book's accepted answers, in order.
-            topic_name: The topic, for context.
-            image: The exercise image, when the exercise has one.
-
-        Returns:
-            The verdict, and which expected answers it matched.
-
-        Raises:
-            ConfigurationError: If the app is not configured yet.
-            GradingError: If the verdict cannot be read back.
-            ProviderError: If the call itself fails.
-        """
+        """Grade one answer."""
         prompt = render_evaluate_prompt(
             EvaluateAnswerInput.for_question(
                 question,

@@ -1,13 +1,4 @@
-"""Exception hierarchy for the app.
-
-The root and the errors the bot also raises come from
-:mod:`practice_core.errors`; the app adds the one only it can hit, because only
-it talks to a provider over raw HTTP.
-
-Every message here is written to be shown to the user as-is: on a phone there
-is no log to consult, so "OpenRouter rejected the API key" has to reach the
-screen intact.
-"""
+"""Exception hierarchy for the app."""
 
 from practice_core.errors import (
     ConfigurationError,
@@ -26,9 +17,4 @@ __all__ = [
 
 
 class ProviderError(PracticeError):
-    """A call to the LLM provider failed or returned something unusable.
-
-    The message is a complete sentence, ending in its own full stop, so a
-    screen can put it straight after its own line without inspecting or
-    re-punctuating it.
-    """
+    """A call to the LLM provider failed or returned something unusable."""

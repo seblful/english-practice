@@ -34,12 +34,7 @@ class TestWhichAnswersAreShown:
     def test_an_open_ended_question_reveals_nothing(
         self, answers: list[QuestionAnswer]
     ) -> None:
-        """The prompt forbids it: a stored phrasing is one to match, not an answer.
-
-        The database happens not to hold answers for these today, because the
-        pipeline skips them -- but that is an invariant in another package, and
-        this is the module that must not depend on it.
-        """
+        """The prompt forbids it: a stored phrasing is one to match, not an answer."""
         open_ended = Question(id=2, question_id="1", is_open_ended=True)
 
         result = reveal_for(

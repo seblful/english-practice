@@ -1,9 +1,4 @@
-"""Tests for the dependency wiring.
-
-The behaviour worth pinning down is that a settings change actually reaches the
-HTTP pool: the proxy and the timeout are baked in when a client is built, so a
-kept client would keep using a proxy the user has just switched off.
-"""
+"""Tests for the dependency wiring."""
 
 from dataclasses import replace
 
@@ -88,7 +83,7 @@ class TestStaging:
     async def test_the_client_is_rebuilt_from_a_staged_edit(
         self, services: Services
     ) -> None:
-        """ "Test connection" answered on the key the user had typed over."""
+        """A staged key is the one "Test connection" answers on."""
         first = services.client
 
         services.stage(services.config.with_active(api_key="typed-just-now"))

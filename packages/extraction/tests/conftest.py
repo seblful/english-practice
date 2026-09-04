@@ -1,9 +1,4 @@
-"""Shared fixtures for the pipeline tests.
-
-Nothing here reaches a provider, opens the real book, or writes into the
-repository's ``data/`` tree: the agents are handed in, the PDFs are built in a
-temp directory, and the content layout is rooted at ``tmp_path``.
-"""
+"""Shared fixtures for the pipeline tests."""
 
 import logging
 import sqlite3
@@ -20,13 +15,7 @@ from practice_extraction.settings import Settings
 
 @pytest.fixture(autouse=True)
 def _isolate_settings_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Hide the developer's own environment from every test.
-
-    Each settings group is its own ``BaseSettings`` reading ``os.environ``
-    through its prefix, so ``Settings(_env_file=...)`` does not isolate them --
-    an exported ``OCR_API_KEY`` or ``PATHS_DATABASE_PATH`` would otherwise
-    decide the outcome of a test that never mentions it.
-    """
+    """Hide the developer's own environment from every test."""
     for name in settings_env_vars(Settings):
         monkeypatch.delenv(name, raising=False)
 
@@ -41,19 +30,7 @@ def _quiet_logging() -> None:
 
 
 def extraction_paths(root: Path) -> PathSettings:
-    """Return a content layout rooted at ``root``, with the directories made.
-
-    One field moves the whole tree: every other path derives from it. This
-    used to restate five of them, because the defaults were computed once at
-    class definition and setting ``content_dir`` alone left the rest pointing
-    into the real ``data/``.
-
-    Args:
-        root: The scratch directory to root the layout at.
-
-    Returns:
-        The layout, with the directories the stages write into created.
-    """
+    """Return a content layout rooted at ``root``, with the directories made."""
     paths = PathSettings(data_dir=root)
     for directory in (
         paths.metadata_dir,
@@ -102,13 +79,7 @@ VALUES (1, 'is doing', 'He is doing.'),
 
 @pytest.fixture
 def seeded_db_path(tmp_path: Path) -> Path:
-    """Build a database from the shared schema, with a little content.
-
-    The schema is `practice-core`'s, the same one ``populate`` builds from, so
-    a column renamed there breaks these tests rather than production. Exercise
-    2 deliberately has no questions and topic 3 no units, so the checks that
-    must report them have something to find.
-    """
+    """Build a database from the shared schema, with a little content."""
     path = tmp_path / "test.db"
     with closing(sqlite3.connect(path)) as conn, conn:
         create_content_schema(conn)

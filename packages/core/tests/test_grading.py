@@ -101,12 +101,7 @@ class TestParseEvaluation:
 
 
 class TestTheGateOnDirectConstruction:
-    """The bot never calls ``parse_evaluation``: LangChain builds the model.
-
-    So every rule that keeps a reply usable has to hold when the class is
-    constructed directly, or the two front ends read the same reply
-    differently -- which is the one thing this module exists to prevent.
-    """
+    """The bot never calls ``parse_evaluation``: LangChain builds the model."""
 
     def test_nonsense_indexes_are_dropped(self) -> None:
         built = EvaluateAnswerOutput(is_correct=True, answer_idx=[0, "1", -2, True, 3])  # type: ignore[list-item]

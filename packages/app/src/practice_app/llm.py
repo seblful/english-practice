@@ -1,15 +1,4 @@
-"""Talking to the LLM providers over plain HTTP.
-
-The app calls three providers with three request shapes, so each one gets a
-small adapter that knows how to ask for a model list, how to ask a question
-with a picture attached, and where the answer is in the reply. Everything the
-adapters return is data — a :class:`HttpCall` — so the request a given setting
-produces can be asserted without a network.
-
-There is no SDK behind this on purpose. The APK can only carry pure Python, and
-the alternative stacks pull in compiled cores; the useful part of them here is
-five HTTP calls, which is what this module is.
-"""
+"""Talking to the LLM providers over plain HTTP."""
 
 import asyncio
 import base64
@@ -153,14 +142,7 @@ class ProviderAdapter:
         raise NotImplementedError
 
     def error_detail(self, payload: Any) -> str:
-        """Return the provider's own explanation of a failure, if it gave one.
-
-        Args:
-            payload: The decoded error body.
-
-        Returns:
-            A short message, or the empty string.
-        """
+        """Return the provider's own explanation of a failure, if it gave one."""
         if isinstance(payload, dict):
             error = payload.get("error")
             if isinstance(error, dict):
@@ -170,19 +152,7 @@ class ProviderAdapter:
         return ""
 
     def _completion_budget(self, config: AppConfig) -> int:
-        """Return the output allowance, with room for reasoning tokens.
-
-        The user's ``max_tokens`` is what the *answer* may cost. Reasoning
-        tokens are drawn from the same allowance by every provider here, so a
-        model asked to think hard inside a 2048-token budget can spend all of
-        it thinking and return nothing at all.
-
-        Args:
-            config: The active settings.
-
-        Returns:
-            The value to send as the output limit.
-        """
+        """Return the output allowance, with room for reasoning tokens."""
         active = config.active
         headroom = (
             thinking_token_headroom(active.thinking)
@@ -198,14 +168,7 @@ class _OpenAICompatibleAdapter(ProviderAdapter):
     base_url: str
 
     def _headers(self, api_key: str) -> dict[str, str]:
-        """Return the auth and content headers for a request.
-
-        A blank key means *no* ``Authorization`` header rather than an empty
-        bearer token. ``"Bearer "`` is not a legal header value, so httpx
-        rejects it before the request leaves the device, and the failure
-        arrives looking like an unreachable provider — on the one call that is
-        meant to work without a key: OpenRouter's catalogue.
-        """
+        """Return the auth and content headers for a request."""
         headers = {"Content-Type": "application/json"}
         key = api_key.strip()
         if key:
@@ -213,29 +176,13 @@ class _OpenAICompatibleAdapter(ProviderAdapter):
         return headers
 
     def models_call(self, api_key: str) -> HttpCall:
-        """Return the request that lists models.
-
-        Args:
-            api_key: The provider key, sent even where it is optional.
-
-        Returns:
-            The request.
-        """
+        """Return the request that lists models."""
         return HttpCall("GET", f"{self.base_url}/models", self._headers(api_key))
 
     def chat_call(
         self, config: AppConfig, prompt: str, image: bytes | None
     ) -> HttpCall:
-        """Return a chat-completions request carrying the prompt and image.
-
-        Args:
-            config: The active settings.
-            prompt: The rendered prompt.
-            image: The exercise image, when the exercise has one.
-
-        Returns:
-            The request.
-        """
+        """Return a chat-completions request carrying the prompt and image."""
         content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
         if image is not None:
             content.append({"type": "image_url", "image_url": {"url": data_uri(image)}})
@@ -270,17 +217,7 @@ class _OpenAICompatibleAdapter(ProviderAdapter):
         }
 
     def parse_reply(self, payload: Any) -> str:
-        """Return the assistant message text.
-
-        Args:
-            payload: The decoded reply.
-
-        Returns:
-            The message content.
-
-        Raises:
-            ProviderError: If the reply carries no message.
-        """
+        """Return the assistant message text."""
         choices = payload.get("choices") if isinstance(payload, dict) else None
         if isinstance(choices, list) and choices:
             message = (
@@ -296,11 +233,7 @@ class _OpenAICompatibleAdapter(ProviderAdapter):
 
 
 class OpenRouterAdapter(_OpenAICompatibleAdapter):
-    """OpenRouter: an OpenAI-shaped API with a self-describing catalogue.
-
-    Each entry states its own modalities and supported parameters, which is
-    what makes this provider's model picker the accurate one.
-    """
+    """OpenRouter: an OpenAI-shaped API with a self-describing catalogue."""
 
     provider = Provider.OPENROUTER
     base_url = _OPENROUTER_BASE
@@ -314,14 +247,7 @@ class OpenRouterAdapter(_OpenAICompatibleAdapter):
         }
 
     def parse_models(self, payload: Any) -> list[ModelInfo]:
-        """Return the catalogue, reading capabilities from each entry.
-
-        Args:
-            payload: The decoded ``/models`` reply.
-
-        Returns:
-            Text-output chat models, sorted by id.
-        """
+        """Return the catalogue, reading capabilities from each entry."""
         entries = payload.get("data") if isinstance(payload, dict) else None
         if not isinstance(entries, list):
             return []
@@ -366,43 +292,20 @@ class OpenRouterAdapter(_OpenAICompatibleAdapter):
 
 
 class OpenAIAdapter(_OpenAICompatibleAdapter):
-    """OpenAI: the same request shape, but a catalogue of bare ids.
-
-    ``GET /v1/models`` reports no capabilities at all, so what a model can do
-    is read off its name. That is a guess, and a wrong guess only ever costs a
-    hidden badge — grading sends the image regardless and lets the provider
-    object.
-    """
+    """OpenAI: the same request shape, but a catalogue of bare ids."""
 
     provider = Provider.OPENAI
     base_url = _OPENAI_BASE
 
     def _sampling(self, config: AppConfig) -> dict[str, Any]:
-        """Return sampling fields, minding what reasoning models refuse.
-
-        The o-series and GPT-5 reject ``max_tokens`` outright and ignore or
-        reject ``temperature``, so a reasoning model gets neither.
-
-        Args:
-            config: The active settings.
-
-        Returns:
-            The fields to merge into the request body.
-        """
+        """Return sampling fields, minding what reasoning models refuse."""
         budget = self._completion_budget(config)
         if config.active.model_supports_thinking:
             return {"max_completion_tokens": budget}
         return {"temperature": config.temperature, "max_tokens": budget}
 
     def parse_models(self, payload: Any) -> list[ModelInfo]:
-        """Return the catalogue, inferring capabilities from model ids.
-
-        Args:
-            payload: The decoded ``/models`` reply.
-
-        Returns:
-            Plausible chat models, sorted by id.
-        """
+        """Return the catalogue, inferring capabilities from model ids."""
         entries = payload.get("data") if isinstance(payload, dict) else None
         if not isinstance(entries, list):
             return []
@@ -429,22 +332,12 @@ class OpenAIAdapter(_OpenAICompatibleAdapter):
 
 
 class GeminiAdapter(ProviderAdapter):
-    """Google's own API: a different request shape entirely.
-
-    Content is a list of parts rather than messages, and reasoning is a token
-    budget rather than a named effort.
-    """
+    """Google's own API: a different request shape entirely."""
 
     provider = Provider.GEMINI
 
     def _headers(self, api_key: str) -> dict[str, str]:
-        """Return the auth and content headers.
-
-        The key travels in a header rather than the query string that Google's
-        examples use: a URL ends up in far more logs than a header does. A
-        blank key is left out entirely, so the request fails as an
-        unauthenticated one rather than inside the HTTP client.
-        """
+        """Return the auth and content headers."""
         headers = {"Content-Type": "application/json"}
         key = api_key.strip()
         if key:
@@ -452,14 +345,7 @@ class GeminiAdapter(ProviderAdapter):
         return headers
 
     def models_call(self, api_key: str) -> HttpCall:
-        """Return the request that lists models.
-
-        Args:
-            api_key: The provider key, which Gemini always requires.
-
-        Returns:
-            The request.
-        """
+        """Return the request that lists models."""
         return HttpCall(
             "GET",
             f"{_GEMINI_BASE}/models",
@@ -468,14 +354,7 @@ class GeminiAdapter(ProviderAdapter):
         )
 
     def parse_models(self, payload: Any) -> list[ModelInfo]:
-        """Return the catalogue of models that can answer prompts.
-
-        Args:
-            payload: The decoded ``models`` reply.
-
-        Returns:
-            Models supporting ``generateContent``, sorted by id.
-        """
+        """Return the catalogue of models that can answer prompts."""
         entries = payload.get("models") if isinstance(payload, dict) else None
         if not isinstance(entries, list):
             return []
@@ -512,16 +391,7 @@ class GeminiAdapter(ProviderAdapter):
     def chat_call(
         self, config: AppConfig, prompt: str, image: bytes | None
     ) -> HttpCall:
-        """Return a ``generateContent`` request carrying prompt and image.
-
-        Args:
-            config: The active settings.
-            prompt: The rendered prompt.
-            image: The exercise image, when the exercise has one.
-
-        Returns:
-            The request.
-        """
+        """Return a ``generateContent`` request carrying prompt and image."""
         parts: list[dict[str, Any]] = [{"text": prompt}]
         if image is not None:
             parts.append(
@@ -559,18 +429,7 @@ class GeminiAdapter(ProviderAdapter):
         )
 
     def parse_reply(self, payload: Any) -> str:
-        """Return the candidate's text, skipping any reasoning parts.
-
-        Args:
-            payload: The decoded reply.
-
-        Returns:
-            The answer text.
-
-        Raises:
-            ProviderError: If the reply carries no answer, including when the
-                model spent its whole allowance thinking.
-        """
+        """Return the candidate's text, skipping any reasoning parts."""
         candidates = payload.get("candidates") if isinstance(payload, dict) else None
         if isinstance(candidates, list) and candidates:
             candidate = candidates[0] if isinstance(candidates[0], dict) else {}
@@ -602,24 +461,12 @@ DEFAULT_ADAPTERS: Final[Mapping[Provider, ProviderAdapter]] = {
 
 
 def adapter_for(provider: Provider) -> ProviderAdapter:
-    """Return the shipped adapter that speaks to one provider.
-
-    Args:
-        provider: The provider to address.
-
-    Returns:
-        Its adapter.
-    """
+    """Return the shipped adapter that speaks to one provider."""
     return DEFAULT_ADAPTERS[provider]
 
 
 class LLMClient:
-    """Sends the app's requests, retries the ones worth retrying.
-
-    One client owns one HTTP connection pool, so it is built once per settings
-    change rather than per request: the proxy and the timeout are baked into
-    the pool and cannot be varied per call.
-    """
+    """Sends the app's requests, retries the ones worth retrying."""
 
     def __init__(
         self,
@@ -629,19 +476,7 @@ class LLMClient:
         sleep: Callable[[float], Awaitable[None]] | None = None,
         adapters: Mapping[Provider, ProviderAdapter] | None = None,
     ) -> None:
-        """Initialize the client.
-
-        Args:
-            config: The settings to send requests under.
-            transport: HTTP transport to use instead of the network. Tests pass
-                a mock here; the app never sets it.
-            sleep: Coroutine used to wait between retries, injectable so tests
-                do not actually wait.
-            adapters: What to speak to each provider with. Defaults to
-                :data:`DEFAULT_ADAPTERS`. Substituting one adapter is what a
-                test wants when the subject is retrying, pooling or error
-                mapping rather than a particular provider's request shape.
-        """
+        """Initialize the client."""
         self.config = config
         self._transport = transport
         self._sleep = sleep or asyncio.sleep
@@ -655,13 +490,7 @@ class LLMClient:
     # --- Lifecycle ---
 
     def _http(self) -> httpx.AsyncClient:
-        """Return the HTTP client, building it when there is no live one.
-
-        A pool can be closed from outside this object -- a Flet session ending
-        takes the whole app down with it, and a client left over from one is
-        useless. Reusing a closed pool raises from deep inside httpx, so the
-        liveness check belongs here rather than at each call site.
-        """
+        """Return the HTTP client, building it when there is no live one."""
         if self._client is None or self._client.is_closed:
             kwargs: dict[str, Any] = {
                 "timeout": httpx.Timeout(self.config.request_timeout, connect=20.0),
@@ -693,18 +522,7 @@ class LLMClient:
     # --- Requests ---
 
     async def _send(self, call: HttpCall, adapter: ProviderAdapter) -> Any:
-        """Send one request, retrying transient failures.
-
-        Args:
-            call: The request to send.
-            adapter: The adapter, used to read the provider's error messages.
-
-        Returns:
-            The decoded reply body.
-
-        Raises:
-            ProviderError: If the request fails, or the reply is not JSON.
-        """
+        """Send one request, retrying transient failures."""
         client = self._http()
         attempts = len(_RETRY_DELAYS) + 1
         last_error: ProviderError | None = None
@@ -740,18 +558,7 @@ class LLMClient:
         raise last_error or ProviderError("The request failed.")
 
     def _decode(self, response: httpx.Response) -> Any:
-        """Return a successful response's JSON body.
-
-        Args:
-            response: The provider's reply.
-
-        Returns:
-            The decoded body.
-
-        Raises:
-            ProviderError: If the body is not JSON, which is what a captive
-                portal or a misconfigured proxy returns.
-        """
+        """Return a successful response's JSON body."""
         try:
             return response.json()
         except ValueError as exc:
@@ -763,15 +570,7 @@ class LLMClient:
     def _http_error(
         self, response: httpx.Response, adapter: ProviderAdapter
     ) -> ProviderError:
-        """Turn a failed response into a message worth showing the user.
-
-        Args:
-            response: The failed reply.
-            adapter: The adapter that can read the provider's error body.
-
-        Returns:
-            The error to raise.
-        """
+        """Turn a failed response into a message worth showing the user."""
         label = self.config.provider.label
         try:
             detail = adapter.error_detail(response.json())
@@ -805,15 +604,7 @@ class LLMClient:
     # --- Operations ---
 
     async def list_models(self) -> list[ModelInfo]:
-        """Return the provider's model catalogue.
-
-        Returns:
-            The models, sorted by id.
-
-        Raises:
-            ConfigurationError: If the provider needs a key and none is set.
-            ProviderError: If the catalogue cannot be fetched.
-        """
+        """Return the provider's model catalogue."""
         provider = self.config.provider
         api_key = self.config.active.api_key
         if not api_key and not provider.lists_models_anonymously:
@@ -829,19 +620,7 @@ class LLMClient:
         return models
 
     async def complete(self, prompt: str, image: bytes | None = None) -> str:
-        """Ask the configured model to answer a prompt.
-
-        Args:
-            prompt: The rendered prompt.
-            image: The exercise image, when the exercise has one.
-
-        Returns:
-            The model's reply text.
-
-        Raises:
-            ConfigurationError: If the app is not configured yet.
-            ProviderError: If the call fails or the reply is unusable.
-        """
+        """Ask the configured model to answer a prompt."""
         problems = self.config.missing()
         if problems:
             raise ConfigurationError(problems[0])
@@ -853,17 +632,7 @@ class LLMClient:
         return adapter.parse_reply(payload)
 
     async def check(self) -> str:
-        """Verify the settings against the provider with one cheap call.
-
-        Returns:
-            A short confirmation naming the model that answered.
-
-        Raises:
-            ConfigurationError: If the app is not configured yet.
-            ProviderError: If the provider rejects the call, or answers with
-                nothing — which is what an over-restricted token budget or a
-                content filter looks like from here.
-        """
+        """Verify the settings against the provider with one cheap call."""
         # Only that a reply arrived matters; `complete` raises when none does.
         await self.complete('Reply with the JSON object {"ok": true} and nothing else.')
         return f"{self.config.provider.label} answered as {self.config.active.model}."

@@ -1,12 +1,4 @@
-"""Tests for the screens.
-
-These build real Flet controls against a page stand-in. Flet's controls are
-validating dataclasses, so constructing the whole tree is itself the check that
-every property and enum this app names actually exists — the failure mode these
-tests exist to catch is a screen that raises the moment a phone opens it.
-
-They also drive the flow: draw an exercise, answer it, see the verdict recorded.
-"""
+"""Tests for the screens."""
 
 from dataclasses import replace
 from datetime import date
@@ -60,14 +52,7 @@ from tests.conftest import FakePage, reply_transport
 
 
 def texts(control: Any) -> list[str]:
-    """Return every string rendered anywhere under a control.
-
-    Args:
-        control: The control to walk.
-
-    Returns:
-        The text of each ``Text`` and ``Markdown``, and every button label.
-    """
+    """Return every string rendered anywhere under a control."""
     found: list[str] = []
 
     def walk(node: Any) -> None:
@@ -113,11 +98,7 @@ class TestTheme:
         assert theme.color_scheme_seed
 
     def test_the_app_bar_title_is_painted(self) -> None:
-        """Flutter drops its default title colour once a style is supplied.
-
-        Without a colour named here the title rendered white on a white app
-        bar on the phone.
-        """
+        """Flutter drops its default title colour once a style is supplied."""
         appbar_theme = build_theme().appbar_theme
 
         assert appbar_theme is not None
@@ -257,18 +238,7 @@ def wrong_services(
 
 
 def _find(control: Any, kind: type) -> Any:
-    """Return the first control of a type under ``control``.
-
-    Args:
-        control: Where to start.
-        kind: The control class to look for.
-
-    Returns:
-        The control.
-
-    Raises:
-        AssertionError: If nothing of that type is present.
-    """
+    """Return the first control of a type under ``control``."""
     found = _find_or_none(control, kind)
     assert found is not None, f"no {kind.__name__} found"
     return found
@@ -314,19 +284,7 @@ def _all(control: Any, kind: type) -> list[Any]:
 
 
 def _button(control: Any, label: str) -> Any:
-    """Return the button whose label starts with ``label``.
-
-    Args:
-        control: Where to look.
-        label: The start of the label, which is enough to tell the buttons of
-            one screen apart.
-
-    Returns:
-        The button.
-
-    Raises:
-        AssertionError: If no button carries that label.
-    """
+    """Return the button whose label starts with ``label``."""
     for kind in (ft.FilledButton, ft.OutlinedButton, ft.TextButton, ft.IconButton):
         for button in _all(control, kind):
             if label in rendered(button):
@@ -335,18 +293,7 @@ def _button(control: Any, label: str) -> Any:
 
 
 def _pill(control: Any, label: str) -> Any:
-    """Return the tappable pill carrying ``label``.
-
-    Args:
-        control: Where to look.
-        label: The pill's text.
-
-    Returns:
-        The pill.
-
-    Raises:
-        AssertionError: If no tappable pill carries that text.
-    """
+    """Return the tappable pill carrying ``label``."""
     for container in _all(control, ft.Container):
         if container.on_click is not None and label in texts(container.content):
             return container
@@ -354,16 +301,7 @@ def _pill(control: Any, label: str) -> Any:
 
 
 async def _start(screen: PracticeScreen, length: int | None = None) -> Lesson:
-    """Start a lesson on the seeded topic, optionally shortened.
-
-    Args:
-        screen: The screen to drive.
-        length: How many questions the run should hold. A short run is what
-            makes finishing one testable.
-
-    Returns:
-        The lesson now on screen.
-    """
+    """Start a lesson on the seeded topic, optionally shortened."""
     await screen.start_lesson(1, "Present Tenses")
     lesson = screen._session.lesson
     assert lesson is not None
@@ -373,12 +311,7 @@ async def _start(screen: PracticeScreen, length: int | None = None) -> Lesson:
 
 
 async def _answer(screen: PracticeScreen, typed: str = "is doing") -> None:
-    """Type an answer and check it.
-
-    Args:
-        screen: The screen to drive.
-        typed: What the user wrote.
-    """
+    """Type an answer and check it."""
     screen._answer.value = typed
     await screen._on_check()
 
@@ -655,13 +588,7 @@ class TestLessonFlow:
     async def test_the_heading_is_the_sentence_to_answer(
         self, page: FakePage, services: Services
     ) -> None:
-        """Two numbers labelled alike, meaning different things, read as a bug.
-
-        The bar says how far into the run the user is, and says it once. The
-        heading is the book's own numbering -- the sentence of the printed
-        exercise this question is -- which is the number the picture is read
-        with.
-        """
+        """Two numbers labelled alike, meaning different things, read as a bug."""
         screen = PracticeScreen(page, services)
 
         await _start(screen)
@@ -965,12 +892,7 @@ class TestLessonFlow:
     async def test_a_closed_question_with_no_answer_is_not_called_open_ended(
         self, page: FakePage, services: Services
     ) -> None:
-        """An empty reveal used to read as open-ended whatever caused it.
-
-        `validate` reports a closed question with no rows in question_answers
-        as a failure, so it happens -- and telling the student the question
-        was free-form says their own sentence was the point.
-        """
+        """An empty reveal used to read as open-ended whatever caused it."""
         screen = PracticeScreen(page, services)
         lesson = await _start(screen)
         assert lesson.active is not None
@@ -1068,12 +990,7 @@ class TestZoomingThePicture:
     async def test_the_magnified_picture_is_given_the_frame_to_draw_in(
         self, page: FakePage, services: Services
     ) -> None:
-        """A viewer with no frame of its own drew an empty screen.
-
-        Centring it inside its container handed it loose constraints, under
-        which it measured itself at nothing: the bar arrived over a blank
-        page, with the crop nowhere on it.
-        """
+        """A viewer with no frame of its own drew an empty screen."""
         screen = PracticeScreen(page, services)
         await _start(screen)
 
@@ -1742,13 +1659,7 @@ class TestSettingsScreen:
     async def test_the_catalogue_enables_thinking_for_a_stored_model(
         self, page: FakePage, services: Services, catalogue: list[ModelInfo]
     ) -> None:
-        """The stored flag is a cache, not the authority.
-
-        A model restored from the settings file carries whatever the app knew
-        when it was picked -- nothing, for a file written before capabilities
-        were recorded. Once a catalogue is in hand it says what the model can
-        do, and the control has to follow it rather than the stale flag.
-        """
+        """The stored flag is a cache, not the authority."""
         services.stage(services.config.with_active(model_supports_thinking=False))
         services._catalogues[Provider.OPENROUTER] = catalogue
         screen = SettingsScreen(page, services)
@@ -1858,12 +1769,7 @@ class TestSettingsScreen:
     async def test_a_port_above_the_maximum_is_dropped(
         self, page: FakePage, services: Services
     ) -> None:
-        """Staged and read back used to disagree about the range.
-
-        Anything made of digits was written to settings.json, and the launch
-        after that quietly dropped it -- so a proxy the user had configured
-        and tested was simply off, with the screen blaming a missing host.
-        """
+        """Staged and read back used to disagree about the range."""
         services.stage(replace(services.config, proxy=ProxyConfig(enabled=True)))
         screen = SettingsScreen(page, services)
 
@@ -2074,14 +1980,7 @@ class TestSettingsScreen:
 
 
 def _segmented(value: str) -> ft.SegmentedButton:
-    """Return a segmented button reporting one selected value.
-
-    Args:
-        value: The value the user chose.
-
-    Returns:
-        The control, with the single segment Flet requires.
-    """
+    """Return a segmented button reporting one selected value."""
     return ft.SegmentedButton(
         segments=[ft.Segment(value=value, label=ft.Text(value))],
         selected=[value],
@@ -2089,15 +1988,7 @@ def _segmented(value: str) -> ft.SegmentedButton:
 
 
 def _event(control: Any, data: Any = None) -> Any:
-    """Return something shaped like a Flet event for one control.
-
-    Args:
-        control: The control the event came from.
-        data: The event's payload, for the handlers that read one.
-
-    Returns:
-        An object exposing ``control`` and ``data``.
-    """
+    """Return something shaped like a Flet event for one control."""
     return type("Event", (), {"control": control, "data": data})()
 
 
@@ -2263,15 +2154,7 @@ class TestTheBackGesture:
     async def test_every_tab_switch_pushes_the_page(
         self, page: FakePage, services: Services
     ) -> None:
-        """The swap has to be sent, not just made.
-
-        The screen a switch loads pushes itself, and that first explicit push
-        cancels the automatic one Flet would have sent when the handler
-        returned. So a tab visited a second time -- when the pane already has
-        a parent and its push therefore fires -- used to leave the phone on
-        the previous tab, showing the previous title, with only the navigation
-        bar's own highlight moving.
-        """
+        """The swap has to be sent, not just made."""
         app = PracticeApp(page, services)
         await app.start()
 

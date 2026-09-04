@@ -1,34 +1,4 @@
-"""The app shell: three tabs, one theme, and the dependencies behind them.
-
-The screens are built once and swapped in and out of the body, rather than
-rebuilt per tab: the practice screen holds the lesson the user is part-way
-through, and losing that on a glance at the stats would be the app's most
-annoying bug.
-
-The chrome steps aside for a lesson. While one is running the app bar and the
-navigation bar are hidden, so the question, the answer and the one button that
-moves the lesson on have the screen to themselves — the way out is the cross on
-the lesson's own bar, which asks first.
-
-Back is answered here too. Android's gesture would otherwise close the app
-from whatever the user was in the middle of, so the root view is told it may
-not be popped and this asks the screen that is showing first: the practice
-screen uses the gesture to shut its own picture, or to ask whether to leave a
-lesson, and only a Back on the home tab with nothing open is allowed to end
-the app.
-
-The three panes are held as :class:`~practice_app.ui.screen.Screen` and
-nothing more, so opening a tab, reloading it, titling it and offering it the
-Back gesture are all one line rather than one branch per screen.
-
-A tab change is the largest thing that moves in the app, so it is also the
-slowest: the body is one region that cross-fades, on
-:data:`~practice_app.ui.motion.Swap.SCREEN`. The chrome is the exception. An
-app bar and a navigation bar leave the layout when they are hidden rather than
-fading out of it, and nothing in Flet animates that — so a lesson taking the
-screen still takes it in one frame, under the cross-fade of the pane that is
-arriving.
-"""
+"""The app shell: three tabs, one theme, and the dependencies behind them."""
 
 from collections.abc import Sequence
 from dataclasses import replace
@@ -68,14 +38,7 @@ _THEME_ICONS = {
 
 
 def _pane(screen: Screen) -> ft.Control:
-    """Return a screen ready to sit in the body.
-
-    Args:
-        screen: The screen to place.
-
-    Returns:
-        The screen, inset by the page margins unless it says it owns them.
-    """
+    """Return a screen ready to sit in the body."""
     if not screen.inset:
         return screen
     return ft.Container(
@@ -89,12 +52,7 @@ class PracticeApp:
     """Assembles the page: app bar, body, navigation bar."""
 
     def __init__(self, page: ShellPage, services: Services) -> None:
-        """Wire the screens to the page.
-
-        Args:
-            page: The page to build on.
-            services: The app's dependencies.
-        """
+        """Wire the screens to the page."""
         self._page = page
         self._services = services
         self._index = PRACTICE_TAB
@@ -179,19 +137,11 @@ class PracticeApp:
         self._page.run_task(self.select_tab, SETTINGS_TAB)
 
     async def _change_tab(self, event: ft.Event[ft.NavigationBar]) -> None:
-        """Show the tab the user tapped.
-
-        Args:
-            event: The navigation bar's change event.
-        """
+        """Show the tab the user tapped."""
         await self.select_tab(event.control.selected_index)
 
     async def select_tab(self, index: int) -> None:
-        """Show one tab, refreshing what it displays.
-
-        Args:
-            index: Which tab to show.
-        """
+        """Show one tab, refreshing what it displays."""
         self._index = index
         self._body.content = self._panes[index]
         if self._page.navigation_bar is not None:
@@ -206,22 +156,11 @@ class PracticeApp:
         self._page.update()
 
     async def _on_confirm_pop(self, event: ft.Event[ft.View]) -> None:
-        """Answer the pending Back gesture with what :meth:`handle_back` says.
-
-        Args:
-            event: The root view's confirmation request.
-        """
+        """Answer the pending Back gesture with what :meth:`handle_back` says."""
         await event.control.confirm_pop(await self.handle_back())
 
     async def handle_back(self) -> bool:
-        """Use the Back gesture, and say whether the app should close.
-
-        Returns:
-            ``True`` only when there was nothing to go back to: no lesson, no
-            magnified picture, and the practice tab already showing. Anything
-            else is a step back inside the app, and closing it instead is what
-            lost a half-finished lesson to a stray swipe.
-        """
+        """Use the Back gesture, and say whether the app should close."""
         if self.screens[self._index].handle_back():
             return False
         if self._index != PRACTICE_TAB:
@@ -230,11 +169,7 @@ class PracticeApp:
         return True
 
     def _lesson_changed(self, running: bool) -> None:
-        """Hide the shell's chrome for the duration of a lesson.
-
-        Args:
-            running: Whether a lesson now has the screen.
-        """
+        """Hide the shell's chrome for the duration of a lesson."""
         if self._page.appbar is not None:
             self._page.appbar.visible = not running
         if self._page.navigation_bar is not None:

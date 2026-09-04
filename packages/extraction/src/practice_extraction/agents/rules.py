@@ -25,17 +25,7 @@ class RulesAgent(BaseAgent):
         rules_md: str,
         topic_name: str,
     ) -> ExerciseRulesOutput:
-        """Extract grammar rules for all questions in an exercise.
-
-        Args:
-            image_path: Path to the exercise image, if one exists.
-            questions: The exercise's questions, with the answers already extracted.
-            rules_md: The grammar rules markdown.
-            topic_name: The topic name for context.
-
-        Returns:
-            ExerciseRulesOutput with all question rules.
-        """
+        """Extract grammar rules for all questions in an exercise."""
         context = RulesContext(
             questions=list(questions),
             rules_md=rules_md,

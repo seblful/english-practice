@@ -32,26 +32,14 @@ class UserSession:
 
 
 class SessionStore:
-    """Holds user sessions for the lifetime of the process.
-
-    Sessions are deliberately not persisted: they are a convenience (which
-    exercise am I on, do I want rules shown), and a restart costing the user one
-    ``/start`` is cheaper than the schema and migrations to keep them. Idle
-    sessions are evicted so that a long-running bot does not grow one entry per
-    person who ever messaged it.
-    """
+    """Holds user sessions for the lifetime of the process."""
 
     def __init__(
         self,
         idle_ttl: timedelta = DEFAULT_IDLE_TTL,
         clock: Callable[[], datetime] = _now,
     ) -> None:
-        """Initialize the store.
-
-        Args:
-            idle_ttl: How long a session survives without activity.
-            clock: Time source, injectable for tests.
-        """
+        """Initialize the store."""
         self._idle_ttl = idle_ttl
         self._clock = clock
         self._sessions: dict[int, UserSession] = {}
@@ -61,17 +49,7 @@ class SessionStore:
         return len(self._sessions)
 
     def get(self, user_id: int) -> UserSession:
-        """Return a user's session, creating it if needed.
-
-        Any interaction is also the moment to drop sessions nobody has touched
-        in a while, which keeps eviction free of background tasks.
-
-        Args:
-            user_id: Telegram user ID.
-
-        Returns:
-            The user's session, marked as just used.
-        """
+        """Return a user's session, creating it if needed."""
         now = self._clock()
         self._evict_idle(now)
 
@@ -84,23 +62,11 @@ class SessionStore:
         return session
 
     def forget(self, user_id: int) -> None:
-        """Drop a user's session.
-
-        Args:
-            user_id: Telegram user ID.
-        """
+        """Drop a user's session."""
         self._sessions.pop(user_id, None)
 
     def start_exercise(self, user_id: int, active: ActiveExercise) -> UserSession:
-        """Make an exercise the user's current one.
-
-        Args:
-            user_id: Telegram user ID.
-            active: The exercise and question just sent.
-
-        Returns:
-            The updated session.
-        """
+        """Make an exercise the user's current one."""
         session = self.get(user_id)
         session.active = active
         if active.topic_id is not None:
@@ -108,24 +74,13 @@ class SessionStore:
         return session
 
     def toggle_show_rule(self, user_id: int) -> bool:
-        """Flip whether grammar rules are shown after an answer.
-
-        Args:
-            user_id: Telegram user ID.
-
-        Returns:
-            The new setting.
-        """
+        """Flip whether grammar rules are shown after an answer."""
         session = self.get(user_id)
         session.show_rule = not session.show_rule
         return session.show_rule
 
     def _evict_idle(self, now: datetime) -> None:
-        """Drop sessions untouched for longer than the TTL.
-
-        Args:
-            now: Current time.
-        """
+        """Drop sessions untouched for longer than the TTL."""
         cutoff = now - self._idle_ttl
         stale = [
             user_id

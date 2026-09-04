@@ -1,21 +1,4 @@
-"""What each pipeline stage reads, what it writes, and therefore its order.
-
-The pipeline is eight programs that talk to each other through the filesystem,
-which makes the layout its real interface -- and for a while that interface was
-written down only in prose. The order lived in a README, the filenames were
-re-declared as string literals in six modules, and nothing checked either. So
-``extract-rules`` run before ``extract-answers`` did not stop: it read a file
-that was not there, got an empty mapping back, sent 566 exercises to the model
-with no answers in the prompt, and then cached every ruined unit so that a
-re-run skipped them.
-
-Declaring the inputs and outputs makes that a refusal instead. A stage knows
-what it needs, so the command can say what is absent and which stage produces
-it, and ``check`` can report the whole run rather than two settings.
-
-The filenames below are the single source of truth for them; the extractors and
-the importer read them from here rather than spelling them again.
-"""
+"""What each pipeline stage reads, what it writes, and therefore its order."""
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -59,12 +42,7 @@ RULES_FILENAME = "rules.json"
 
 @dataclass(frozen=True, slots=True)
 class Artifact:
-    """One thing on disk that a stage reads or writes.
-
-    ``produced_by`` is what makes a missing input actionable: either it names
-    the stage to run first, or it is ``None``, which means nothing in this
-    pipeline makes it and the operator has to supply it.
-    """
+    """One thing on disk that a stage reads or writes."""
 
     name: str
     locate: Callable[[Settings], Path]
@@ -75,13 +53,7 @@ class Artifact:
         return self.locate(settings)
 
     def exists(self, settings: Settings) -> bool:
-        """Return whether the artifact is actually there.
-
-        A directory counts only when it holds something. Every stage command
-        creates the tree it writes into before it runs, so an empty directory
-        is the normal state of an output nobody has produced yet -- treating it
-        as present is what let a stage run on nothing.
-        """
+        """Return whether the artifact is actually there."""
         path = self.path(settings)
         if path.is_dir():
             return any(path.iterdir())
@@ -106,15 +78,7 @@ class Stage:
     writes: tuple[Artifact, ...] = field(default_factory=tuple)
 
     def missing_inputs(self, settings: Settings) -> list[str]:
-        """Return one line per input that is not there.
-
-        Args:
-            settings: The configured layout.
-
-        Returns:
-            The absences, in the order the stage reads them; empty when the
-            stage can run.
-        """
+        """Return one line per input that is not there."""
         return [
             artifact.describe_absence(settings)
             for artifact in self.reads
@@ -131,20 +95,7 @@ class Stage:
         return _RUNNERS.get(self.name)
 
     def run(self, settings: Settings, *args: Any, **kwargs: Any) -> int:
-        """Do this stage's work.
-
-        Args:
-            settings: The configured layout.
-            args: Passed to the runner.
-            kwargs: Passed to the runner.
-
-        Returns:
-            The exit code, ``0`` when the stage finished.
-
-        Raises:
-            ConfigurationError: If nothing declared what this stage does,
-                which means the module holding its runner was never imported.
-        """
+        """Do this stage's work."""
         runner = self.runner
         if runner is None:
             raise ConfigurationError(f"no runner is declared for {self.name}")
@@ -159,18 +110,7 @@ type StageRunner = Callable[..., int | None]
 
 
 def register(stage: Stage, runner: StageRunner) -> None:
-    """Declare what a stage does.
-
-    Args:
-        stage: The declaration this runner performs. Taking the stage rather
-            than its name is the point: the command that binds a runner cannot
-            name a stage that does not exist, or spell it differently from the
-            record it is meant to run.
-        runner: The function that does the work.
-
-    Raises:
-        ConfigurationError: If the stage already has a runner.
-    """
+    """Declare what a stage does."""
     if stage.name in _RUNNERS:
         raise ConfigurationError(f"{stage.name} already has a runner")
     _RUNNERS[stage.name] = runner

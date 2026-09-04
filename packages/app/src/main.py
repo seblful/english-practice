@@ -1,9 +1,4 @@
-"""Entry point for the English Practice app.
-
-Everything the app needs is built here, once, and handed to the shell — the
-same pattern the bot uses, for the same reason: one SQLite path, one HTTP
-connection pool, and screens that can be tested without patching globals.
-"""
+"""Entry point for the English Practice app."""
 
 import asyncio
 
@@ -24,14 +19,7 @@ from practice_app.ui.theme import GAP, build_theme
 
 
 def build_services() -> Services:
-    """Assemble the app's dependencies.
-
-    Returns:
-        The services every screen is handed.
-
-    Raises:
-        ContentError: If the bundled exercise database cannot be reached.
-    """
+    """Assemble the app's dependencies."""
     storage = storage_dir()
     return Services(
         config_store=ConfigStore(storage / SETTINGS_FILENAME),
@@ -41,14 +29,7 @@ def build_services() -> Services:
 
 
 def _fatal(page: ft.Page, message: str) -> None:
-    """Show a startup failure the user can actually read.
-
-    A phone has no console, so a traceback would simply be a blank screen.
-
-    Args:
-        page: The page to draw on.
-        message: What went wrong.
-    """
+    """Show a startup failure the user can actually read."""
     page.theme = build_theme()
     page.add(
         ft.SafeArea(
@@ -81,11 +62,7 @@ def _fatal(page: ft.Page, message: str) -> None:
 
 
 async def main(page: ft.Page) -> None:
-    """Start the app on a page.
-
-    Args:
-        page: The page Flet hands the app.
-    """
+    """Start the app on a page."""
     try:
         # Unpacking twenty-six megabytes on the event loop froze the launch screen.
         services = await asyncio.to_thread(build_services)

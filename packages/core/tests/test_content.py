@@ -139,12 +139,7 @@ class TestDraw:
     async def test_the_book_answers_travel_with_the_question(
         self, library: ContentLibrary
     ) -> None:
-        """An exercise that cannot reveal its answer used to be spellable.
-
-        The draw handed back three of the four things a question needs and
-        left the answers to the caller, so the bot built one with none and its
-        reveal would have printed nothing.
-        """
+        """An exercise that cannot reveal its answer used to be spellable."""
 
         def the_one_with_answers(questions: Sequence[Question]) -> Question:
             return questions[1]

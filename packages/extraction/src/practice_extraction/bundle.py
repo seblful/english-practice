@@ -1,15 +1,4 @@
-"""Building the exercise database that ships inside the Android app.
-
-The bot's database is two hundred megabytes, almost all of it 300-DPI PNG
-crops of the book. That is the right format for a vision model reached over a
-fast connection and the wrong one for an APK, so this module rewrites every
-image as a WebP no wider than :data:`MAX_IMAGE_WIDTH` — about a tenth of the
-size, and still far more detail than a phone screen or a vision model needs.
-
-Nothing else changes: the schema is the one `practice_core` ships, and the rows
-and ids are copied verbatim, so the app runs the shared queries against it
-unmodified.
-"""
+"""Building the exercise database that ships inside the Android app."""
 
 import io
 import sqlite3
@@ -60,11 +49,7 @@ class BundleResult:
         return self.bundled_bytes / self.source_bytes if self.source_bytes else 0.0
 
     def summary(self) -> str:
-        """Return a one-line report of the run.
-
-        Returns:
-            The file, its size, and how much the images shrank.
-        """
+        """Return a one-line report of the run."""
         # ASCII only: a cp1252 console raises rather than printing an em dash.
         return (
             f"{self.path}: {self.path.stat().st_size / 1_048_576:.1f} MB total, "
@@ -76,16 +61,7 @@ class BundleResult:
 
 
 def shrink_image(data: bytes) -> bytes:
-    """Re-encode one exercise image for the app bundle.
-
-    Args:
-        data: The stored image, in whatever format the pipeline wrote.
-
-    Returns:
-        A WebP no wider than :data:`MAX_IMAGE_WIDTH`. The original is returned
-        unchanged if it cannot be decoded, so one bad row costs one large image
-        rather than the whole bundle.
-    """
+    """Re-encode one exercise image for the app bundle."""
     try:
         with Image.open(io.BytesIO(data)) as image:
             converted = image.convert("RGB")
@@ -107,16 +83,7 @@ def shrink_image(data: bytes) -> bytes:
 def _copy_table(
     source: sqlite3.Connection, target: sqlite3.Connection, table: str
 ) -> int:
-    """Copy one table verbatim.
-
-    Args:
-        source: The bot's database.
-        target: The bundle being built.
-        table: Table name, from the fixed list in this module.
-
-    Returns:
-        How many rows were copied.
-    """
+    """Copy one table verbatim."""
     rows = source.execute(f"SELECT * FROM {table}").fetchall()
     if not rows:
         return 0
@@ -133,15 +100,7 @@ def _copy_table(
 def _copy_images(
     source: sqlite3.Connection, target: sqlite3.Connection
 ) -> tuple[int, int, int]:
-    """Copy every exercise image, re-encoding as it goes.
-
-    Args:
-        source: The bot's database.
-        target: The bundle being built.
-
-    Returns:
-        The image count, the original byte total, and the bundled byte total.
-    """
+    """Copy every exercise image, re-encoding as it goes."""
     count = 0
     source_bytes = 0
     bundled_bytes = 0
@@ -180,20 +139,7 @@ def build_mobile_content(
     *,
     progress: Callable[[str], None] | None = None,
 ) -> BundleResult:
-    """Write a compact copy of the exercise database for the app bundle.
-
-    Args:
-        source_path: The bot's database, as ``populate`` built it.
-        target_path: Where to write the bundle. Overwritten if it exists, and
-            its directory is created.
-        progress: Optional callable taking a status line, for a CLI to print.
-
-    Returns:
-        What the run produced.
-
-    Raises:
-        ContentError: If the source database is missing.
-    """
+    """Write a compact copy of the exercise database for the app bundle."""
     if not source_path.exists():
         raise ContentError(
             f"No exercise database at {source_path}. "

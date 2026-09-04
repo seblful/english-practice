@@ -1,18 +1,4 @@
-"""What kind of picture an exercise image is, and how to inline it.
-
-``exercise_images`` holds a bare ``BLOB``, and two different formats reach it:
-the pipeline writes PNG into the master database, and the bundler re-encodes
-every one of them to WebP for the APK, where the size matters. Both front ends
-are meant to run against either.
-
-So the format is a property of the bytes, not something a caller may assume.
-Asserting it is how the bot came to send ``data:image/png`` for a WebP blob --
-harmless only for as long as the bot never opened the bundled database.
-
-This lives in the package that owns the schema, because it is a fact about that
-column, and because it is the one place both the container and the APK can
-reach.
-"""
+"""What kind of picture an exercise image is, and how to inline it."""
 
 import base64
 from typing import Final
@@ -30,16 +16,7 @@ _WEBP: Final = "image/webp"
 
 
 def image_media_type(data: bytes) -> str:
-    """Return the media type of an image blob.
-
-    Args:
-        data: The raw image bytes.
-
-    Returns:
-        An IANA media type. Unrecognised bytes are reported as WebP, which is
-        what the bundled database holds: a provider rejecting a mislabelled
-        image is a better failure than one silently reading the wrong format.
-    """
+    """Return the media type of an image blob."""
     for magic, media_type in _MAGIC:
         if data.startswith(magic):
             return media_type
@@ -47,14 +24,6 @@ def image_media_type(data: bytes) -> str:
 
 
 def data_uri(data: bytes) -> str:
-    """Return an image as a ``data:`` URI.
-
-    Args:
-        data: The raw image bytes.
-
-    Returns:
-        The URI, ready to drop into an OpenAI-style ``image_url`` or a
-        LangChain image content block.
-    """
+    """Return an image as a ``data:`` URI."""
     encoded = base64.b64encode(data).decode("ascii")
     return f"data:{image_media_type(data)};base64,{encoded}"

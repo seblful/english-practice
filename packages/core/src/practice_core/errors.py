@@ -1,10 +1,4 @@
-"""Exception hierarchy shared by both front ends.
-
-Every error either side raises on purpose derives from :class:`PracticeError`,
-so a caller can catch the whole family without resorting to bare
-``except Exception``. Each front end adds its own leaves — the bot an
-``AgentError``, the app a ``ProviderError`` — under the same root.
-"""
+"""Exception hierarchy shared by both front ends."""
 
 
 class PracticeError(Exception):

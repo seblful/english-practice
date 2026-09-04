@@ -1,11 +1,4 @@
-"""The pipeline's settings: the shared groups, plus the book and the OCR.
-
-Everything about where the data lives, how to log and which LLM to call is
-:class:`~practice_runtime.settings.BaseAppSettings`, shared with the bot. This
-adds what only the pipeline has — which PDF to read, at what resolution, and
-with whose OCR key — which is exactly why the bot no longer needs an OCR key to
-start.
-"""
+"""The pipeline's settings: the shared groups, plus the book and the OCR."""
 
 from functools import lru_cache
 
@@ -65,16 +58,7 @@ class Settings(BaseAppSettings):
     ocr: OcrSettings = Field(default_factory=OcrSettings)
 
     def missing_required(self) -> list[str]:
-        """Return human-readable reasons a full pipeline run cannot finish.
-
-        Every stage is resumable and most need only some of this, so the
-        commands do not refuse to start on these; the ``check`` command
-        reports them.
-
-        Returns:
-            One message per misconfiguration; empty when a whole run is
-            possible.
-        """
+        """Return human-readable reasons a full pipeline run cannot finish."""
         problems = super().missing_required()
 
         if secret_value(self.ocr.api_key) is None:
@@ -89,9 +73,5 @@ class Settings(BaseAppSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return the process-wide settings, loading env files on first use.
-
-    Returns:
-        The cached settings instance.
-    """
+    """Return the process-wide settings, loading env files on first use."""
     return load_settings(Settings)

@@ -1,10 +1,4 @@
-"""Dependency wiring for handlers.
-
-Handlers receive their collaborators through the context object instead of
-constructing them. That is what lets one repository, one chat-model client and
-one session store serve the whole process — and what lets a test hand a
-handler a mock without patching module globals.
-"""
+"""Dependency wiring for handlers."""
 
 from dataclasses import dataclass
 from typing import Any
@@ -37,37 +31,16 @@ class BotDependencies:
         return self.admin_user_id is not None
 
     def is_admin(self, user_id: int) -> bool:
-        """Return whether a user is the configured admin.
-
-        Args:
-            user_id: Telegram user ID.
-
-        Returns:
-            ``True`` when the user administers this bot.
-        """
+        """Return whether a user is the configured admin."""
         return self.admin_user_id is not None and user_id == self.admin_user_id
 
     def start_exercise(self, user_id: int, active: ActiveExercise) -> None:
-        """Move a user onto a new exercise.
-
-        The session and the assistant transcripts are separate stores that must
-        move together: leave the transcripts behind and the previous exercise's
-        conversation bleeds into this one. Owning both here is what stops a
-        handler from applying half of it.
-
-        Args:
-            user_id: The user's Telegram ID.
-            active: The exercise the user just started.
-        """
+        """Move a user onto a new exercise."""
         self.agents.start_exercise(user_id, active.exercise.id)
         self.sessions.start_exercise(user_id, active)
 
     def forget_user(self, user_id: int) -> None:
-        """Drop everything held in memory for one user.
-
-        Args:
-            user_id: The user's Telegram ID.
-        """
+        """Drop everything held in memory for one user."""
         self.sessions.forget(user_id)
         self.agents.forget_user(user_id)
 
@@ -79,15 +52,7 @@ class BotContext(
 
     @property
     def dependencies(self) -> BotDependencies:
-        """Return the installed dependencies.
-
-        Returns:
-            The dependencies installed by :func:`install_dependencies`.
-
-        Raises:
-            ConfigurationError: If the application was built without them,
-                which is a programming error rather than a runtime condition.
-        """
+        """Return the installed dependencies."""
         return load_dependencies(self.application.bot_data)
 
     @property
@@ -111,20 +76,11 @@ class BotContext(
         return self.dependencies.sessions
 
     def start_exercise(self, user_id: int, active: ActiveExercise) -> None:
-        """Move a user onto a new exercise, session and transcripts together.
-
-        Args:
-            user_id: The user's Telegram ID.
-            active: The exercise the user just started.
-        """
+        """Move a user onto a new exercise, session and transcripts together."""
         self.dependencies.start_exercise(user_id, active)
 
     def forget_user(self, user_id: int) -> None:
-        """Drop everything held in memory for one user.
-
-        Args:
-            user_id: The user's Telegram ID.
-        """
+        """Drop everything held in memory for one user."""
         self.dependencies.forget_user(user_id)
 
 
@@ -134,31 +90,12 @@ CONTEXT_TYPES = ContextTypes(context=BotContext)
 def install_dependencies(
     bot_data: dict[Any, Any], dependencies: BotDependencies
 ) -> None:
-    """Make dependencies reachable from every handler's context.
-
-    Args:
-        bot_data: The application's ``bot_data`` mapping.
-        dependencies: The dependencies to install.
-    """
+    """Make dependencies reachable from every handler's context."""
     bot_data[_DEPENDENCIES_KEY] = dependencies
 
 
 def load_dependencies(bot_data: dict[Any, Any]) -> BotDependencies:
-    """Return the dependencies installed in an application's ``bot_data``.
-
-    Handlers reach these through their context; this is for the two callers
-    that have the application but no update — the startup hook, and a test.
-
-    Args:
-        bot_data: The application's ``bot_data`` mapping.
-
-    Returns:
-        The installed dependencies.
-
-    Raises:
-        ConfigurationError: If the application was built without them, which
-            is a programming error rather than a runtime condition.
-    """
+    """Return the dependencies installed in an application's ``bot_data``."""
     dependencies = bot_data.get(_DEPENDENCIES_KEY)
     if not isinstance(dependencies, BotDependencies):
         raise ConfigurationError(

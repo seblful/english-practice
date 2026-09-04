@@ -1,8 +1,4 @@
-"""Tests for the database population script.
-
-The script reads a content tree and writes a SQLite file, so these tests build
-a miniature tree in ``tmp_path`` and assert on the database that comes out.
-"""
+"""Tests for the database population script."""
 
 import json
 import sqlite3
@@ -22,11 +18,7 @@ from practice_extraction.populate import (
 
 @pytest.fixture
 def content_root(paths: PathSettings) -> PathSettings:
-    """Fill the configured layout with a one-unit content tree.
-
-    The layout comes from ``PathSettings``, the same group ``populate`` reads,
-    so a directory renamed there moves this tree with it.
-    """
+    """Fill the configured layout with a one-unit content tree."""
     metadata = paths.metadata_dir
     (paths.exercises_dir / "1").mkdir(parents=True, exist_ok=True)
 
@@ -244,12 +236,7 @@ class TestMain:
         content_root: PathSettings,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """A partial file is indistinguishable from a finished one downstream.
-
-        `Artifact.exists` for the database is a bare `is_file()`, so `check`
-        printed "populate: done" over whatever landed before the failure, and
-        `bundle` would ship it into the APK.
-        """
+        """A partial file is indistinguishable from a finished one downstream."""
         (content_root.metadata_dir / "rules.json").unlink()
 
         assert main(paths=content_root) == 1

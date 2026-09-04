@@ -1,20 +1,4 @@
-"""The settings both programs read.
-
-Every setting is resolved from the environment through pydantic-settings, so the
-process environment is the single source of truth. Files only seed it: values
-already exported by the shell, Docker, or CI always win over a checked-out
-``.env`` (see :func:`load_env`).
-
-What is here is what the bot and the content pipeline both need — where the
-data lives, how to log, which LLM to call, whether to trace. What only one of
-them needs stays with it: the bot owns its Telegram groups, the pipeline owns
-its book, OCR and page-rendering groups, and each composes a root model from
-:class:`BaseAppSettings` plus its own. That split is the reason the bot's
-container no longer needs an OCR key to start.
-
-Settings are read through each program's own ``get_settings()``, which caches
-one instance for the process. Importing this module reads nothing.
-"""
+"""The settings both programs read."""
 
 import os
 from functools import lru_cache
@@ -57,20 +41,7 @@ _ROOT_VAR = "APP__PROJECT_ROOT"
 
 @lru_cache(maxsize=1)
 def project_root() -> Path:
-    """Return the repository root: the directory holding ``data/`` and ``.env``.
-
-    This package is one of several under ``packages/``, and it is installed
-    into a virtual environment rather than imported from its source tree, so
-    counting parent directories off ``__file__`` — which is what this used to
-    do — would point somewhere different depending on how it was installed.
-    Instead the root is recognised by what is in it, which is the same whether
-    the package is editable, installed, or inside a container.
-
-    Returns:
-        The repository root; the working directory when nothing looks like one,
-        which is the case for an installed copy with no repository around it.
-        ``$APP__PROJECT_ROOT`` overrides both.
-    """
+    """Return the repository root: the directory holding ``data/`` and ``.env``."""
     override = os.getenv(_ROOT_VAR)
     if override:
         return Path(override).expanduser().resolve()
@@ -108,15 +79,7 @@ LAYOUT: tuple[tuple[str, str, str], ...] = (
 
 
 def secret_value(secret: SecretStr | None) -> str | None:
-    """Return the plain text behind an optional secret.
-
-    Args:
-        secret: The secret to unwrap, if one is configured.
-
-    Returns:
-        The secret's text, or ``None`` when it is unset or blank. Blank counts
-        as unset so that ``KEY=`` in an env file does not read as configured.
-    """
+    """Return the plain text behind an optional secret."""
     if secret is None:
         return None
     return secret.get_secret_value().strip() or None
@@ -126,26 +89,7 @@ def load_env(
     base_dir: Path | None = None,
     environment: str | None = None,
 ) -> dict[str, str]:
-    """Seed ``os.environ`` from ``.env`` and ``.env.{environment}``.
-
-    The nested settings groups below are each ``BaseSettings`` in their own
-    right and resolve flat variables such as ``TELEGRAM_BOT_TOKEN`` from the
-    process environment, so env files have to be materialised there before any
-    group is constructed.
-
-    Precedence, highest first: the real process environment, then
-    ``.env.{environment}``, then ``.env``. Variables that are already exported
-    are never overwritten — a deployment that passes ``TELEGRAM_BOT_TOKEN`` in
-    the environment must not be silently downgraded to a stale local file.
-
-    Args:
-        base_dir: Directory holding the env files. Defaults to the repo root.
-        environment: Environment name selecting ``.env.{environment}``.
-            Defaults to ``$APP__ENVIRONMENT``, or ``development``.
-
-    Returns:
-        The variables this call actually set, for logging and tests.
-    """
+    """Seed ``os.environ`` from ``.env`` and ``.env.{environment}``."""
     root = base_dir or BASE_DIR
     env_name = environment or os.getenv(_ENVIRONMENT_VAR, _DEFAULT_ENVIRONMENT)
 
@@ -190,11 +134,7 @@ class LoggingSettings(BaseModel):
 
 
 class PathSettings(BaseSettings):
-    """Filesystem layout for source material, generated content, and the database.
-
-    Both programs read this group: the pipeline writes the whole tree, and the
-    bot opens the one file at the end of it.
-    """
+    """Filesystem layout for source material, generated content, and the database."""
 
     # populate_by_name lets callers pass `database_path=` an alias would shadow.
     model_config = SettingsConfigDict(
@@ -221,25 +161,14 @@ class PathSettings(BaseSettings):
 
     @model_validator(mode="after")
     def _derive_unset_paths(self) -> "PathSettings":
-        """Build every path the caller did not set from the one above it.
-
-        A field the caller or the environment set is left exactly as given.
-
-        Returns:
-            The settings, with the rest of the tree hung off ``data_dir``.
-        """
+        """Build every path the caller did not set from the one above it."""
         for name, parent, segment in LAYOUT:
             if name not in self.model_fields_set:
                 setattr(self, name, getattr(self, parent) / segment)
         return self
 
     def create_directories(self) -> None:
-        """Create every configured directory.
-
-        Only the extraction pipeline needs the source and content tree to
-        exist, so this is called explicitly by that entry point rather than on
-        import.
-        """
+        """Create every configured directory."""
         for path in self.model_dump().values():
             if (
                 isinstance(path, Path)
@@ -327,11 +256,7 @@ class LangSmithSettings(BaseSettings):
 
 
 class BaseAppSettings(BaseSettings):
-    """The groups every program in this repository reads.
-
-    Subclass it to add the groups only one program needs, and extend
-    :meth:`missing_required` with the checks only that program can make.
-    """
+    """The groups every program in this repository reads."""
 
     app: AppSettings = Field(default_factory=AppSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
@@ -348,12 +273,7 @@ class BaseAppSettings(BaseSettings):
     )
 
     def missing_required(self) -> list[str]:
-        """Return human-readable reasons this process cannot do its work.
-
-        Returns:
-            One message per misconfiguration; empty when everything shared is
-            in place. Subclasses add their own.
-        """
+        """Return human-readable reasons this process cannot do its work."""
         problems: list[str] = []
 
         if self.llm.active_api_key is None:
@@ -369,22 +289,7 @@ class BaseAppSettings(BaseSettings):
 
 
 def settings_env_vars(model: type[BaseModel]) -> tuple[str, ...]:
-    """Return the variables currently in the environment that ``model`` reads.
-
-    Each group below is a ``BaseSettings`` in its own right and resolves flat,
-    prefixed variables from ``os.environ``, so knowing what a settings model
-    would pick up means walking it. This is derived from the model rather than
-    hand-listed, which is what stops a new group from being forgotten — the
-    caller is a test suite hiding the developer's own environment, and an
-    exported ``GEMINI_PROXY`` deciding the outcome of a test that never
-    mentions it is a very quiet kind of failure.
-
-    Args:
-        model: The root settings class to walk.
-
-    Returns:
-        The matching variable names, in no particular order.
-    """
+    """Return the variables currently in the environment that ``model`` reads."""
     prefixes: list[str] = []
     aliases: list[str] = []
 
@@ -416,17 +321,6 @@ def settings_env_vars(model: type[BaseModel]) -> tuple[str, ...]:
 
 
 def load_settings[T: BaseAppSettings](model: type[T]) -> T:
-    """Build a settings model, seeding the environment from the env files first.
-
-    Caching belongs to the caller: each program wraps this in its own
-    ``lru_cache``-d ``get_settings()``, so one process reads its configuration
-    once and every module sees the same instance.
-
-    Args:
-        model: The root settings class to build.
-
-    Returns:
-        A fully resolved settings instance.
-    """
+    """Build a settings model, seeding the environment from the env files first."""
     load_env()
     return model()

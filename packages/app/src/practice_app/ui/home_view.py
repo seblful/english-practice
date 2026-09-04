@@ -1,14 +1,4 @@
-"""The screen between lessons: what today looks like, and what to practise.
-
-This is the course list of a studying app rather than a menu. The card at the
-top is the one thing to do next — a lesson — and under it the book's topics are
-laid out as the runs they lead to, each carrying how the user has done on it so
-far. Picking a topic is a tap on the topic, not a trip through a dialog.
-
-The view only draws. Everything it needs arrives in a :class:`HomeState`, and
-everything a tap does leaves through one callback, so what it renders can be
-asserted without a session, a lesson or a network.
-"""
+"""The screen between lessons: what today looks like, and what to practise."""
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -81,26 +71,12 @@ class HomeView:
         on_start: StartLesson,
         on_open_settings: Callable[[], None] | None = None,
     ) -> None:
-        """Wire the two things a tap here can do.
-
-        Args:
-            on_start: Starts a lesson on a topic, or on all of them.
-            on_open_settings: Switches to the settings tab. Omitted when there
-                is nowhere to switch to, which is what a test usually wants.
-        """
+        """Wire the two things a tap here can do."""
         self._on_start = on_start
         self._on_open_settings = on_open_settings
 
     def build(self, state: HomeState) -> list[ft.Control]:
-        """Return the screen, top to bottom.
-
-        Args:
-            state: What to draw.
-
-        Returns:
-            The setup notice if there is one, today's card, the last topic
-            again if there was one, and the topics to pick from.
-        """
+        """Return the screen, top to bottom."""
         children: list[ft.Control] = [self._notice(state.problem)]
 
         children.append(motion.keyed(self._today_card(state.summary), _TODAY_KEY))
@@ -112,16 +88,7 @@ class HomeView:
         return children
 
     def _notice(self, problem: str | None) -> ft.Control:
-        """Return the top slot: the setup warning, or nothing taking no room.
-
-        Args:
-            problem: The first thing stopping the app from grading, if any.
-
-        Returns:
-            The slot. The empty state is a zero-height box rather than an
-            absent control, because a region has to exist in both states for
-            the client to have something to fade between.
-        """
+        """Return the top slot: the setup warning, or nothing taking no room."""
         return motion.swap(
             region=_NOTICE_REGION,
             state="problem" if problem is not None else "ready",
@@ -136,14 +103,7 @@ class HomeView:
     # --- Pieces ---
 
     def _setup_banner(self, problem: str) -> ft.Control:
-        """Return the notice shown while the app cannot grade yet.
-
-        Args:
-            problem: The first thing that is missing.
-
-        Returns:
-            The banner, with a shortcut to the settings tab.
-        """
+        """Return the notice shown while the app cannot grade yet."""
         actions: list[ft.Control] = []
         open_settings = self._on_open_settings
         if open_settings is not None:
@@ -165,15 +125,7 @@ class HomeView:
         )
 
     def _today_card(self, summary: StatsSummary) -> ft.Control:
-        """Return the card a lesson is started from.
-
-        Args:
-            summary: The progress so far.
-
-        Returns:
-            The day streak, how much of the daily goal is done, and the one
-            button that matters on this screen.
-        """
+        """Return the card a lesson is started from."""
         done = min(summary.today.attempts, LESSON_LENGTH)
         streak = summary.day_streak
         on_hero = ft.Colors.ON_PRIMARY_CONTAINER
@@ -238,14 +190,7 @@ class HomeView:
         )
 
     def _again_button(self, state: HomeState) -> ft.Control:
-        """Return the shortcut back to the topic just practised.
-
-        Args:
-            state: What to draw.
-
-        Returns:
-            The button, in a row so that it fills the width.
-        """
+        """Return the shortcut back to the topic just practised."""
         topic_id = state.last_topic_id
         name = state.last_topic_name or MIXED_LESSON_LABEL
         return ft.Row(
@@ -260,14 +205,7 @@ class HomeView:
         )
 
     def _topic_list(self, state: HomeState) -> ft.Control:
-        """Return the topics, as lessons waiting to be started.
-
-        Args:
-            state: What to draw.
-
-        Returns:
-            One card per topic, or a note when the book could not be read.
-        """
+        """Return the topics, as lessons waiting to be started."""
         if not state.topics:
             return placeholder(
                 icon=ft.Icons.CATEGORY_ROUNDED,
@@ -296,15 +234,7 @@ class HomeView:
         )
 
     def _topic_card(self, topic: Topic, stat: TopicStat | None) -> ft.Control:
-        """Return one topic's card.
-
-        Args:
-            topic: The topic to offer.
-            stat: How the user has done on it, when they have tried it.
-
-        Returns:
-            Its name, its size, and its tally so far.
-        """
+        """Return one topic's card."""
         units = f"{topic.unit_count} unit{'' if topic.unit_count == 1 else 's'}"
         subtitle = (
             units if stat is None else f"{units} - {stat.correct}/{stat.attempts}"

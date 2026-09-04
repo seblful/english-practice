@@ -28,14 +28,7 @@ class RulesExtractor:
     """Extract grammar rules from exercise images using LLM."""
 
     def __init__(self, paths: PathSettings, agent: RulesAgent) -> None:
-        """Initialize the grammar rule extractor.
-
-        Args:
-            paths: The application's filesystem layout.
-            agent: The extraction agent, holding the run's one chat-model
-                client. Required rather than built here: a client owns a
-                connection pool, and one per stage is one too many.
-        """
+        """Initialize the grammar rule extractor."""
         self._tree = UnitStore(paths, RULES_FILENAME)
         self._extractor_agent = agent
         # Both names come from `stages`, so two stages need not know each other.

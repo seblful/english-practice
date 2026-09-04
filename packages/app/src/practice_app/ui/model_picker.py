@@ -1,17 +1,4 @@
-"""The model chooser.
-
-A provider's catalogue runs to several hundred entries, so this is a search
-box over a lazily built list rather than a dropdown. Only the first
-:data:`MAX_RESULTS` matches are turned into controls: building five hundred
-rows on every keystroke is what makes a picker feel broken on a phone.
-
-Everything above the list is written to cost as little height as it can,
-because choosing a model means typing, and the keyboard takes half the screen
-away while you do. So the count sits inside the search field, the filters keep
-one row whether they are on or off, closing and reloading are icons on the
-title, and each entry is three lines rather than four -- which together are
-what put more than a single model on screen while the keyboard is up.
-"""
+"""The model chooser."""
 
 from collections.abc import Callable, Sequence
 
@@ -44,18 +31,7 @@ def visible_models(
     thinking_only: bool = False,
     free_only: bool = False,
 ) -> list[ModelInfo]:
-    """Return the models a set of filters leaves visible.
-
-    Args:
-        models: The whole catalogue.
-        query: The user's search text.
-        vision_only: Keep only models that accept images.
-        thinking_only: Keep only models that can reason.
-        free_only: Keep only models that cost nothing.
-
-    Returns:
-        The matches, in catalogue order.
-    """
+    """Return the models a set of filters leaves visible."""
     return [
         model
         for model in models
@@ -78,15 +54,7 @@ class ModelPicker(ft.AlertDialog):
         on_select: Callable[[ModelInfo], None],
         on_refresh: Callable[[], None],
     ) -> None:
-        """Build the picker.
-
-        Args:
-            provider_label: Whose catalogue this is, for the title.
-            models: The catalogue to choose from.
-            selected: The currently chosen model id.
-            on_select: Called with the model the user tapped.
-            on_refresh: Called when the user asks for a fresh catalogue.
-        """
+        """Build the picker."""
         self._models = list(models)
         self._selected = selected
         self._on_select = on_select
@@ -231,26 +199,13 @@ class ModelPicker(ft.AlertDialog):
         self._count.value = f"{len(matches)}/{len(self._models)}"
 
     def _pick(self, model: ModelInfo) -> None:
-        """Report the chosen model and close.
-
-        Args:
-            model: The model the user tapped.
-        """
+        """Report the chosen model and close."""
         self._selected = model.id
         self._close()
         self._on_select(model)
 
     def _row(self, model: ModelInfo) -> ft.Control:
-        """Return one row of the list.
-
-        Args:
-            model: The model to show.
-
-        Returns:
-            A tappable row naming the model and what it can do, in three
-            lines: four wrapped the badges onto a second row and made the
-            entry tall enough that two of them filled the list.
-        """
+        """Return one row of the list."""
         is_selected = model.id == self._selected
 
         badges: list[ft.Control] = []

@@ -283,13 +283,7 @@ class TestRelocatingTheTree:
         assert paths.content_dir == tmp_path / "content"
 
     def test_every_declared_path_follows_the_data_dir(self, tmp_path: Path) -> None:
-        """A path added to the model and forgotten in ``LAYOUT`` is stranded.
-
-        It keeps ``_DERIVED`` -- a bare relative path -- while everything
-        around it moves, so the pipeline would write beside the working
-        directory during a test. This fails the moment that happens, without
-        naming the fields.
-        """
+        """A path added to the model and forgotten in ``LAYOUT`` is stranded."""
         moved = PathSettings(data_dir=tmp_path)
 
         stranded = [

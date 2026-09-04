@@ -21,12 +21,7 @@ NO_PENDING_MESSAGE = "No pending users at the moment."
 
 @handler(Access.ADMIN)
 async def pending_command(who: Interaction, context: BotContext) -> None:
-    """List everyone waiting for a decision.
-
-    Args:
-        who: The admin behind the update.
-        context: The handler context.
-    """
+    """List everyone waiting for a decision."""
     pending = await context.users.list_pending_users()
     if not pending:
         await who.say(NO_PENDING_MESSAGE)
@@ -40,12 +35,7 @@ async def pending_command(who: Interaction, context: BotContext) -> None:
 
 @handler(Access.ADMIN)
 async def admin_action(who: Interaction, context: BotContext) -> None:
-    """Approve or reject one access request, then show what is left.
-
-    Args:
-        who: The admin behind the update.
-        context: The handler context.
-    """
+    """Approve or reject one access request, then show what is left."""
     action = ADMIN.parse(who.callback_data)
     if action is None:
         logger.warning("unparsable_admin_callback", data=who.callback_data)

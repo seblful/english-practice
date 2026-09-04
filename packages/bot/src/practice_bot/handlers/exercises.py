@@ -31,13 +31,7 @@ async def send_exercise(
     context: BotContext,
     topic: Topic | None,
 ) -> None:
-    """Draw an exercise and send it to the user.
-
-    Args:
-        who: The user behind the update.
-        context: The handler context.
-        topic: The topic to draw from, or ``None`` to draw from all of them.
-    """
+    """Draw an exercise and send it to the user."""
     # The draw only returns exercises with questions, so empty means empty topic.
     active = await context.content.draw(
         topic.id if topic else None,
@@ -73,12 +67,7 @@ async def send_exercise(
 
 @handler()
 async def topic_selection(who: Interaction, context: BotContext) -> None:
-    """Act on a press in the topic menu.
-
-    Args:
-        who: The user behind the update.
-        context: The handler context.
-    """
+    """Act on a press in the topic menu."""
     choice = TOPICS.parse(who.callback_data)
     if choice is None:
         logger.warning("unparsable_topic_callback", data=who.callback_data)
@@ -112,12 +101,7 @@ async def topic_selection(who: Interaction, context: BotContext) -> None:
 
 @handler()
 async def exercise_action(who: Interaction, context: BotContext) -> None:
-    """Act on a button shown underneath an exercise.
-
-    Args:
-        who: The user behind the update.
-        context: The handler context.
-    """
+    """Act on a button shown underneath an exercise."""
     action = ACTIONS.parse(who.callback_data)
     if action is None:
         logger.warning("unparsable_action_callback", data=who.callback_data)

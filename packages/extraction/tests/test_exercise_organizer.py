@@ -226,12 +226,7 @@ class TestExerciseOrganizer:
 
 
 class TestHeaderDetectionOnSyntheticPages:
-    """Detection tests against generated pages.
-
-    The real pipeline finds exercises by the teal header box printed beside
-    each one, so these build pages with those boxes rather than mocking
-    OpenCV: the geometry constants are exactly what could silently break.
-    """
+    """Detection tests against generated pages."""
 
     # Inside the configured HSV window for the book's teal headers.
     TEAL_HSV = (90, 200, 200)
@@ -251,15 +246,7 @@ class TestHeaderDetectionOnSyntheticPages:
     def _page(
         cls, header_offsets: tuple[int, ...], size: int | None = None
     ) -> np.ndarray:
-        """Build a white page with a teal header box at each vertical offset.
-
-        Args:
-            header_offsets: Header positions, in cropped-page coordinates.
-            size: Header side length override, to make an invalid box.
-
-        Returns:
-            The page as a BGR image.
-        """
+        """Build a white page with a teal header box at each vertical offset."""
         page = np.full((cls.PAGE_HEIGHT, cls.PAGE_WIDTH, 3), 255, dtype=np.uint8)
         width = size or cls.HEADER_WIDTH
         height = size or cls.HEADER_HEIGHT
@@ -362,13 +349,7 @@ class TestBottomWhiteSpace:
 
 
 class TestSplitRefusesUnusableSlices:
-    """Tests for the guard against slivers between two adjacent headers.
-
-    A slice's position becomes its exercise number on disk, so dropping one
-    used to renumber every exercise below it -- and every later stage keys on
-    that number, which is how a student came to be shown a crop holding a
-    different sentence from the one they were asked to answer.
-    """
+    """Tests for the guard against slivers between two adjacent headers."""
 
     def test_a_slice_below_the_minimum_height_refuses_the_page(self) -> None:
         image = np.zeros((300, 100, 3), dtype=np.uint8)

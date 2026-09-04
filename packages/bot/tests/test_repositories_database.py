@@ -1,10 +1,4 @@
-"""Tests for the record of who may use the bot, against a real file.
-
-The content queries are not re-tested here. They belong to
-:class:`practice_core.content.ContentLibrary`, which has its own suite over its
-own seed; this repository used to inherit them, so thirteen of them were
-asserted twice against two copies of the same fixture data.
-"""
+"""Tests for the record of who may use the bot, against a real file."""
 
 import sqlite3
 from contextlib import closing

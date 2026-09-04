@@ -1,14 +1,4 @@
-"""The pipeline's models: what an agent is asked, and what a stage writes.
-
-Two kinds live here, and they meet at each stage. The ``*Context`` and
-``Exercise*Output`` pairs are one LLM call's input and output. The
-``Extracted*`` tree is the JSON a stage leaves on disk for the next one, and
-finally for ``populate``.
-
-None of this is the running application's domain — a bot or a phone never sees
-an ``ExtractedFullRules``. What the front ends read is the database at the end
-of the pipeline, whose models are :mod:`practice_core.models`.
-"""
+"""The pipeline's models: what an agent is asked, and what a stage writes."""
 
 from pydantic import BaseModel, Field
 

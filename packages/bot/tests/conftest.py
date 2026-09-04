@@ -1,9 +1,4 @@
-"""Shared fixtures.
-
-The bot's handlers take their collaborators from the context, so a test wires
-mocks into :class:`BotDependencies` instead of patching module globals. The
-session store is real: its behaviour is part of what the handler tests assert.
-"""
+"""Shared fixtures."""
 
 import logging
 import sqlite3
@@ -42,24 +37,14 @@ ADMIN_ID = 99999
 
 @pytest.fixture(autouse=True)
 def _isolate_settings_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Hide the developer's own environment from every test.
-
-    Each settings group is its own ``BaseSettings`` reading ``os.environ``
-    through its prefix, so ``Settings(_env_file=...)`` does not isolate them --
-    an exported ``GEMINI_PROXY`` or ``PATHS_DATABASE_PATH`` would otherwise
-    decide the outcome of a test that never mentions it.
-    """
+    """Hide the developer's own environment from every test."""
     for name in settings_env_vars(Settings):
         monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture(autouse=True)
 def _quiet_logging() -> None:
-    """Drop application log records so test output stays readable.
-
-    The code under test logs deliberately, including full tracebacks from the
-    error handler; none of that belongs in pytest's captured output.
-    """
+    """Drop application log records so test output stays readable."""
     structlog.configure(
         wrapper_class=structlog.make_filtering_bound_logger(logging.CRITICAL),
         logger_factory=structlog.ReturnLoggerFactory(),
@@ -70,26 +55,12 @@ def _quiet_logging() -> None:
 
 
 def replies(message: AsyncMock) -> list[str]:
-    """Return the text of every reply sent to a message.
-
-    Args:
-        message: The mocked message the handler replied to.
-
-    Returns:
-        Each reply's text, in the order it was sent.
-    """
+    """Return the text of every reply sent to a message."""
     return [call.args[0] for call in message.reply_text.call_args_list]
 
 
 def last_reply(message: AsyncMock) -> tuple[str, dict]:
-    """Return the text and keyword arguments of the last reply.
-
-    Args:
-        message: The mocked message the handler replied to.
-
-    Returns:
-        The final reply's text and its keyword arguments.
-    """
+    """Return the text and keyword arguments of the last reply."""
     call = message.reply_text.call_args
     return call.args[0], call.kwargs
 
@@ -99,14 +70,7 @@ def last_reply(message: AsyncMock) -> tuple[str, dict]:
 
 @pytest.fixture
 def seeded_db_path(tmp_path: Path) -> Path:
-    """Build a database from the real schemas, with a little content.
-
-    Both of them: the content tables ``practice-core`` ships, and the bot's own
-    ``authorized_users``. Using the real ones is deliberate -- a column renamed
-    there should break these tests rather than production. Exercise 2
-    deliberately has no questions, and topic 3 no units, so the queries that
-    must skip them have something to skip.
-    """
+    """Build a database from the real schemas, with a little content."""
     path = tmp_path / "test.db"
     # `with sqlite3.connect(...)` commits but does not close -- the leak itself.
     with closing(sqlite3.connect(path)) as conn, conn:
@@ -311,11 +275,7 @@ def mock_users() -> AsyncMock:
 
 @pytest.fixture
 def mock_agents() -> AsyncMock:
-    """An agent service that grades everything correct.
-
-    The verdict is a real :class:`EvaluateAnswerOutput` rather than a stand-in,
-    so the validators that both front ends now depend on are in play here too.
-    """
+    """An agent service that grades everything correct."""
     agents = AsyncMock(spec=AgentService)
     agents.grader = Mock()
     agents.grader.evaluate = AsyncMock(

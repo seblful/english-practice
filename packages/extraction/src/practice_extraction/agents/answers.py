@@ -24,16 +24,7 @@ class AnswersAgent(BaseAgent):
         questions: Sequence[AnswersQuestion],
         topic_name: str,
     ) -> ExerciseAnswersOutput:
-        """Extract full answers for all questions in an exercise.
-
-        Args:
-            image_path: Path to the exercise image, if one exists.
-            questions: The exercise's questions, with the book's short answer.
-            topic_name: The topic name for context.
-
-        Returns:
-            ExerciseAnswersOutput with all question answers.
-        """
+        """Extract full answers for all questions in an exercise."""
         context = AnswersContext(questions=list(questions), topic_name=topic_name)
         prompt = self.render(context)
 

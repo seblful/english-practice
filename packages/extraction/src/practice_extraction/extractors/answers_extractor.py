@@ -26,14 +26,7 @@ class AnswersExtractor:
     """Extract full answers from exercise images using LLM."""
 
     def __init__(self, paths: PathSettings, agent: AnswersAgent) -> None:
-        """Initialize the full answer extractor.
-
-        Args:
-            paths: The application's filesystem layout.
-            agent: The extraction agent, holding the run's one chat-model
-                client. Required rather than built here: a client owns a
-                connection pool, and one per stage is one too many.
-        """
+        """Initialize the full answer extractor."""
         self._tree = UnitStore(paths, ANSWERS_FULL_FILENAME)
         self._extractor_agent = agent
 

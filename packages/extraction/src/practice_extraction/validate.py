@@ -1,10 +1,4 @@
-"""Validate database integrity and consistency.
-
-A check answers one question about the database and returns a
-:class:`CheckResult`. Whether it passed is derived from the rows it collected,
-so adding a check means writing it and listing it in :data:`CHECKS` — there is
-no separate place to register its printing, and none to declare its verdict.
-"""
+"""Validate database integrity and consistency."""
 
 import sqlite3
 from collections.abc import Callable, Sequence
@@ -32,11 +26,7 @@ def _unit_and_exercise(row: sqlite3.Row) -> str:
 
 @dataclass(frozen=True, slots=True)
 class Issue:
-    """One kind of problem, and the offending rows a check found for it.
-
-    ``warning`` separates "the database is wrong" from "the database is thin":
-    warnings are reported but do not fail the run.
-    """
+    """One kind of problem, and the offending rows a check found for it."""
 
     label: str
     rows: list[str]
@@ -47,12 +37,7 @@ class Issue:
 
 @dataclass(frozen=True, slots=True)
 class CheckResult:
-    """What one check found.
-
-    ``facts`` are counts worth printing either way; ``issues`` are what can
-    fail. The verdict is derived from the issues, so a check cannot pass by
-    forgetting to say it failed.
-    """
+    """What one check found."""
 
     title: str
     all_clear: str
@@ -76,10 +61,7 @@ class CheckResult:
 
 
 class DatabaseValidator:
-    """Runs the integrity checks against one database file.
-
-    Use it as a context manager; it owns a connection for its lifetime.
-    """
+    """Runs the integrity checks against one database file."""
 
     def __init__(self, db_path: Path):
         """Open a connection to the database at ``db_path``."""
@@ -106,15 +88,7 @@ class DatabaseValidator:
         return self.cursor.execute(sql).fetchone()[0]
 
     def _labels(self, sql: str, describe: Callable[[sqlite3.Row], str]) -> list[str]:
-        """Run a query and describe each offending row it returns.
-
-        Args:
-            sql: A query selecting the rows that should not exist.
-            describe: Renders one row as a line for the report.
-
-        Returns:
-            One description per offending row; empty when the check is clean.
-        """
+        """Run a query and describe each offending row it returns."""
         return [describe(row) for row in self.cursor.execute(sql).fetchall()]
 
     def validate_image_blobs(self) -> CheckResult:
@@ -238,23 +212,7 @@ class DatabaseValidator:
         )
 
     def validate_constraints(self) -> CheckResult:
-        """Ask SQLite whether the schema's own constraints hold.
-
-        This used to be two checks, ninety-odd lines, re-encoding seven
-        foreign keys as ``LEFT JOIN ... IS NULL`` queries and four ``UNIQUE``
-        constraints as ``GROUP BY ... HAVING COUNT(*) > 1``. That was a second
-        copy of `content.sql` written in Python, and it drifted: add a table to
-        the schema and nothing here noticed.
-
-        ``PRAGMA foreign_key_check`` runs the real thing against the real
-        schema. Uniqueness needs no check at all: SQLite enforces it on every
-        insert, whether or not foreign keys are on, so a duplicate cannot be
-        in a database built from this schema -- which the old check proved by
-        needing a constraint-free database to fire at all.
-
-        Returns:
-            One issue per row that points at something missing.
-        """
+        """Ask SQLite whether the schema's own constraints hold."""
         return CheckResult(
             title="[REF] SCHEMA CONSTRAINTS",
             all_clear="Every foreign key resolves",
@@ -307,15 +265,7 @@ def _print_issue(issue: Issue) -> None:
 
 
 def print_report(results: Sequence[CheckResult]) -> int:
-    """Print the report and return the process exit code.
-
-    Args:
-        results: What every check found, in the order they ran.
-
-    Returns:
-        1 when any check collected an error, 0 otherwise. Warnings are printed
-        but do not fail the run.
-    """
+    """Print the report and return the process exit code."""
     print("\n" + "=" * 60)
     print("DATABASE VALIDATION REPORT")
     print("=" * 60)
@@ -352,15 +302,7 @@ def print_report(results: Sequence[CheckResult]) -> int:
 
 
 def main(db_path: Path | None = None) -> int:
-    """Validate the database the application reads.
-
-    Args:
-        db_path: The database to check. The configured one when omitted, so
-            that what this checks is what the bot opens.
-
-    Returns:
-        The process exit code.
-    """
+    """Validate the database the application reads."""
     db_path = db_path or get_settings().paths.database_path
 
     if not db_path.exists():

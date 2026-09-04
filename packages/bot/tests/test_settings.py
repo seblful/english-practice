@@ -1,9 +1,4 @@
-"""Tests for the bot's own settings.
-
-The shared groups are `practice-runtime`'s and are tested there. What is
-checked here is what only the bot has: Telegram, and the preflight that decides
-whether it may start at all.
-"""
+"""Tests for the bot's own settings."""
 
 from pathlib import Path
 

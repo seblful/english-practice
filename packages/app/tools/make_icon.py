@@ -1,13 +1,4 @@
-"""Draw the launcher icon and the splash screens.
-
-Run from the repository root when the brand changes:
-
-    uv run --project mobile python mobile/tools/make_icon.py
-
-The icon is drawn rather than cropped from the book cover: a cover is mostly
-type, and type at launcher size is a smudge. The mark keeps the cover's blue
-and its yellow rule, which is what makes the two recognisably the same thing.
-"""
+"""Draw the launcher icon and the splash screens."""
 
 from pathlib import Path
 
@@ -30,12 +21,7 @@ SPLASH_MARK_SHARE = 0.42
 
 
 def _tick(draw: ImageDraw.ImageDraw, size: int) -> None:
-    """Draw a thick rounded check mark, centred and slightly above middle.
-
-    Args:
-        draw: The canvas to draw on.
-        size: The canvas's side, in pixels.
-    """
+    """Draw a thick rounded check mark, centred and slightly above middle."""
     stroke = int(size * 0.105)
     short_start = (size * 0.255, size * 0.470)
     corner = (size * 0.430, size * 0.645)
@@ -58,14 +44,7 @@ def _tick(draw: ImageDraw.ImageDraw, size: int) -> None:
 
 
 def icon(size: int = ICON_SIZE) -> Image.Image:
-    """Return the launcher icon: brand field, white tick, accent baseline.
-
-    Args:
-        size: The icon's side, in pixels.
-
-    Returns:
-        The image.
-    """
+    """Return the launcher icon: brand field, white tick, accent baseline."""
     image = Image.new("RGB", (size, size), BRAND)
     draw = ImageDraw.Draw(image)
     _tick(draw, size)
@@ -80,15 +59,7 @@ def icon(size: int = ICON_SIZE) -> Image.Image:
 
 
 def splash(background: tuple[int, int, int], size: int = SPLASH_SIZE) -> Image.Image:
-    """Return a splash image: the icon mark centred on a flat ground.
-
-    Args:
-        background: The ground colour.
-        size: The image's side, in pixels.
-
-    Returns:
-        The image.
-    """
+    """Return a splash image: the icon mark centred on a flat ground."""
     image = Image.new("RGB", (size, size), background)
     mark = icon(int(size * SPLASH_MARK_SHARE))
 

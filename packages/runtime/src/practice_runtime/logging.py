@@ -1,10 +1,4 @@
-"""One structlog configuration, for whichever program is running.
-
-The settings are passed in rather than read here: this package is shared, and
-the two programs that use it compose different root settings models. Taking the
-one group it needs keeps this module usable by both — and testable without an
-environment.
-"""
+"""One structlog configuration, for whichever program is running."""
 
 import io
 import logging
@@ -30,14 +24,7 @@ def setup_logging(
     *,
     json_logs: bool = False,
 ) -> None:
-    """Configure structlog for the process.
-
-    Args:
-        config: Levels and log-file location. The group's own defaults when
-            omitted, which is what a one-off script wants.
-        json_logs: Render records as JSON instead of colourised console lines.
-            True for a deployment, where something else reads the log.
-    """
+    """Configure structlog for the process."""
     if logging.root.handlers:
         return
 
@@ -98,12 +85,5 @@ def setup_logging(
 
 
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
-    """Get a logger instance.
-
-    Args:
-        name: Logger name (typically ``__name__``).
-
-    Returns:
-        A structlog logger bound to ``name``.
-    """
+    """Get a logger instance."""
     return structlog.get_logger(name)

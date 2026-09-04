@@ -1,10 +1,4 @@
-"""Access control, and the decorator that applies it.
-
-Every handler in this package is wrapped by :func:`handler`, which narrows the
-update, answers the callback query, and enforces the access level. A handler
-therefore cannot forget its authorization check, and cannot be reached with an
-update it is not equipped for.
-"""
+"""Access control, and the decorator that applies it."""
 
 from collections.abc import Callable, Coroutine
 from enum import StrEnum, auto
@@ -51,23 +45,7 @@ async def _send(
     text: str,
     reply_markup: InlineKeyboardMarkup | None = None,
 ) -> None:
-    """Send an unsolicited message, in HTML when the text is HTML.
-
-    These two sibling notifications took the same parameter type and applied
-    opposite policies to it -- one always claimed HTML, the other never did --
-    with the obligation written down only in a docstring.
-
-    Args:
-        context: The handler context.
-        chat_id: Who to send it to.
-        text: What to send. :class:`~practice_bot.formatter.Html` carries its
-            own parse mode.
-        reply_markup: Optional keyboard to attach.
-
-    Raises:
-        Exception: Whatever Telegram raised; the callers decide what a
-            failure to reach one chat costs.
-    """
+    """Send an unsolicited message, in HTML when the text is HTML."""
     kwargs: dict[str, Any] = {"chat_id": chat_id, "text": text}
     if reply_markup is not None:
         kwargs["reply_markup"] = reply_markup
@@ -81,13 +59,7 @@ async def notify_admin(
     text: str,
     reply_markup: InlineKeyboardMarkup | None = None,
 ) -> None:
-    """Send a message to the admin, tolerating an unreachable admin chat.
-
-    Args:
-        context: The handler context.
-        text: Message text.
-        reply_markup: Optional keyboard to attach.
-    """
+    """Send a message to the admin, tolerating an unreachable admin chat."""
     admin_user_id = context.dependencies.admin_user_id
     if admin_user_id is None:
         return
@@ -103,13 +75,7 @@ async def notify_admin(
 
 
 async def notify_user(context: BotContext, user_id: int, text: str) -> None:
-    """Send a message to a user, tolerating a blocked bot.
-
-    Args:
-        context: The handler context.
-        user_id: Telegram user ID to notify.
-        text: Message text.
-    """
+    """Send a message to a user, tolerating a blocked bot."""
     try:
         await _send(context, user_id, text)
     except Exception as exc:
@@ -117,12 +83,7 @@ async def notify_user(context: BotContext, user_id: int, text: str) -> None:
 
 
 async def _request_access(who: Interaction, context: BotContext) -> None:
-    """Queue an access request and tell both sides about it.
-
-    Args:
-        who: The user asking for access.
-        context: The handler context.
-    """
+    """Queue an access request and tell both sides about it."""
     full_name = who.user.full_name or "Unknown"
     await who.say(PENDING_MESSAGE)
 
@@ -134,18 +95,7 @@ async def _request_access(who: Interaction, context: BotContext) -> None:
 
 
 async def ensure_approved(who: Interaction, context: BotContext) -> bool:
-    """Check whether a user may use the bot, replying when they may not.
-
-    A user unknown to the bot is enrolled as pending and the admin is asked to
-    decide; a previously rejected user re-applies by messaging again.
-
-    Args:
-        who: The user behind the update.
-        context: The handler context.
-
-    Returns:
-        ``True`` when the handler may proceed.
-    """
+    """Check whether a user may use the bot, replying when they may not."""
     dependencies: BotDependencies = context.dependencies
     if not dependencies.access_control_enabled or dependencies.is_admin(who.user.id):
         return True
@@ -170,15 +120,7 @@ async def ensure_approved(who: Interaction, context: BotContext) -> bool:
 
 
 async def ensure_admin(who: Interaction, context: BotContext) -> bool:
-    """Check whether a user administers the bot, replying when they do not.
-
-    Args:
-        who: The user behind the update.
-        context: The handler context.
-
-    Returns:
-        ``True`` when the handler may proceed.
-    """
+    """Check whether a user administers the bot, replying when they do not."""
     if context.dependencies.is_admin(who.user.id):
         return True
     logger.warning("admin_action_denied", user_id=who.user.id)
@@ -189,17 +131,7 @@ async def ensure_admin(who: Interaction, context: BotContext) -> bool:
 def handler(
     access: Access = Access.APPROVED,
 ) -> Callable[[InteractionHandler], UpdateHandler]:
-    """Adapt an interaction handler into a Telegram callback.
-
-    The wrapper narrows the update, acknowledges the button press so the
-    client stops showing a spinner, and enforces ``access``.
-
-    Args:
-        access: Who may reach the handler.
-
-    Returns:
-        A decorator producing a callback that Telegram handlers can register.
-    """
+    """Adapt an interaction handler into a Telegram callback."""
 
     def decorate(func: InteractionHandler) -> UpdateHandler:
         @wraps(func)

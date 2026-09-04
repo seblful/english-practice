@@ -1,14 +1,4 @@
-"""End-to-end dispatch through a real Application.
-
-These tests build the bot the way ``english-practice bot`` does — real handler
-registration, real context type, real SQLite repository — and feed it real
-:class:`telegram.Update` objects. Only the network edges are faked: the LLM
-agents and the ``Bot`` that would talk to Telegram.
-
-This is what catches the wiring mistakes unit tests cannot: a callback pattern
-that matches no handler, a handler registered in the wrong order, a dependency
-that never reached the context.
-"""
+"""End-to-end dispatch through a real Application."""
 
 from datetime import UTC, datetime
 from pathlib import Path
@@ -86,11 +76,7 @@ def application(
 
 @pytest.fixture(autouse=True)
 def _deterministic_draw(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Always draw the closed question, so these flows are deterministic.
-
-    The seeded exercise carries one closed and one open-ended question, and
-    which one a real draw picks would change what the bot replies.
-    """
+    """Always draw the closed question, so these flows are deterministic."""
     # Only the reference inside the draw: random.choice also picks phrases.
     monkeypatch.setattr(
         content,
@@ -104,12 +90,7 @@ def _deterministic_draw(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _message(text: str, bot: AsyncMock, message_id: int = 1) -> Message:
-    """Build an incoming message bound to the fake bot.
-
-    Commands carry a bot-command entity, exactly as Telegram sends them: it is
-    what tells ``CommandHandler`` the message is a command, and what keeps the
-    catch-all text handler from swallowing it.
-    """
+    """Build an incoming message bound to the fake bot."""
     entities = (
         (
             MessageEntity(
@@ -134,12 +115,7 @@ def _message(text: str, bot: AsyncMock, message_id: int = 1) -> Message:
 
 
 async def _dispatch(application: BotApplication, update: Update) -> None:
-    """Route an update to the handler that claims it, error handler included.
-
-    This mirrors what ``Application.process_update`` does, minus the network
-    handshake that initialising a real ``Bot`` would need: registration order,
-    the callback patterns and the custom context type are all the real ones.
-    """
+    """Route an update to the handler that claims it, error handler included."""
     context = BotContext.from_update(update, application)
     for handler in application.handlers[0]:
         check = handler.check_update(update)

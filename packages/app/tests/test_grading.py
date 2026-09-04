@@ -1,9 +1,4 @@
-"""Tests for the app's grading call.
-
-The prompt and the verdict parsing are `practice_core`'s and are tested there;
-what matters here is that the app sends *that* prompt, with the image, and
-turns the reply into a verdict.
-"""
+"""Tests for the app's grading call."""
 
 import json
 

@@ -1,9 +1,4 @@
-"""End-to-end tests for the CLI.
-
-Three commands: say what is configured, check that it is enough, and run.
-Building the database and bundling it for the phone belong to the content
-pipeline, and this package cannot even import it.
-"""
+"""End-to-end tests for the CLI."""
 
 from pathlib import Path
 
@@ -91,11 +86,7 @@ def test_bot_command_runs_the_application(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def _settings_with_problems(problems: list[str]) -> Settings:
-    """Return real settings that report the given problems.
-
-    Real ones, because the CLI callback also configures logging from them
-    before it reaches the command.
-    """
+    """Return real settings that report the given problems."""
 
     class _Reporting(Settings):
         def missing_required(self) -> list[str]:

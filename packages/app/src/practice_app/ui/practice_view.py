@@ -1,23 +1,4 @@
-"""The practice screen: a lesson, one question at a time.
-
-The shape here is a studying app's rather than a conversation's. A lesson is a
-fixed run of questions: a bar across the top says how far along it is, the
-question owns the middle of the screen, the action sits under the thumb, and
-the verdict arrives as a sheet over the bottom.
-
-That last part is the point. Nothing accumulates: the question the user just
-answered stays exactly where it was, with their own words still in the field
-beside the book's, instead of scrolling away above a growing transcript of
-panels. What is on screen is the question being worked on, and that is all.
-
-Nothing here opens a dialog. A lesson is a full-screen task on a phone, and a
-box floating over the middle of one -- to say what a unit covers, to magnify
-the picture, to ask whether the user really means to leave -- reads as an
-interruption from somewhere else. So every one of those is part of the screen
-instead: what the unit covers unfolds from the unit's own chip, the picture
-magnifies into the whole screen, and leaving is asked in the same sheet the
-verdict arrives in.
-"""
+"""The practice screen: a lesson, one question at a time."""
 
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -127,16 +108,7 @@ class PracticeScreen(Screen):
         on_open_settings: Callable[[], None] | None = None,
         on_lesson_change: Callable[[bool], None] | None = None,
     ) -> None:
-        """Build the screen.
-
-        Args:
-            page: The page, for dialogs and snack bars.
-            services: The app's dependencies.
-            on_open_settings: Switches to the settings tab, used by the "not
-                configured yet" notice.
-            on_lesson_change: Told whether a lesson is running, so the shell
-                can get its chrome out of the way of one.
-        """
+        """Build the screen."""
         self._page = page
         self._services = services
         self._on_lesson_change = on_lesson_change
@@ -168,21 +140,7 @@ class PracticeScreen(Screen):
     # --- Rendering ---
 
     def render(self) -> None:
-        """Rebuild the screen from the current state.
-
-        Which state is showing is read off the session and two flags: no
-        lesson is the home screen, a lesson whose question has been put down
-        is the result, a lesson with a question is the lesson itself -- and
-        the magnified picture, while it is open, is the whole screen.
-
-        Whichever it is, it is assembled out of the same three slots, and each
-        one is named the same on every repaint. That is what makes the change
-        between two of these states a change the client can animate rather
-        than a new screen it has to mount: the body cross-fades from one state
-        to the next, the bar cross-fades between the lesson's and the
-        picture's, and the foot tweens its surface underneath whichever of the
-        four things it is holding.
-        """
+        """Rebuild the screen from the current state."""
         lesson = self._session.lesson
         if lesson is None:
             self.controls = [
@@ -212,18 +170,7 @@ class PracticeScreen(Screen):
         ]
 
     def _body(self, state: str, content: ft.Control) -> ft.Control:
-        """Return the screen's main slot, showing one of its states.
-
-        Args:
-            state: Which state ``content`` is. The home screen, a question, a
-                finished lesson and the magnified picture are four different
-                screens as far as the user is concerned, so each one arriving
-                is worth the full :data:`~practice_app.ui.motion.Swap.SCREEN`.
-            content: What to show.
-
-        Returns:
-            The slot.
-        """
+        """Return the screen's main slot, showing one of its states."""
         return motion.swap(
             region=_BODY_REGION,
             state=state,
@@ -233,15 +180,7 @@ class PracticeScreen(Screen):
         )
 
     def _scroller(self, *controls: ft.Control) -> ft.Control:
-        """Return the part of the screen between the bar and the buttons.
-
-        Args:
-            *controls: What goes in it, top to bottom.
-
-        Returns:
-            The scrolling body. The side padding is here rather than on the
-            shell so that a bar or a sheet can still run edge to edge.
-        """
+        """Return the part of the screen between the bar and the buttons."""
         return ft.Container(
             content=ft.Column(
                 controls=list(controls),
@@ -257,12 +196,7 @@ class PracticeScreen(Screen):
     # --- Home ---
 
     def _home_state(self) -> HomeState:
-        """Return what the home screen should draw itself from.
-
-        Returns:
-            The figures, the topics and the topic just practised, plus the
-            first thing stopping the app from grading if there is one.
-        """
+        """Return what the home screen should draw itself from."""
         problems = self._services.config.missing()
         return HomeState(
             summary=self._summary,
@@ -274,30 +208,13 @@ class PracticeScreen(Screen):
         )
 
     def _start_from_home(self, topic_id: int | None, topic_name: str) -> None:
-        """Start a lesson from a tap on the home screen.
-
-        The home screen's buttons cannot await, so the run is scheduled.
-
-        Args:
-            topic_id: The topic to draw from, or ``None`` for a mixed run.
-            topic_name: What to call the run on screen.
-        """
+        """Start a lesson from a tap on the home screen."""
         self._page.run_task(self.start_lesson, topic_id, topic_name)
 
     # --- The lesson ---
 
     def _bar(self, state: str, content: ft.Control) -> ft.Control:
-        """Return the strip across the top of the screen, in one of its states.
-
-        Args:
-            state: Which bar this is -- the lesson's, or the picture's.
-            content: What goes in it.
-
-        Returns:
-            The slot. The lesson's bar and the magnified picture's are the same
-            slot on purpose: the way out sits in the same place in both, so
-            crossing between them should move the label and not the bar.
-        """
+        """Return the strip across the top of the screen, in one of its states."""
         return ft.Container(
             key=_BAR_FRAME_KEY,
             content=motion.swap(region=_BAR_REGION, state=state, content=content),
@@ -307,14 +224,7 @@ class PracticeScreen(Screen):
         )
 
     def _lesson_bar(self, lesson: Lesson) -> ft.Control:
-        """Return the progress bar across the top of a lesson.
-
-        Args:
-            lesson: The run in progress.
-
-        Returns:
-            The way out, how far along the run is, and where in it the user is.
-        """
+        """Return the progress bar across the top of a lesson."""
         return self._bar(
             "lesson",
             ft.Row(
@@ -339,14 +249,7 @@ class PracticeScreen(Screen):
         )
 
     def _question_panels(self, active: ActiveExercise) -> list[ft.Control]:
-        """Return the question itself.
-
-        Args:
-            active: The exercise in front of the user.
-
-        Returns:
-            Where it came from, what to do with it, the picture, and the field.
-        """
+        """Return the question itself."""
         return [
             motion.keyed(self._meta(active), f"{_BODY_REGION}.meta"),
             motion.swap(
@@ -360,21 +263,7 @@ class PracticeScreen(Screen):
         ]
 
     def _meta(self, active: ActiveExercise) -> ft.Control:
-        """Return the block above the picture that places the question.
-
-        The heading is the book's own numbering -- which sentence of the
-        printed exercise this is -- because that is the number the user reads
-        the picture with. How far along the lesson is belongs to the bar
-        directly above it, and saying it again here, in a different counting,
-        is what made "Question 6" read as a contradiction of "2/10".
-
-        Args:
-            active: The exercise in front of the user.
-
-        Returns:
-            The topic, the unit, what the unit covers while it is unfolded,
-            the sentence, and the instruction.
-        """
+        """Return the block above the picture that places the question."""
         unit = active.exercise.unit
         children: list[ft.Control] = [
             ft.Row(
@@ -438,14 +327,7 @@ class PracticeScreen(Screen):
         )
 
     def _image_card(self, active: ActiveExercise) -> ft.Control:
-        """Return the exercise image, or a note that there is none.
-
-        Args:
-            active: The exercise in front of the user.
-
-        Returns:
-            The image card.
-        """
+        """Return the exercise image, or a note that there is none."""
         if active.image is None:
             return banner(
                 "This exercise has no picture in the database.",
@@ -497,17 +379,7 @@ class PracticeScreen(Screen):
         )
 
     def _answer_panel(self, active: ActiveExercise) -> ft.Control:
-        """Return the answer field, labelled, and locked once it is answered.
-
-        The field is never cleared or hidden by the verdict: reading your own
-        words next to the book's is most of what makes a correction land.
-
-        Args:
-            active: The exercise in front of the user.
-
-        Returns:
-            The label and the field.
-        """
+        """Return the answer field, labelled, and locked once it is answered."""
         self._answer = self._answer_field(
             answered=active.is_revealed, typed=self._answer.value or ""
         )
@@ -522,41 +394,11 @@ class PracticeScreen(Screen):
         )
 
     def _reset_answer(self) -> None:
-        """Start the next question with an empty field.
-
-        This used to assign to the outgoing field's ``value``, which is a
-        mutation of a control that may by then be frozen -- Flet freezes the
-        controls it mounts during a keyed pass. Replacing the reference
-        touches nothing on screen: the next render builds the field from it.
-        """
+        """Start the next question with an empty field."""
         self._answer = self._answer_field(answered=False, typed="")
 
     def _answer_field(self, *, answered: bool, typed: str) -> ft.TextField:
-        """Return the answer field in the state this question leaves it.
-
-        A field is built rather than reconfigured, and the reason is Flet's
-        rather than this screen's. Once any part of a screen is keyed, Flet
-        reconciles the rest by key too -- and it marks every control it *adds*
-        during such a pass frozen, which makes further assignment to that
-        control raise. A stable field reconfigured on each render was therefore
-        exactly the thing that could no longer be reconfigured: the first
-        cross-fade into a lesson froze it. Rebuilding it costs nothing, and it
-        leaves :meth:`render` free of side effects on anything but this
-        reference.
-
-        The key is what carries the client's own state across the rebuild, so
-        the text is not retyped, the cursor does not jump, and Material has a
-        previous fill colour to animate away from when the answer locks.
-
-        Args:
-            answered: Whether the question has been put down, which locks the
-                field and greys it.
-            typed: What is already in it. Read off the outgoing field, because
-                that is the one the client has been sending keystrokes to.
-
-        Returns:
-            The field.
-        """
+        """Return the answer field in the state this question leaves it."""
         return motion.keyed(
             text_field(
                 hint_text="Type your answer",
@@ -576,17 +418,7 @@ class PracticeScreen(Screen):
         )
 
     def _lesson_foot(self, lesson: Lesson, active: ActiveExercise) -> ft.Control:
-        """Return whatever is pinned under the question.
-
-        Args:
-            lesson: The run in progress.
-            active: The exercise in front of the user.
-
-        Returns:
-            The leave question while it is being asked, the verdict sheet once
-            the question has been answered, and the buttons that answer it
-            before then.
-        """
+        """Return whatever is pinned under the question."""
         if self._leaving:
             return self._leave_sheet()
         if active.is_revealed:
@@ -613,16 +445,7 @@ class PracticeScreen(Screen):
         )
 
     def _feedback(self, lesson: Lesson, active: ActiveExercise) -> ft.Control:
-        """Return the sheet that says how the answer went.
-
-        Args:
-            lesson: The run in progress.
-            active: The exercise that was just answered.
-
-        Returns:
-            The verdict, the book's answer, the rule behind it on request, and
-            the one button that moves on.
-        """
+        """Return the sheet that says how the answer went."""
         evaluation = active.evaluation
         if evaluation is None:
             tint = ft.Colors.TERTIARY_CONTAINER
@@ -679,20 +502,7 @@ class PracticeScreen(Screen):
         )
 
     def _answer_note(self, active: ActiveExercise) -> ft.Control:
-        """Return the book's answer, on its own surface inside the sheet.
-
-        A neutral card keeps the book's markdown readable whatever colour the
-        verdict has painted around it. *What* goes in it -- which answers, and
-        whether the book's whole sentence adds anything to the short form --
-        is :func:`practice_core.reveal.reveal_for`'s decision, shared with the
-        bot so that one graded answer cannot read two ways.
-
-        Args:
-            active: The exercise that was just answered.
-
-        Returns:
-            The card.
-        """
+        """Return the book's answer, on its own surface inside the sheet."""
         reveal = active.reveal(show_rule=self._services.config.show_rules)
         children: list[ft.Control] = []
 
@@ -739,15 +549,7 @@ class PracticeScreen(Screen):
         )
 
     def _rule_controls(self, reveal: Reveal) -> list[ft.Control]:
-        """Return the rule behind the answer, folded away until it is asked for.
-
-        Args:
-            reveal: What was decided for the question just answered.
-
-        Returns:
-            Nothing when there is no rule to show; the toggle, and the rule
-            under it when it is open, otherwise.
-        """
+        """Return the rule behind the answer, folded away until it is asked for."""
         rule = reveal.rule
         if rule is None:
             return []
@@ -791,14 +593,7 @@ class PracticeScreen(Screen):
     # --- The result ---
 
     def _result_panels(self, lesson: Lesson) -> list[ft.Control]:
-        """Return the screen shown when a lesson is over.
-
-        Args:
-            lesson: The run that just finished.
-
-        Returns:
-            How it went, in one line and in three figures.
-        """
+        """Return the screen shown when a lesson is over."""
         percent = round(lesson.accuracy * 100)
         return [
             placeholder(
@@ -833,14 +628,7 @@ class PracticeScreen(Screen):
         ]
 
     def _result_actions(self, lesson: Lesson) -> ft.Control:
-        """Return the buttons under a finished lesson.
-
-        Args:
-            lesson: The run that just finished.
-
-        Returns:
-            The bar: another run of the same, or back to the home screen.
-        """
+        """Return the buttons under a finished lesson."""
         return action_bar(
             secondary_action(
                 "Done",
@@ -860,19 +648,7 @@ class PracticeScreen(Screen):
     # --- The picture, magnified ---
 
     def _zoom_pane(self, active: ActiveExercise, image: bytes) -> list[ft.Control]:
-        """Return the whole screen given over to the exercise image.
-
-        A phone has one screen and the crop wants all of it, so this replaces
-        the lesson rather than floating over it - and the way back is the same
-        bar the lesson's own way out sits in.
-
-        Args:
-            active: The exercise in front of the user.
-            image: Its picture, which the caller has already found.
-
-        Returns:
-            The bar, and the picture under it.
-        """
+        """Return the whole screen given over to the exercise image."""
         return [
             self._bar(
                 "zoom",
@@ -925,15 +701,7 @@ class PracticeScreen(Screen):
     # --- Leaving a lesson ---
 
     def _leave_sheet(self) -> ft.Control:
-        """Return the question asked on the way out of a lesson.
-
-        It is the same sheet the verdict arrives in, for the same reason: the
-        question and the answer the user is part-way through stay on screen
-        while they decide, instead of being greyed out behind a box.
-
-        Returns:
-            The sheet: what leaving costs, and the two ways to answer.
-        """
+        """Return the question asked on the way out of a lesson."""
         on_tint = ft.Colors.ON_SECONDARY_CONTAINER
         return sheet(
             ft.Row(
@@ -979,16 +747,7 @@ class PracticeScreen(Screen):
     # --- What the back gesture asks for ---
 
     def handle_back(self) -> bool:
-        """Take the system Back gesture, if this screen has a use for it.
-
-        Back is the same gesture as the lesson's cross, and letting it close
-        the app mid-lesson was the app's rudest bug: ten questions in, and the
-        run is gone with nothing asked.
-
-        Returns:
-            Whether the gesture was used. ``False`` means this screen has
-            nothing open and the shell may do what it likes with it.
-        """
+        """Take the system Back gesture, if this screen has a use for it."""
         if self._zoom_open:
             self._close_zoom()
             return True
@@ -1126,16 +885,7 @@ class PracticeScreen(Screen):
     # --- Running a lesson ---
 
     async def start_lesson(self, topic_id: int | None, topic_name: str) -> None:
-        """Draw the first question of a run and hand the screen over to it.
-
-        The question is drawn before the lesson exists, so a topic with nothing
-        in it leaves the user on the home screen with a message rather than
-        inside an empty lesson they have to back out of.
-
-        Args:
-            topic_id: The topic to draw from, or ``None`` for a mixed run.
-            topic_name: What to call the run on screen.
-        """
+        """Draw the first question of a run and hand the screen over to it."""
         drawn = await self._draw(topic_id, topic_name)
         if drawn is None:
             return
@@ -1154,16 +904,7 @@ class PracticeScreen(Screen):
     async def _draw(
         self, topic_id: int | None, topic_name: str
     ) -> ActiveExercise | None:
-        """Draw one question, with everything needed to grade and show it.
-
-        Args:
-            topic_id: The topic to draw from, or ``None`` for any.
-            topic_name: What to call it on screen.
-
-        Returns:
-            The question, or ``None`` when there was nothing to draw — in which
-            case the user has already been told why.
-        """
+        """Draw one question, with everything needed to grade and show it."""
         try:
             active = await self._services.content.draw(topic_id, topic_name=topic_name)
         except ContentError as exc:
@@ -1177,12 +918,7 @@ class PracticeScreen(Screen):
         return active
 
     def _close_panes(self) -> None:
-        """Put away anything the lesson had open over itself.
-
-        Both flags outlive the lesson they belong to otherwise, and a leave
-        question left standing greets the *next* lesson with its own way out
-        already on screen.
-        """
+        """Put away anything the lesson had open over itself."""
         self._leaving = False
         self._zoom_open = False
 
@@ -1202,12 +938,7 @@ class PracticeScreen(Screen):
     # --- Loading ---
 
     async def reload(self) -> None:
-        """Load what the home screen shows: the topics, and today's progress.
-
-        The topics are read once — they ship with the app and cannot change —
-        while the figures are read every time, so the card is current whenever
-        the tab comes back into view.
-        """
+        """Load what the home screen shows: the topics, and today's progress."""
         if not self._topics:
             try:
                 self._topics = tuple(await self._services.content.list_topics())

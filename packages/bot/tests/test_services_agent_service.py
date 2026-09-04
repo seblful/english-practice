@@ -43,15 +43,7 @@ def _kwargs(mock: AsyncMock) -> dict[str, Any]:
 
 
 def _stub(monkeypatch: pytest.MonkeyPatch, max_history_messages: int = 20) -> Stubbed:
-    """Build a service with stubbed agents.
-
-    Args:
-        monkeypatch: Fixture used to replace the agent methods.
-        max_history_messages: Transcript cap to configure.
-
-    Returns:
-        The service and the two stubs standing in for its agents.
-    """
+    """Build a service with stubbed agents."""
     service = AgentService(
         llm=Mock(spec=BaseChatModel), max_history_messages=max_history_messages
     )

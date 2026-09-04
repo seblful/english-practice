@@ -1,15 +1,4 @@
-"""Reading the book: topics, exercises, questions, answers and images.
-
-Every public method is ``async``. Running the statement off the event loop is
-:class:`~practice_core.sqlite.SqliteStore`'s job, and this holds one rather
-than being one -- the bot keeps its own table of authorized users in the same
-file, and it used to reach that plumbing by subclassing this class, so a table
-that has nothing to do with the book came with every content query attached.
-
-The app opens the database read-only, because it ships inside the APK and
-nothing may write to it; the bot opens it read-write. That is the only
-difference, and it is a constructor flag.
-"""
+"""Reading the book: topics, exercises, questions, answers and images."""
 
 import random
 import sqlite3
@@ -44,15 +33,7 @@ _EXERCISE_COLUMNS = """
 
 
 def _to_exercise(row: sqlite3.Row, questions: Sequence[Question] = ()) -> Exercise:
-    """Build an exercise from a joined exercise/unit row.
-
-    Args:
-        row: Row selected with ``_EXERCISE_COLUMNS``.
-        questions: Questions belonging to the exercise, in display order.
-
-    Returns:
-        The exercise with its unit attached.
-    """
+    """Build an exercise from a joined exercise/unit row."""
     return Exercise(
         id=row["id"],
         exercise_id=row["exercise_id"],
@@ -71,14 +52,7 @@ class ContentLibrary:
     """Reads the book: topics, exercises, questions, answers and images."""
 
     def __init__(self, db_path: Path, *, read_only: bool = False) -> None:
-        """Initialize the library.
-
-        Args:
-            db_path: SQLite file to use. It is not opened until the first
-                query, so constructing this before the file exists is safe.
-            read_only: Open the file read-only, and refuse to create it. The
-                app sets this; the bot does not, because it also writes.
-        """
+        """Initialize the library."""
         self._store = SqliteStore(db_path, read_only=read_only)
 
     @property
@@ -94,11 +68,7 @@ class ContentLibrary:
     # --- Content ---
 
     async def counts(self) -> ContentCounts:
-        """Return how much material the database holds.
-
-        Returns:
-            The row counts, for an "about" screen or a health check.
-        """
+        """Return how much material the database holds."""
         row = await self._store.row(
             """
             SELECT
@@ -113,11 +83,7 @@ class ContentLibrary:
         return ContentCounts.model_validate(dict(row))
 
     async def list_topics(self) -> list[Topic]:
-        """Return every topic, alphabetically, with its unit count.
-
-        Returns:
-            All topics in the database.
-        """
+        """Return every topic, alphabetically, with its unit count."""
         rows = await self._store.rows(
             """
             SELECT t.id, t.name, COUNT(ut.unit_id) AS unit_count
@@ -130,14 +96,7 @@ class ContentLibrary:
         return [Topic.model_validate(dict(row)) for row in rows]
 
     async def get_topic(self, topic_id: int) -> Topic | None:
-        """Return one topic.
-
-        Args:
-            topic_id: Topic database ID.
-
-        Returns:
-            The topic, or ``None`` when no such topic exists.
-        """
+        """Return one topic."""
         row = await self._store.row(
             """
             SELECT t.id, t.name, COUNT(ut.unit_id) AS unit_count
@@ -151,20 +110,7 @@ class ContentLibrary:
         return Topic.model_validate(dict(row)) if row else None
 
     async def random_exercise(self, topic_id: int | None = None) -> Exercise | None:
-        """Draw a random exercise that actually has questions.
-
-        The ``EXISTS`` clause is what makes the draw safe to use directly: an
-        exercise whose questions were never imported can never be returned, so
-        callers need no retry loop. Selection happens in SQL rather than by
-        loading every candidate row and choosing in Python.
-
-        Args:
-            topic_id: Restrict the draw to this topic, or ``None`` for any.
-
-        Returns:
-            An exercise with its questions, or ``None`` when the filter matches
-            nothing.
-        """
+        """Draw a random exercise that actually has questions."""
         topic_filter = (
             """
             AND EXISTS (
@@ -192,14 +138,7 @@ class ContentLibrary:
         return _to_exercise(row, await self._questions_for(row["id"]))
 
     async def _questions_for(self, exercise_id: int) -> list[Question]:
-        """Return an exercise's questions in display order.
-
-        Args:
-            exercise_id: Exercise database ID.
-
-        Returns:
-            The questions, ordered as they are printed.
-        """
+        """Return an exercise's questions in display order."""
         rows = await self._store.rows(
             """
             SELECT id, question_id, is_open_ended,
@@ -213,17 +152,7 @@ class ContentLibrary:
         return [Question.model_validate(dict(row)) for row in rows]
 
     async def get_exercise_image(self, exercise_id: int) -> bytes | None:
-        """Return an exercise's image bytes.
-
-        Args:
-            exercise_id: Exercise database ID.
-
-        Returns:
-            The stored image, or ``None`` when the exercise has no usable one.
-            A zero-length blob is a broken import rather than a picture —
-            :mod:`practice_extraction.validate` reports them — so it counts as
-            absent instead of reaching a screen as an empty frame.
-        """
+        """Return an exercise's image bytes."""
         row = await self._store.row(
             "SELECT image_data FROM exercise_images WHERE exercise_id = ?",
             (exercise_id,),
@@ -234,14 +163,7 @@ class ContentLibrary:
         return image or None
 
     async def list_answers(self, question_id: int) -> list[QuestionAnswer]:
-        """Return every accepted answer for a question.
-
-        Args:
-            question_id: Question database ID.
-
-        Returns:
-            The answers in insertion order; the first is the canonical one.
-        """
+        """Return every accepted answer for a question."""
         rows = await self._store.rows(
             """
             SELECT short_answer, full_answer
@@ -260,27 +182,7 @@ class ContentLibrary:
         topic_name: str | None = None,
         choose: Callable[[Sequence[Question]], Question] | None = None,
     ) -> ActiveExercise | None:
-        """Draw a question a student can be asked, ready to be answered.
-
-        Everything the question needs travels with it: the exercise it came
-        from, its picture, the book's answers, and what to call the topic on
-        screen. This used to hand back three of those as a tuple and leave the
-        answers to the caller, so both front ends assembled the state
-        themselves and the bot's copy went out with none -- an exercise whose
-        reveal would have printed nothing had anything else reached it first.
-
-        Args:
-            topic_id: Restrict the draw to this topic, or ``None`` for any.
-            topic_name: What the student called the topic they asked for.
-                Ignored when no topic was asked for, so the label falls back
-                to the unit -- the rule was spelled once per front end.
-            choose: Random source for picking the question, injectable so a
-                test can make the draw deterministic.
-
-        Returns:
-            The question and everything needed to ask and grade it, or
-            ``None`` when the filter matches nothing to practise.
-        """
+        """Draw a question a student can be asked, ready to be answered."""
         exercise = await self.random_exercise(topic_id)
         if exercise is None or not exercise.questions:
             return None

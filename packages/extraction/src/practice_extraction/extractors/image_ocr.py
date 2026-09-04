@@ -17,15 +17,7 @@ class ImageOcrExtractor:
         api_key: str | None = None,
         model: str = DEFAULT_OCR_MODEL,
     ) -> None:
-        """Initialize the extractor.
-
-        Args:
-            api_key: Mistral API key. Read from ``OcrSettings`` by the caller,
-                which resolves ``OCR_API_KEY``, ``MISTRAL_API_KEY`` and the
-                legacy ``API_KEY``; reading one of those here would honour only
-                that name and mask the other two.
-            model: OCR model name (e.g. from config mistral.ocr_model).
-        """
+        """Initialize the extractor."""
         self._api_key = api_key
         self._model = model
         self._client: Mistral | None = None
@@ -41,32 +33,11 @@ class ImageOcrExtractor:
         return self._client
 
     def _encode_image(self, image_path: Path) -> str:
-        """Encode an image file to a data URL (base64).
-
-        The media type is read off the bytes rather than off the filename.
-        This used to build one from the suffix, which named a format the file
-        might not hold and could emit types IANA does not have -- ``.tif``
-        became ``image/tif``. :mod:`practice_core.images` owns that decision
-        precisely because assuming it is what sent ``data:image/png`` for a
-        WebP blob elsewhere.
-
-        Args:
-            image_path: Path to the image file.
-
-        Returns:
-            Data URL string (e.g. data:image/png;base64,...).
-        """
+        """Encode an image file to a data URL (base64)."""
         return data_uri(image_path.read_bytes())
 
     def ocr(self, image_path: Path) -> str:
-        """Run OCR on an image and return extracted text as markdown.
-
-        Args:
-            image_path: Path to the image file.
-
-        Returns:
-            Extracted text as markdown.
-        """
+        """Run OCR on an image and return extracted text as markdown."""
         client = self._get_client()
         data_url = self._encode_image(image_path)
 
@@ -82,16 +53,7 @@ class ImageOcrExtractor:
         return ""
 
     def ocr_and_save(self, image_path: Path, output_path: Path | None = None) -> Path:
-        """Extract text from an image and save to a markdown file.
-
-        Args:
-            image_path: Path to the image file.
-            output_path: Path for the markdown file. If None, uses same directory
-                and stem with .md extension (e.g. 1.png -> 1.md).
-
-        Returns:
-            The path where the markdown was written.
-        """
+        """Extract text from an image and save to a markdown file."""
         if output_path is None:
             output_path = image_path.parent / f"{image_path.stem}.md"
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -105,19 +67,7 @@ class ImageOcrExtractor:
         pattern: str = "*.png",
         output_dir: Path | None = None,
     ) -> list[Path]:
-        """Run OCR on all matching images in a directory (resumable).
-
-        Skips images whose output .md already exists. Uses tqdm for progress.
-
-        Args:
-            images_dir: Directory containing image files.
-            pattern: Glob pattern for image files (e.g. "*.png").
-            output_dir: Directory for markdown files. If None, writes next to
-                each image (same path with .md extension).
-
-        Returns:
-            List of output markdown paths that were written.
-        """
+        """Run OCR on all matching images in a directory (resumable)."""
         image_paths = sorted(
             images_dir.glob(pattern),
             key=lambda p: (

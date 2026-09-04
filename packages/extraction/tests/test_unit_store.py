@@ -1,9 +1,4 @@
-"""Tests for the content tree an extraction stage reads and writes.
-
-These used to reach into a base class through a subclass declared here only to
-make it constructible -- the shape you write when the thing under test is a
-parent rather than a value. The store is a value now, so it is built directly.
-"""
+"""Tests for the content tree an extraction stage reads and writes."""
 
 import json
 from pathlib import Path
@@ -147,12 +142,7 @@ class TestResuming:
 
 
 class TestHollowUnits:
-    """A unit is cached by its presence, so an empty one must be visible.
-
-    Both extractors skip past a question the model omitted, and a unit whose
-    calls all came back unusable is still appended, saved, and skipped on
-    every re-run after that.
-    """
+    """A unit is cached by its presence, so an empty one must be visible."""
 
     @pytest.fixture
     def warnings(self, monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, dict]]:

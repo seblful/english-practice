@@ -1,17 +1,4 @@
-"""The grading contract: what the model is asked, and how the answer is read.
-
-Both front ends send the same prompt and read the reply the same way, which is
-the point of this module: if the bot marked an answer right and the app marked
-it wrong, the difference would be here.
-
-They do not, however, reach a provider the same way. The bot gets a built model
-back from LangChain's structured output; the app parses raw JSON. Neither path
-can be trusted to sanitise the reply on its way past, and for a while only the
-app did. So the rules live on :class:`EvaluateAnswerOutput` itself, as
-validators: whichever path builds one, the same nonsense is dropped and the
-same missing verdict is refused, because there is no way to build one without
-crossing them.
-"""
+"""The grading contract: what the model is asked, and how the answer is read."""
 
 import json
 from collections.abc import Mapping, Sequence
@@ -57,23 +44,7 @@ class EvaluateAnswerInput(BaseModel):
         answers: Sequence[QuestionAnswer],
         topic_name: str,
     ) -> Self:
-        """Build the prompt context for an attempt at one question.
-
-        Four of the six fields are read straight off the question, so a caller
-        that already holds one has no reason to take them apart -- and every
-        caller does hold one. Spelling them out per front end is what had this
-        six-field list written out four times between a Telegram handler and
-        the prompt it ends in.
-
-        Args:
-            question: The question being answered.
-            user_input: What the student typed.
-            answers: The book's accepted answers, in order.
-            topic_name: The topic, for context.
-
-        Returns:
-            The context to render the grading prompt with.
-        """
+        """Build the prompt context for an attempt at one question."""
         return cls(
             question_number=question.question_id,
             user_input=user_input,
@@ -85,14 +56,7 @@ class EvaluateAnswerInput(BaseModel):
 
 
 class EvaluateAnswerOutput(BaseModel):
-    """The verdict the model returns.
-
-    The validators below are the whole point of the type. A provider is free to
-    reply with ``"answer_idx": [true, -1]`` or to leave the verdict out
-    altogether, and both front ends have to react identically -- so the
-    checking happens here, where neither can skip it, rather than in whichever
-    parser one of them happens to use.
-    """
+    """The verdict the model returns."""
 
     is_correct: bool = Field(
         description="Whether the user's answer is correct (true) or incorrect (false)"
@@ -108,13 +72,7 @@ class EvaluateAnswerOutput(BaseModel):
     @field_validator("is_correct", mode="before")
     @classmethod
     def _reject_a_guessed_verdict(cls, value: object) -> object:
-        """Refuse anything but a real boolean.
-
-        Pydantic would read ``1``, ``"true"`` or ``"yes"`` as ``True``. The
-        verdict is the one field worth being strict about: a reply that says
-        something else did not answer the question, and defaulting it either
-        way would tell the student something the model never said.
-        """
+        """Refuse anything but a real boolean."""
         if not isinstance(value, bool):
             raise ValueError(NO_VERDICT_MESSAGE)
         return value
@@ -135,18 +93,7 @@ class EvaluateAnswerOutput(BaseModel):
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> Self:
-        """Build a verdict from a decoded reply.
-
-        Args:
-            payload: The object the model replied with.
-
-        Returns:
-            The verdict, with any nonsense indexes dropped.
-
-        Raises:
-            GradingError: If the reply carries no usable ``is_correct``. A
-                missing verdict cannot be guessed.
-        """
+        """Build a verdict from a decoded reply."""
         try:
             return cls.model_validate(dict(payload))
         except ValidationError as exc:
@@ -157,16 +104,7 @@ class EvaluateAnswerOutput(BaseModel):
 def answers_to_show(
     answers: Sequence[QuestionAnswer], matched_indexes: Sequence[int]
 ) -> tuple[QuestionAnswer, ...]:
-    """Pick which expected answers to reveal.
-
-    Args:
-        answers: Every accepted answer, in book order.
-        matched_indexes: Indexes the grader reported as matching.
-
-    Returns:
-        The matched answers, or the canonical first one when the grader matched
-        nothing or reported an index that does not exist.
-    """
+    """Pick which expected answers to reveal."""
     matched = tuple(
         answers[index] for index in matched_indexes if 0 <= index < len(answers)
     )
@@ -174,21 +112,7 @@ def answers_to_show(
 
 
 def extract_json(text: str) -> dict[str, Any]:
-    """Return the JSON object a model replied with.
-
-    Models are asked for a bare object and mostly comply, but a fenced block or
-    a sentence of preamble is common enough that failing a grading over it
-    would be a worse bug than this leniency.
-
-    Args:
-        text: The model's reply.
-
-    Returns:
-        The decoded object.
-
-    Raises:
-        GradingError: If the reply holds no JSON object.
-    """
+    """Return the JSON object a model replied with."""
     candidate = text.strip()
     if candidate.startswith("```"):
         # Drop the opening fence with its optional language tag, then the close.
@@ -211,21 +135,5 @@ def extract_json(text: str) -> dict[str, Any]:
 
 
 def parse_evaluation(reply: str) -> EvaluateAnswerOutput:
-    """Read a verdict out of a model's raw reply.
-
-    This is the raw-text half of the contract, for a caller holding the reply
-    as it arrived. A caller whose provider already built the model -- LangChain
-    does -- gets the same checking from the validators on
-    :class:`EvaluateAnswerOutput` and needs nothing from here.
-
-    Args:
-        reply: The reply text.
-
-    Returns:
-        The verdict, with any nonsense indexes dropped.
-
-    Raises:
-        GradingError: If the reply holds no JSON object, or carries no
-            ``is_correct`` field.
-    """
+    """Read a verdict out of a model's raw reply."""
     return EvaluateAnswerOutput.from_payload(extract_json(reply))

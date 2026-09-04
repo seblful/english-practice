@@ -1,10 +1,4 @@
-"""Practice progress, kept in a small SQLite file in the app's storage.
-
-One row per graded answer is the whole model. Everything the stats screen shows
-— accuracy, streaks, the last week, the per-topic table — is derived from those
-rows on read, so there is no aggregate to keep in step and no migration to run
-when a new figure is added to the screen.
-"""
+"""Practice progress, kept in a small SQLite file in the app's storage."""
 
 import asyncio
 import sqlite3
@@ -44,15 +38,7 @@ def _now() -> datetime:
 
 
 def _local_date(stamp: str) -> date | None:
-    """Return the local calendar day a stored timestamp falls on.
-
-    Args:
-        stamp: An ISO-8601 timestamp as written by :meth:`StatsStore.record`.
-
-    Returns:
-        The local date, or ``None`` when the value cannot be parsed — a row
-        that predates a format change must not take the whole screen down.
-    """
+    """Return the local calendar day a stored timestamp falls on."""
     try:
         parsed = datetime.fromisoformat(stamp)
     except ValueError:
@@ -141,14 +127,7 @@ class StatsSummary:
 
 @dataclass(slots=True)
 class _Tally:
-    """Attempts and hits while they are still being counted.
-
-    The loop below used to carry these as a two-slot list, so "attempts" and
-    "correct" were positions rather than names -- restated at six sites, and a
-    transposition anywhere reported an accuracy above 100% with nothing
-    failing. :class:`TopicStat` and :class:`DayStat` are the frozen forms of
-    the same pair, built from this once the counting is done.
-    """
+    """Attempts and hits while they are still being counted."""
 
     attempts: int = 0
     correct: int = 0
@@ -162,16 +141,7 @@ class _Tally:
 def _summarize(
     rows: Sequence[tuple[str, str, int]], today: date, days: int
 ) -> StatsSummary:
-    """Build the summary from every recorded attempt, oldest first.
-
-    Args:
-        rows: ``(answered_at, topic_name, is_correct)`` in insertion order.
-        today: The local date to anchor "today" and the streaks to.
-        days: How many recent days the chart covers.
-
-    Returns:
-        The summary.
-    """
+    """Build the summary from every recorded attempt, oldest first."""
     # The chart needs at least one column whatever the caller asked for.
     days = max(1, days)
 
@@ -248,23 +218,13 @@ class StatsStore:
     """Records graded answers and reports on them."""
 
     def __init__(self, db_path: Path, clock: Callable[[], datetime] = _now) -> None:
-        """Initialize the store.
-
-        Args:
-            db_path: The SQLite file to use. Created, with its directory, on
-                first write.
-            clock: Time source, injectable for tests.
-        """
+        """Initialize the store."""
         self.db_path = db_path
         self._clock = clock
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
-        """Yield a connection with the schema applied, and always close it.
-
-        Yields:
-            A connection that commits on success and rolls back on error.
-        """
+        """Yield a connection with the schema applied, and always close it."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with closing(sqlite3.connect(self.db_path, timeout=5.0)) as conn:
             conn.row_factory = sqlite3.Row
@@ -310,24 +270,13 @@ class StatsStore:
             conn.execute("DELETE FROM attempts")
 
     async def record(self, attempt: Attempt) -> None:
-        """Record one graded answer.
-
-        Args:
-            attempt: What was answered, and whether it was right.
-        """
+        """Record one graded answer."""
         await asyncio.to_thread(
             self._record_sync, attempt, self._clock().isoformat(timespec="seconds")
         )
 
     async def summary(self, days: int = RECENT_DAYS) -> StatsSummary:
-        """Return the figures the stats screen shows.
-
-        Args:
-            days: How many recent days the day-by-day chart covers.
-
-        Returns:
-            The summary; empty but well-formed when nothing is recorded yet.
-        """
+        """Return the figures the stats screen shows."""
         rows = await asyncio.to_thread(self._rows_sync)
         today = self._clock().astimezone().date()
         return _summarize(rows, today, days)

@@ -1,10 +1,4 @@
-"""Tests for the lesson both front ends can now run.
-
-These assert through the transitions rather than by setting fields, which is
-the point of moving them here: recording an outcome used to be the caller's
-duty, so the rule that a revealed answer never counts as correct was enforced
-by whoever remembered to pass ``correct=False``.
-"""
+"""Tests for the lesson both front ends can now run."""
 
 from dataclasses import replace
 
@@ -42,11 +36,7 @@ def lesson(active: ActiveExercise) -> Lesson:
 
 
 def _answer(lesson: Lesson, active: ActiveExercise, *, correct: bool) -> None:
-    """Draw a question and grade it, the way a front end drives a run.
-
-    A fresh copy each time, because a run draws a fresh question each time and
-    a question may only be settled once.
-    """
+    """Draw a question and grade it, the way a front end drives a run."""
     lesson.advance(replace(active))
     lesson.check(EvaluateAnswerOutput(is_correct=correct))
 
@@ -100,13 +90,7 @@ class TestCheck:
         assert returned.is_revealed is True
 
     def test_a_settled_question_refuses_a_second_outcome(self, lesson: Lesson) -> None:
-        """One question, one of the run's slots.
-
-        Nothing enforced this: a failed grading followed by a verdict spent
-        two of the ten, so the bar and the counter reported a lesson longer
-        than the one the student sat. The app was safe only because the screen
-        hides the Check button once an answer is revealed.
-        """
+        """One question, one of the run's slots."""
         lesson.grading_failed()
 
         with pytest.raises(PracticeError, match="already has an outcome"):

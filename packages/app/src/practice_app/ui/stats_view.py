@@ -1,9 +1,4 @@
-"""The progress screen.
-
-Everything here is derived from the attempt rows on each visit, so the screen
-is a pure function of :class:`~practice_app.stats.StatsSummary` — which is what
-makes it worth reading: no counter can drift out of step with the answers.
-"""
+"""The progress screen."""
 
 import flet as ft
 
@@ -49,15 +44,7 @@ _FAIR_ACCURACY = 0.5
 
 
 def _accuracy_color(accuracy: float, attempts: int) -> str:
-    """Return the colour that stands for an accuracy.
-
-    Args:
-        accuracy: The share correct, from 0 to 1.
-        attempts: How many answers it is based on; none means no colour.
-
-    Returns:
-        A theme colour role.
-    """
+    """Return the colour that stands for an accuracy."""
     if attempts == 0:
         return ft.Colors.SURFACE_CONTAINER_HIGHEST
     if accuracy >= _STRONG_ACCURACY:
@@ -75,12 +62,7 @@ class StatsScreen(Screen):
     tab_icon = ft.Icons.INSIGHTS_ROUNDED
 
     def __init__(self, page: DialogPage, services: Services) -> None:
-        """Build the screen.
-
-        Args:
-            page: The page, for the reset confirmation and snack bars.
-            services: The app's dependencies.
-        """
+        """Build the screen."""
         self._page = page
         self._services = services
         self._summary = StatsSummary()
@@ -122,14 +104,7 @@ class StatsScreen(Screen):
         ]
 
     def _hero(self, summary: StatsSummary) -> ft.Control:
-        """Return the headline accuracy card.
-
-        Args:
-            summary: The figures to show.
-
-        Returns:
-            The card.
-        """
+        """Return the headline accuracy card."""
         percent = round(summary.accuracy * 100)
         return ft.Container(
             content=ft.Column(
@@ -188,14 +163,7 @@ class StatsScreen(Screen):
         )
 
     def _streaks(self, summary: StatsSummary) -> ft.Control:
-        """Return the run of small figures under the accuracy card.
-
-        Args:
-            summary: The figures to show.
-
-        Returns:
-            Four tiles, two to a row.
-        """
+        """Return the run of small figures under the accuracy card."""
         today = summary.today
         tiles = (
             stat_tile(
@@ -232,14 +200,7 @@ class StatsScreen(Screen):
         )
 
     def _week(self, summary: StatsSummary) -> ft.Control:
-        """Return the day-by-day chart of the last week.
-
-        Args:
-            summary: The figures to show.
-
-        Returns:
-            The panel.
-        """
+        """Return the day-by-day chart of the last week."""
         busiest = max((day.attempts for day in summary.recent_days), default=0)
         return panel(
             motion.keyed(
@@ -255,16 +216,7 @@ class StatsScreen(Screen):
         )
 
     def _bar(self, day: DayStat, busiest: int) -> ft.Control:
-        """Return one column of the weekly chart.
-
-        Args:
-            day: The day to draw.
-            busiest: The highest attempt count in the window, which sets the
-                scale so a quiet week is not drawn as a flat line.
-
-        Returns:
-            The bar, its weekday letter, and its count.
-        """
+        """Return one column of the weekly chart."""
         share = day.attempts / busiest if busiest else 0
         height = max(_MIN_BAR_HEIGHT, round(share * _MAX_BAR_HEIGHT))
 
@@ -309,14 +261,7 @@ class StatsScreen(Screen):
         )
 
     def _topics(self, summary: StatsSummary) -> ft.Control:
-        """Return the per-topic breakdown.
-
-        Args:
-            summary: The figures to show.
-
-        Returns:
-            The panel.
-        """
+        """Return the per-topic breakdown."""
         shown = summary.topics[:_TOP_TOPICS]
         rows: list[ft.Control] = [self._topic_row(topic) for topic in shown]
         if len(summary.topics) > len(shown):
@@ -324,14 +269,7 @@ class StatsScreen(Screen):
         return panel(*rows, title="By topic", spacing=GAP)
 
     def _topic_row(self, topic: TopicStat) -> ft.Control:
-        """Return one topic's line.
-
-        Args:
-            topic: The topic to show.
-
-        Returns:
-            Its name, its bar and its tally.
-        """
+        """Return one topic's line."""
         return ft.Column(
             controls=[
                 ft.Row(
@@ -365,14 +303,7 @@ class StatsScreen(Screen):
         )
 
     def _footer(self, summary: StatsSummary) -> ft.Control:
-        """Return the practice window and the reset button.
-
-        Args:
-            summary: The figures to show.
-
-        Returns:
-            The footer.
-        """
+        """Return the practice window and the reset button."""
         span = ""
         if summary.first_day and summary.last_day:
             span = (

@@ -1,10 +1,4 @@
-"""Domain models for the practice content, as stored in the database.
-
-These are read models: immutable snapshots handed out by
-:class:`~practice_core.content.ContentLibrary`. Keeping them typed is what
-stops raw ``sqlite3.Row`` dictionaries from leaking into a bot handler or an
-app screen, where a renamed column would only fail at runtime.
-"""
+"""Domain models for the practice content, as stored in the database."""
 
 from pydantic import BaseModel, ConfigDict, Field
 

@@ -14,11 +14,7 @@ from practice_runtime.settings import LoggingSettings
 
 
 def _clear_root() -> None:
-    """Drop root handlers so setup_logging runs past its idempotency guard.
-
-    pytest installs its own capture handler around each test, which would
-    otherwise make setup_logging return early.
-    """
+    """Drop root handlers so setup_logging runs past its idempotency guard."""
     for handler in list(logging.root.handlers):
         logging.root.removeHandler(handler)
     structlog.reset_defaults()

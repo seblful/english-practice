@@ -1,9 +1,4 @@
-"""Tests for EvaluateAnswerAgent.
-
-The prompt itself is `practice_core`'s, and is tested there. What matters here
-is that the agent sends *that* prompt, built from the question it was handed,
-with the image and the output model the provider needs.
-"""
+"""Tests for EvaluateAnswerAgent."""
 
 from unittest.mock import MagicMock, patch
 

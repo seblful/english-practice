@@ -1,14 +1,4 @@
-"""User settings, and the JSON file they live in.
-
-Settings are per-provider rather than global: switching from OpenRouter to
-Gemini to compare graders must not make the user retype a key and hunt for a
-model again, so every provider keeps its own key, model and thinking level and
-:attr:`AppConfig.provider` only says which of them is live.
-
-The file sits in the app's private storage directory, unencrypted — the same
-place, and the same protection, that Android's own shared preferences would
-give it. Nothing here is ever logged.
-"""
+"""User settings, and the JSON file they live in."""
 
 import json
 import os
@@ -42,13 +32,7 @@ MAX_PORT = 65535
 
 
 class ThemeChoice(StrEnum):
-    """The three values :attr:`AppConfig.theme` can take.
-
-    An enum rather than a bag of constants, like :class:`Provider` and
-    :class:`ThinkingLevel` beside it: the members still compare and serialise
-    as their strings, but a value that is not one of them can be rejected
-    where it is chosen instead of only where it is read back.
-    """
+    """The three values :attr:`AppConfig.theme` can take."""
 
     SYSTEM = "system"
     LIGHT = "light"
@@ -72,12 +56,7 @@ def _as_str(value: Any) -> str:
 
 @dataclass(frozen=True, slots=True)
 class ProxyConfig:
-    """An optional HTTP or SOCKS5 proxy, with optional credentials.
-
-    Frozen because the live provider client bakes this in when its connection
-    pool is built. The settings screen used to edit it in place, so a host
-    typed one letter at a time reached the pool one letter at a time.
-    """
+    """An optional HTTP or SOCKS5 proxy, with optional credentials."""
 
     enabled: bool = False
     scheme: str = "http"
@@ -93,15 +72,7 @@ class ProxyConfig:
 
     @property
     def url(self) -> str | None:
-        """Return the proxy URL httpx should use, or ``None``.
-
-        Credentials are percent-encoded: a password with an ``@`` or a ``:`` in
-        it would otherwise split the authority and point the proxy elsewhere.
-
-        Returns:
-            The full proxy URL, or ``None`` when the proxy is off or
-            incomplete.
-        """
+        """Return the proxy URL httpx should use, or ``None``."""
         if not self.enabled or not self.is_complete:
             return None
 
@@ -128,14 +99,7 @@ class ProxyConfig:
 
     @classmethod
     def from_dict(cls, data: Any) -> "ProxyConfig":
-        """Build a proxy from stored JSON, ignoring anything unexpected.
-
-        Args:
-            data: The decoded ``proxy`` object, whatever it turned out to be.
-
-        Returns:
-            The proxy, with defaults wherever the stored value was unusable.
-        """
+        """Build a proxy from stored JSON, ignoring anything unexpected."""
         if not isinstance(data, dict):
             return cls()
 
@@ -176,16 +140,7 @@ class ProviderConfig:
 
     @classmethod
     def from_dict(cls, data: Any, *, provider: Provider) -> "ProviderConfig":
-        """Build provider settings from stored JSON.
-
-        Args:
-            data: The decoded object for one provider.
-            provider: Which provider the entry belongs to, for the defaults to
-                fall back on.
-
-        Returns:
-            The settings, with defaults wherever the stored value was unusable.
-        """
+        """Build provider settings from stored JSON."""
         default = _default_provider(provider)
         if not isinstance(data, dict):
             return default
@@ -220,14 +175,7 @@ class ProviderConfig:
 
 
 def _default_provider(provider: Provider) -> ProviderConfig:
-    """Return the settings a provider starts from, before anything is stored.
-
-    Args:
-        provider: The provider to describe.
-
-    Returns:
-        Its default model, and what that model is known to support.
-    """
+    """Return the settings a provider starts from, before anything is stored."""
     return ProviderConfig(
         model=provider.default_model,
         thinking=provider.default_thinking,
@@ -263,11 +211,7 @@ class AppConfig:
         )
 
     def missing(self) -> list[str]:
-        """Return one message per reason grading cannot run yet.
-
-        Returns:
-            Human-readable problems; empty when the app is configured.
-        """
+        """Return one message per reason grading cannot run yet."""
         problems: list[str] = []
         active = self.active
         if not active.api_key:
@@ -279,14 +223,7 @@ class AppConfig:
         return problems
 
     def with_active(self, **changes: Any) -> "AppConfig":
-        """Return this config with the active provider's fields changed.
-
-        Args:
-            **changes: Fields of :class:`ProviderConfig` to replace.
-
-        Returns:
-            A new config; the original is left alone.
-        """
+        """Return this config with the active provider's fields changed."""
         providers = dict(self.providers)
         providers[self.provider] = replace(self.active, **changes)
         return replace(self, providers=providers)
@@ -310,18 +247,7 @@ class AppConfig:
 
     @classmethod
     def from_dict(cls, data: Any) -> "AppConfig":
-        """Build a config from stored JSON.
-
-        A settings file written by a newer version, hand-edited, or truncated
-        by a crash must never stop the app from starting, so every field falls
-        back to its default independently.
-
-        Args:
-            data: The decoded settings file.
-
-        Returns:
-            The settings.
-        """
+        """Build a config from stored JSON."""
         if not isinstance(data, dict):
             return cls()
 
@@ -357,23 +283,11 @@ class ConfigStore:
     """Reads and writes the settings file."""
 
     def __init__(self, path: Path) -> None:
-        """Initialize the store.
-
-        Args:
-            path: The settings file. Its directory is created on save.
-        """
+        """Initialize the store."""
         self.path = path
 
     def load(self) -> AppConfig:
-        """Return the stored settings, or the defaults.
-
-        A file that cannot be read or parsed is treated as absent rather than
-        as an error: the alternative is an app that will not start until
-        someone with a file manager deletes it.
-
-        Returns:
-            The settings.
-        """
+        """Return the stored settings, or the defaults."""
         try:
             raw = self.path.read_text(encoding="utf-8")
         except OSError:
@@ -385,14 +299,7 @@ class ConfigStore:
             return AppConfig()
 
     def save(self, config: AppConfig) -> None:
-        """Write the settings, replacing the file atomically.
-
-        The app writes on every toggle, so a write interrupted by the OS
-        killing a backgrounded app must not leave a half-written file behind.
-
-        Args:
-            config: The settings to store.
-        """
+        """Write the settings, replacing the file atomically."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = json.dumps(config.to_dict(), indent=2, sort_keys=True)
 

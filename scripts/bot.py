@@ -1,9 +1,4 @@
-"""Run the Telegram bot: ``uv run scripts/bot.py``.
-
-A convenience shim. The supported entry point is the console script the bot's
-package installs — ``english-practice bot`` — and the assembly it runs lives in
-:mod:`practice_bot.app`.
-"""
+"""Run the Telegram bot: ``uv run scripts/bot.py``."""
 
 from practice_bot.cli import app
 

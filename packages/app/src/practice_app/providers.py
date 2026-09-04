@@ -1,12 +1,4 @@
-"""Providers, thinking levels, and the request fragments they translate into.
-
-The three providers expose reasoning through three unrelated request shapes —
-OpenRouter nests it under ``reasoning``, OpenAI takes a bare
-``reasoning_effort``, Gemini wants a token budget — so the app keeps one
-:class:`ThinkingLevel` scale for the UI and does the translation here. Anything
-provider-specific about *thinking* belongs in this module; anything
-provider-specific about *transport* belongs in :mod:`practice_app.llm`.
-"""
+"""Providers, thinking levels, and the request fragments they translate into."""
 
 from dataclasses import dataclass
 from enum import StrEnum
@@ -51,24 +43,12 @@ class Provider(StrEnum):
 
     @property
     def default_model_reasons(self) -> bool:
-        """Whether :attr:`default_model` has a thinking control to offer.
-
-        The app chose these models, so what they support is known without
-        fetching a catalogue to ask. Saying so is what stops a fresh install
-        from greying the reasoning control out and claiming that the model it
-        selected itself cannot think.
-        """
+        """Whether :attr:`default_model` has a thinking control to offer."""
         return _DEFAULT_MODEL_REASONS[self]
 
     @property
     def default_thinking(self) -> "ThinkingLevel":
-        """Return the thinking level a fresh install grades at.
-
-        A little reasoning, rather than none: the levels every provider maps
-        to a real budget start here, and a model that cannot turn thinking off
-        at all -- which the newest flash models tend not to -- rejects the
-        request that asks it to.
-        """
+        """Return the thinking level a fresh install grades at."""
         return ThinkingLevel.LOW if self.default_model_reasons else ThinkingLevel.OFF
 
     @property
@@ -192,11 +172,7 @@ _THOUSAND = 1_000
 
 @dataclass(frozen=True, slots=True)
 class ModelInfo:
-    """One entry of a provider's model catalogue.
-
-    Only the fields the picker actually shows are kept: the catalogues run to
-    several hundred entries and the rest of each entry is never read.
-    """
+    """One entry of a provider's model catalogue."""
 
     id: str
     name: str
@@ -235,17 +211,7 @@ class ModelInfo:
         return f"{rates} per M"
 
     def matches(self, query: str) -> bool:
-        """Return whether this model matches a search query.
-
-        Every whitespace-separated term has to appear somewhere in the id, the
-        name, or the description, so "gemini flash" narrows rather than widens.
-
-        Args:
-            query: The user's raw search text.
-
-        Returns:
-            ``True`` when the model should stay in the filtered list.
-        """
+        """Return whether this model matches a search query."""
         terms = query.lower().split()
         if not terms:
             return True
@@ -254,19 +220,7 @@ class ModelInfo:
 
 
 def thinking_token_headroom(level: ThinkingLevel) -> int:
-    """Return how many output tokens this level needs on top of the answer.
-
-    Every provider here draws reasoning tokens from the same output allowance
-    as the answer, so a model told to think hard inside a 2048-token budget can
-    spend the lot thinking and return nothing. Callers add this to the user's
-    limit instead of asking them to reason about the interaction.
-
-    Args:
-        level: The level the user chose.
-
-    Returns:
-        Extra output tokens to allow; 0 when thinking is off.
-    """
+    """Return how many output tokens this level needs on top of the answer."""
     budget = _GEMINI_BUDGETS[level]
     # "Auto" has no stated budget; give it the same room as MEDIUM.
     return _GEMINI_BUDGETS[ThinkingLevel.MEDIUM] if budget < 0 else budget
@@ -275,18 +229,7 @@ def thinking_token_headroom(level: ThinkingLevel) -> int:
 def supported_thinking_levels(
     provider: Provider, *, supports_thinking: bool = True
 ) -> tuple[ThinkingLevel, ...]:
-    """Return the thinking levels worth offering for a provider and model.
-
-    Args:
-        provider: The selected provider.
-        supports_thinking: Whether the selected model reasons at all. A model
-            that does not gets only :attr:`ThinkingLevel.OFF`, so the UI can
-            show the control disabled rather than hide it and leave the user
-            wondering where it went.
-
-    Returns:
-        The levels in increasing order of effort.
-    """
+    """Return the thinking levels worth offering for a provider and model."""
     if not supports_thinking:
         return (ThinkingLevel.OFF,)
     if provider is Provider.GEMINI:
@@ -297,19 +240,7 @@ def supported_thinking_levels(
 def thinking_payload(
     provider: Provider, level: ThinkingLevel, *, supports_thinking: bool = True
 ) -> dict[str, Any]:
-    """Return the request fields that ask for this much reasoning.
-
-    Args:
-        provider: The provider the request is going to.
-        level: The level the user chose.
-        supports_thinking: Whether the model reasons at all. When it does not
-            no reasoning field is sent: providers reject the parameter outright
-            on a model that has no reasoning to configure.
-
-    Returns:
-        Fields to merge into the request body; empty when there is nothing to
-        say.
-    """
+    """Return the request fields that ask for this much reasoning."""
     if not supports_thinking:
         return {}
 

@@ -1,14 +1,4 @@
-"""Agent input/output models for the bot's structured LLM responses.
-
-The grading pair — :class:`EvaluateAnswerInput` and
-:class:`EvaluateAnswerOutput` — is not the bot's. It comes from
-:mod:`practice_core.grading`, shared with the Android app, because it travels
-with the prompt that both send. It is re-exported here so a handler has one
-place to import the models of a call from.
-
-What *is* the bot's is the assistant conversation below: the app has no such
-thing, by design.
-"""
+"""Agent input/output models for the bot's structured LLM responses."""
 
 from typing import Literal
 

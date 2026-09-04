@@ -13,14 +13,7 @@ MENU_PROMPT = "Choose an option:"
 
 
 def _welcome(first_name: str) -> str:
-    """Compose the greeting for a user starting the bot.
-
-    Args:
-        first_name: The user's first name as Telegram reports it.
-
-    Returns:
-        The message text.
-    """
+    """Compose the greeting for a user starting the bot."""
     return (
         f"👋 Welcome to Random Murphy's English Grammar, {first_name}!\n\n"
         "I'll help you practice English grammar with exercises from Murphy's "
@@ -30,12 +23,7 @@ def _welcome(first_name: str) -> str:
 
 @handler()
 async def start_command(who: Interaction, context: BotContext) -> None:
-    """Greet the user and offer the exercise menu.
-
-    Args:
-        who: The user behind the update.
-        context: The handler context.
-    """
+    """Greet the user and offer the exercise menu."""
     session = context.sessions.get(who.user.id)
     logger.info("bot_started", user_id=who.user.id)
 
@@ -47,12 +35,7 @@ async def start_command(who: Interaction, context: BotContext) -> None:
 
 @handler()
 async def exercise_command(who: Interaction, context: BotContext) -> None:
-    """Offer the exercise menu.
-
-    Args:
-        who: The user behind the update.
-        context: The handler context.
-    """
+    """Offer the exercise menu."""
     session = context.sessions.get(who.user.id)
     await who.say(
         MENU_PROMPT,
@@ -62,12 +45,7 @@ async def exercise_command(who: Interaction, context: BotContext) -> None:
 
 @handler()
 async def rule_command(who: Interaction, context: BotContext) -> None:
-    """Toggle whether grammar rules follow each answer.
-
-    Args:
-        who: The user behind the update.
-        context: The handler context.
-    """
+    """Toggle whether grammar rules follow each answer."""
     enabled = context.sessions.toggle_show_rule(who.user.id)
     status = "enabled ✅" if enabled else "disabled ❌"
     await who.say(f"📋 Rule display is now {status}.")
@@ -75,15 +53,7 @@ async def rule_command(who: Interaction, context: BotContext) -> None:
 
 @handler(Access.PUBLIC)
 async def help_command(who: Interaction, context: BotContext) -> None:
-    """Explain what the bot does and list its commands.
-
-    Help stays public: someone waiting for approval should still be able to
-    find out what they are waiting for.
-
-    Args:
-        who: The user behind the update.
-        context: The handler context.
-    """
+    """Explain what the bot does and list its commands."""
     await who.say(
         commands.help_text(include_admin=context.dependencies.is_admin(who.user.id)),
     )

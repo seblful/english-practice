@@ -1,15 +1,4 @@
-"""Shared fixtures for the app tests.
-
-Two fakes carry most of the weight. :class:`FakePage` stands in for the Flet
-page — recording the dialogs and snack bars a screen asks for, and carrying a
-:class:`FakeView` whose pop confirmation is how the shell answers Android's
-Back gesture — so a screen can be built and driven without a running app.
-:func:`transport` builds an ``httpx.MockTransport``, so a provider call can be
-asserted without a network.
-
-The content database is built from the schema ``practice-core`` ships: a column
-renamed there should break these tests instead of the phone.
-"""
+"""Shared fixtures for the app tests."""
 
 import sqlite3
 from collections.abc import Callable
@@ -215,30 +204,14 @@ def config() -> AppConfig:
 def json_transport(
     handler: Callable[[httpx.Request], httpx.Response],
 ) -> httpx.MockTransport:
-    """Return a transport that answers with whatever ``handler`` decides.
-
-    Args:
-        handler: Called with each request.
-
-    Returns:
-        The transport to hand an :class:`~practice_app.llm.LLMClient`.
-    """
+    """Return a transport that answers with whatever ``handler`` decides."""
     return httpx.MockTransport(handler)
 
 
 def reply_transport(
     text: str, *, status: int = 200, record: list[httpx.Request] | None = None
 ) -> httpx.MockTransport:
-    """Return a transport that answers every request with one chat reply.
-
-    Args:
-        text: What the model should appear to have said.
-        status: HTTP status to answer with.
-        record: Optional list every request is appended to.
-
-    Returns:
-        The transport.
-    """
+    """Return a transport that answers every request with one chat reply."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         if record is not None:

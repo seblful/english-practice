@@ -1,11 +1,4 @@
-"""Command line interface for the content pipeline.
-
-One command per stage, in the order they run. Every stage is resumable and
-writes files, so a run that stops halfway can be continued rather than redone.
-
-The stages that call an LLM share one chat-model client, built here: a client
-owns an HTTP connection pool, and the pipeline makes thousands of calls.
-"""
+"""Command line interface for the content pipeline."""
 
 import asyncio
 import functools
@@ -66,14 +59,7 @@ app = typer.Typer(help="english-practice content pipeline", no_args_is_help=True
 
 
 def _chat_model() -> BaseChatModel:
-    """Build the one chat-model client an extraction run uses.
-
-    Returns:
-        A client for the configured provider.
-
-    Raises:
-        Exit: With code 1 when the provider has no API key.
-    """
+    """Build the one chat-model client an extraction run uses."""
     try:
         return get_llm(get_settings().llm)
     except ConfigurationError as exc:
@@ -82,22 +68,7 @@ def _chat_model() -> BaseChatModel:
 
 
 def _ready(stage: Stage) -> Settings:
-    """Return the settings, refusing to run a stage whose inputs are absent.
-
-    A stage that runs without its inputs does not fail loudly. The rules
-    extractor read a missing file, got an empty mapping, spent an LLM call per
-    exercise on prompts with no answers in them, and cached every unit it
-    ruined -- so the useful moment to stop is before the first call.
-
-    Args:
-        stage: The stage about to run.
-
-    Returns:
-        The settings, when the stage can run.
-
-    Raises:
-        Exit: With code 1, listing what is missing and which stage makes it.
-    """
+    """Return the settings, refusing to run a stage whose inputs are absent."""
     settings = get_settings()
     missing = stage.missing_inputs(settings)
     if missing:
@@ -111,25 +82,7 @@ def _ready(stage: Stage) -> Settings:
 def stage_command(
     stage: Stage, **command_kwargs: Any
 ) -> Callable[[StageRunner], StageRunner]:
-    """Bind one function to one stage: its runner, and its command.
-
-    The stage supplies the command's name and the gate its inputs are checked
-    against, so the two halves cannot drift. They used to be joined by a
-    string typed twice -- once in ``@app.command(name=...)``, once in the
-    ``_ready("...")`` call inside the body -- with nothing checking that a
-    stage had a command at all. ``bundle`` did not call the gate, and its
-    declared input was enforced only by ``check``.
-
-    The command's parameters are the runner's own, minus the settings it is
-    handed, so a stage that takes an option declares it once.
-
-    Args:
-        stage: The stage this function performs.
-        command_kwargs: Passed to typer, for the help text.
-
-    Returns:
-        A decorator that registers the runner and returns it unchanged.
-    """
+    """Bind one function to one stage: its runner, and its command."""
 
     def bind(runner: StageRunner) -> StageRunner:
         register(stage, runner)
@@ -177,11 +130,7 @@ class SectionType(StrEnum):
 
 @app.command()
 def check() -> None:
-    """Report what a full pipeline run is still missing, stage by stage.
-
-    Raises:
-        Exit: With code 1 when something required is missing.
-    """
+    """Report what a full pipeline run is still missing, stage by stage."""
     settings = get_settings()
     problems = settings.missing_required()
     if problems:
@@ -306,11 +255,7 @@ def organize_exercises(settings: Settings) -> None:
 
 @stage_command(EXTRACT_ANSWERS, help="Extract answers from exercise images using LLM.")
 def extract_answers(settings: Settings) -> None:
-    """Extract answers from exercise images using LLM.
-
-    Processes all questions per exercise in a single LLM call.
-    Outputs to answers_full.json. Resumes from last stopped unit.
-    """
+    """Extract answers from exercise images using LLM."""
     extractor = AnswersExtractor(settings.paths, AnswersAgent(_chat_model()))
     output_path = asyncio.run(extractor.extract())
     logger.info("answers_extracted", output_path=str(output_path))
@@ -318,11 +263,7 @@ def extract_answers(settings: Settings) -> None:
 
 @stage_command(EXTRACT_RULES, help="Extract grammar rules from exercises using LLM.")
 def extract_rules(settings: Settings) -> None:
-    """Extract grammar rules from exercises using LLM.
-
-    Processes all questions per exercise in a single LLM call.
-    Outputs to rules.json. Resumes from last stopped unit.
-    """
+    """Extract grammar rules from exercises using LLM."""
     extractor = RulesExtractor(settings.paths, RulesAgent(_chat_model()))
     output_path = asyncio.run(extractor.extract())
     logger.info("rules_extracted", output_path=str(output_path))
@@ -340,11 +281,7 @@ def populate(
         help="Delete an existing database and rebuild it from scratch.",
     ),
 ) -> int:
-    """Build the exercise database from everything the stages extracted.
-
-    Returns:
-        The importer's exit code.
-    """
+    """Build the exercise database from everything the stages extracted."""
     return populate_module.main(force=force, paths=settings.paths)
 
 
@@ -352,11 +289,7 @@ def populate(
     VALIDATE, help="Check the exercise database for missing and inconsistent rows."
 )
 def validate(settings: Settings) -> int:
-    """Check the exercise database for missing and inconsistent rows.
-
-    Returns:
-        The report's exit code, non-zero when the database has errors.
-    """
+    """Check the exercise database for missing and inconsistent rows."""
     return validate_module.main(settings.paths.database_path)
 
 
@@ -379,14 +312,7 @@ def bundle(
         help="Database to read. Defaults to the configured one.",
     ),
 ) -> None:
-    """Build the compact exercise database that ships inside the Android app.
-
-    The bot's database is mostly 300-DPI PNG crops; this rewrites them as WebP
-    at phone resolution, which is roughly a tenth of the size.
-
-    Raises:
-        Exit: With code 1 when the source database is missing.
-    """
+    """Build the compact exercise database that ships inside the Android app."""
     db_path = source or settings.paths.database_path
     typer.echo(f"Reading {db_path}")
 

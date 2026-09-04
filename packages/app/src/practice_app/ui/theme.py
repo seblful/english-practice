@@ -1,17 +1,4 @@
-"""One place for the app's colours, spacing, corner radii and control shapes.
-
-Material 3 derives a whole palette from a seed colour, so the only colour
-decided here is the brand blue; every screen then names roles — ``PRIMARY``,
-``ON_SURFACE_VARIANT`` — rather than hex, and the light and dark schemes stay
-consistent for free. Flet decides brightness by which slot a theme is assigned
-to (``page.theme`` or ``page.dark_theme``), so one definition covers both.
-
-The theme also carries the *shape* of every stock control the app puts on
-screen — buttons, dialogs, expansion tiles, chips, the scrollbar. Anything
-stated here is stated once and reaches controls this package never builds
-itself, which is what stops a dialog's "Close" from being a stadium next to a
-rounded rectangle in the panel behind it.
-"""
+"""One place for the app's colours, spacing, corner radii and control shapes."""
 
 from typing import Any
 
@@ -69,14 +56,7 @@ LABEL_SIZE = 15
 
 
 def _button_style(**overrides: Any) -> ft.ButtonStyle:
-    """Return the shared button shape, with the caller's overrides on top.
-
-    Args:
-        **overrides: Anything :class:`ft.ButtonStyle` takes.
-
-    Returns:
-        The style.
-    """
+    """Return the shared button shape, with the caller's overrides on top."""
     base: dict[str, Any] = {
         "shape": ft.RoundedRectangleBorder(radius=RADIUS_BUTTON),
         "padding": ft.Padding.symmetric(horizontal=GAP + 2, vertical=GAP_SMALL + 4),
@@ -86,12 +66,7 @@ def _button_style(**overrides: Any) -> ft.ButtonStyle:
 
 
 def build_theme() -> ft.Theme:
-    """Return the app's theme.
-
-    Returns:
-        A Material 3 theme seeded from the brand colour, with the rounded,
-        flat surfaces the rest of the UI assumes.
-    """
+    """Return the app's theme."""
     return ft.Theme(
         color_scheme_seed=SEED,
         use_material3=True,
@@ -180,14 +155,7 @@ def build_theme() -> ft.Theme:
 
 
 def theme_mode(choice: str) -> ft.ThemeMode:
-    """Translate a stored theme preference into Flet's enum.
-
-    Args:
-        choice: One of :class:`~practice_app.config.ThemeChoice`.
-
-    Returns:
-        The matching theme mode, defaulting to following the system.
-    """
+    """Translate a stored theme preference into Flet's enum."""
     if choice == ThemeChoice.LIGHT:
         return ft.ThemeMode.LIGHT
     if choice == ThemeChoice.DARK:

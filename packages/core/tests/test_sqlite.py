@@ -1,10 +1,4 @@
-"""Tests for running SQL off the event loop.
-
-These used to be reachable only through :class:`ContentLibrary`, whose
-read-only guarantee had no public write to try it with -- so the test that
-proved it reached past the interface for an underscore method. The store is
-its own module now, and the guarantee is testable through its own front door.
-"""
+"""Tests for running SQL off the event loop."""
 
 import sqlite3
 from pathlib import Path

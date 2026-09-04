@@ -25,18 +25,7 @@ async def _reveal(
     session: UserSession,
     reveal: Reveal,
 ) -> None:
-    """Show the book's answer, the rule behind it, and the next-exercise menu.
-
-    What is in the reveal -- which answers, whether the book's whole sentence
-    adds anything to the short form, whether there is a rule to quote -- was
-    decided by :func:`practice_core.reveal.reveal_for`, shared with the app.
-    This function renders it in Telegram's HTML and nothing more.
-
-    Args:
-        who: The user behind the update.
-        session: The user's session.
-        reveal: What to show for the question just answered.
-    """
+    """Show the book's answer, the rule behind it, and the next-exercise menu."""
     if reveal.has_answer:
         await who.say(formatter.short_answers(reveal.answers))
         if reveal.show_full_answer:
@@ -59,20 +48,7 @@ async def _grade(
     session: UserSession,
     active: ActiveExercise,
 ) -> None:
-    """Grade the user's answer and reveal the book's.
-
-    A failed grading deliberately leaves the question unanswered, so the next
-    message is treated as another attempt rather than as a follow-up question.
-    The app cannot offer that -- a run there has a fixed length, so the
-    question is spent -- which is why the two policies live in the front ends
-    and only the reveal itself is shared.
-
-    Args:
-        who: The user behind the update.
-        context: The handler context.
-        session: The user's session.
-        active: The exercise being answered.
-    """
+    """Grade the user's answer and reveal the book's."""
     try:
         evaluation = await context.agents.grader.evaluate(
             active.question,
@@ -109,13 +85,7 @@ async def _grade(
 async def _explain(
     who: Interaction, context: BotContext, active: ActiveExercise
 ) -> None:
-    """Answer a follow-up question about the exercise just answered.
-
-    Args:
-        who: The user behind the update.
-        context: The handler context.
-        active: The exercise being discussed.
-    """
+    """Answer a follow-up question about the exercise just answered."""
     try:
         result = await context.agents.assist(
             user_id=who.user.id,
@@ -135,12 +105,7 @@ async def _explain(
 
 @handler()
 async def text_message(who: Interaction, context: BotContext) -> None:
-    """Route a text message to grading or to the assistant.
-
-    Args:
-        who: The user behind the update.
-        context: The handler context.
-    """
+    """Route a text message to grading or to the assistant."""
     session = context.sessions.get(who.user.id)
     active = session.active
 

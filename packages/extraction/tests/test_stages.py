@@ -1,9 +1,4 @@
-"""Tests for the pipeline's declared stage order.
-
-The order used to live in a README. These assert it is now a property of the
-code: every artifact a stage reads is either produced by a stage that runs
-before it, or is one an operator has to bring by hand.
-"""
+"""Tests for the pipeline's declared stage order."""
 
 from pathlib import Path
 
@@ -29,11 +24,7 @@ def settings(tmp_path: Path) -> Settings:
 
 class TestTheDeclaredOrder:
     def test_every_input_is_produced_before_it_is_needed(self) -> None:
-        """The check that replaces the README's numbered list.
-
-        Reorder the stages, or point one at an artifact a later stage writes,
-        and this fails.
-        """
+        """The check that replaces the README's numbered list."""
         produced: set[str] = set()
         for stage in STAGES:
             for artifact in stage.reads:
@@ -88,11 +79,7 @@ class TestArtifactPresence:
     def test_an_empty_directory_does_not_count_as_produced(
         self, settings: Settings
     ) -> None:
-        """Every command creates the tree it writes into before it runs.
-
-        Treating an empty directory as present is what let a stage run on
-        nothing at all.
-        """
+        """Every command creates the tree it writes into before it runs."""
         crops = Artifact("crops", lambda s: s.paths.exercises_dir)
         crops.path(settings).mkdir(parents=True, exist_ok=True)
 

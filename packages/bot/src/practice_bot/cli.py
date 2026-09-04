@@ -1,9 +1,4 @@
-"""Command line interface for the bot.
-
-Three commands: say what is configured, check that it is enough, and run.
-Building the database and bundling it for the phone are the content pipeline's
-job — ``practice-content`` — so nothing here imports it.
-"""
+"""Command line interface for the bot."""
 
 import typer
 from practice_runtime.errors import ConfigurationError
@@ -35,11 +30,7 @@ def info() -> None:
 
 @app.command()
 def check() -> None:
-    """Verify the configuration the bot needs to run.
-
-    Raises:
-        Exit: With code 1 when something required is missing.
-    """
+    """Verify the configuration the bot needs to run."""
     problems = get_settings().missing_required()
     if problems:
         typer.secho("Configuration is incomplete:", fg=typer.colors.RED)
@@ -52,11 +43,7 @@ def check() -> None:
 
 @app.command()
 def bot() -> None:
-    """Run the Telegram bot until interrupted.
-
-    Raises:
-        Exit: With code 1 when the bot cannot be configured.
-    """
+    """Run the Telegram bot until interrupted."""
     # Imported here so `info` and `check` work when the bot cannot be configured.
     from practice_bot.app import run  # noqa: PLC0415
 

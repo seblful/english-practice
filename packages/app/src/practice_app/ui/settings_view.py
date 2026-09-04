@@ -1,19 +1,4 @@
-"""The settings screen: provider, key, model, thinking, proxy, and the rest.
-
-One column of panels, in the order the settings matter: who grades (provider,
-key), what grades (model, reasoning), how practice behaves, and then the two
-groups almost nobody opens — the proxy and the sampling controls — folded away
-behind their own headings so the screen stays a short list rather than a wall
-of fields. Every panel is :func:`~practice_app.ui.components.panel` or
-:func:`~practice_app.ui.components.collapsible`, so they cannot drift into
-different surfaces, widths or radii.
-
-Two saving rules keep this honest. A tap — a provider, a model, a switch — is
-saved and applied at once, because there is no Save button to press. Typing is
-staged in memory and written when the field loses focus, because saving a
-partly typed API key on every keystroke would rebuild the HTTP pool forty
-times and re-render the screen under the user's finger.
-"""
+"""The settings screen: provider, key, model, thinking, proxy, and the rest."""
 
 from collections.abc import Callable
 from dataclasses import replace
@@ -121,14 +106,7 @@ class SettingsScreen(Screen):
         *,
         on_changed: Callable[[], None] | None = None,
     ) -> None:
-        """Build the screen.
-
-        Args:
-            page: The page, for dialogs, snack bars and opening links.
-            services: The app's dependencies.
-            on_changed: Called after settings are saved, so the shell can
-                re-theme and the practice screen can drop its setup banner.
-        """
+        """Build the screen."""
         self._page = page
         self._services = services
         self._on_changed = on_changed
@@ -153,11 +131,7 @@ class SettingsScreen(Screen):
         return self._services.config
 
     async def _apply(self, config: AppConfig) -> None:
-        """Save settings, rebuild the client, and redraw everything.
-
-        Args:
-            config: The settings to store.
-        """
+        """Save settings, rebuild the client, and redraw everything."""
         await self._services.update_config(config)
         self.repaint()
         if self._on_changed is not None:
@@ -170,12 +144,7 @@ class SettingsScreen(Screen):
     # --- Rendering ---
 
     def render(self) -> None:
-        """Rebuild the screen from the current settings.
-
-        The order is who grades, what grades, how practice behaves, and then
-        the two folds — so the settings a user actually opens this screen for
-        are the ones above the first scroll.
-        """
+        """Rebuild the screen from the current settings."""
         panels = (
             self._provider_panel(),
             self._model_panel(),
@@ -191,11 +160,7 @@ class SettingsScreen(Screen):
         ]
 
     def _provider_panel(self) -> ft.Control:
-        """Return the provider choice and its API key field.
-
-        Returns:
-            The panel.
-        """
+        """Return the provider choice and its API key field."""
         provider = self._config.provider
         key_field = text_field(
             label=f"{provider.label} API key",
@@ -225,11 +190,7 @@ class SettingsScreen(Screen):
         )
 
     def _check_row(self) -> ft.Control:
-        """Return the connection test button and its last result.
-
-        Returns:
-            The control.
-        """
+        """Return the connection test button and its last result."""
         if self._checking:
             return self._checking_region(
                 "waiting",
@@ -293,21 +254,7 @@ class SettingsScreen(Screen):
         )
 
     def _checking_region(self, state: str, content: ft.Control) -> ft.Control:
-        """Return the slot under the API key, in one of its three states.
-
-        Waiting for the provider, and then hearing back from it, are the only
-        two things on this screen that take time. They happen in one place, so
-        that is one region: the buttons fade out for a spinner and the spinner
-        fades out for the answer, rather than each appearing where the last one
-        was.
-
-        Args:
-            state: Which of the three this is.
-            content: What to show.
-
-        Returns:
-            The slot.
-        """
+        """Return the slot under the API key, in one of its three states."""
         return motion.swap(
             region=_CHECK_REGION,
             state=state,
@@ -318,11 +265,7 @@ class SettingsScreen(Screen):
         )
 
     def _model_panel(self) -> ft.Control:
-        """Return the selected model and the way to change it.
-
-        Returns:
-            The panel.
-        """
+        """Return the selected model and the way to change it."""
         selected = self._config.active.model
         info = self._model()
 
@@ -411,16 +354,7 @@ class SettingsScreen(Screen):
         return panel(*children, title="Model", icon=ft.Icons.AUTO_AWESOME_ROUNDED)
 
     def _thinking_panel(self) -> ft.Control:
-        """Return the thinking-level control for the selected model.
-
-        The levels are a list rather than a row of chips. They are an ordered
-        scale from off to hardest, which is what a list reads as, and a
-        provider can offer six of them -- more than a phone fits on one line
-        without wrapping them into a block to be scanned rather than read.
-
-        Returns:
-            The panel.
-        """
+        """Return the thinking-level control for the selected model."""
         active = self._config.active
         reasons = self._model_reasons()
         levels = supported_thinking_levels(
@@ -450,27 +384,14 @@ class SettingsScreen(Screen):
         )
 
     def _model_reasons(self) -> bool:
-        """Return whether the selected model has reasoning to configure.
-
-        The catalogue is the authority whenever one has been fetched, because
-        it is also what :meth:`_choose_model` records. Falling back on the
-        stored flag keeps the answer right across a restart, when several
-        hundred catalogue entries have not been re-fetched to ask again.
-
-        Returns:
-            Whether to offer the thinking control.
-        """
+        """Return whether the selected model has reasoning to configure."""
         info = self._model()
         if info is not None:
             return info.supports_thinking
         return self._config.active.model_supports_thinking
 
     def _proxy_summary(self) -> str:
-        """Return the line under the proxy heading, so the fold says its state.
-
-        Returns:
-            What the proxy is set to, in one line.
-        """
+        """Return the line under the proxy heading, so the fold says its state."""
         proxy = self._config.proxy
         if not proxy.enabled:
             return "Off - calls go straight to the provider"
@@ -479,13 +400,7 @@ class SettingsScreen(Screen):
         return f"{proxy.scheme}://{proxy.host}:{proxy.port}"
 
     def _proxy_panel(self) -> ft.Control:
-        """Return the proxy fold: the switch, and its fields once it is on.
-
-        Returns:
-            The fold, opened already when a proxy is configured, because then
-            it is a setting the user is using rather than one they have never
-            touched.
-        """
+        """Return the proxy fold: the switch, and its fields once it is on."""
         proxy = self._config.proxy
         children: list[ft.Control] = [
             switch_row(
@@ -567,12 +482,7 @@ class SettingsScreen(Screen):
         )
 
     def _advanced_panel(self) -> ft.Control:
-        """Return the sampling controls, folded away by default.
-
-        Returns:
-            The fold, whose heading carries what the three settings inside it
-            currently are — which is most of what anyone opens it to check.
-        """
+        """Return the sampling controls, folded away by default."""
         config = self._config
         return collapsible(
             field_label(f"Temperature: {config.temperature:.1f}"),
@@ -623,11 +533,7 @@ class SettingsScreen(Screen):
         )
 
     def _practice_panel(self) -> ft.Control:
-        """Return the practice and appearance preferences.
-
-        Returns:
-            The panel.
-        """
+        """Return the practice and appearance preferences."""
         config = self._config
         return panel(
             switch_row(
@@ -647,11 +553,7 @@ class SettingsScreen(Screen):
         )
 
     def _about_panel(self) -> ft.Control:
-        """Return what is in the bundled book and which version this is.
-
-        Returns:
-            The panel.
-        """
+        """Return what is in the bundled book and which version this is."""
         counts = self._counts
         library = (
             f"{counts.exercises} exercises and {counts.questions} questions "
@@ -683,23 +585,11 @@ class SettingsScreen(Screen):
         await self._page.launch_url(self._config.provider.console_url)
 
     def _stage(self, config: AppConfig) -> None:
-        """Hold an edit until the field that made it loses focus.
-
-        Args:
-            config: The settings as this keystroke leaves them.
-        """
+        """Hold an edit until the field that made it loses focus."""
         self._services.stage(config)
 
     def _stage_proxy(self, **fields: object) -> None:
-        """Hold a proxy edit.
-
-        The proxy used to be edited in place, on the object the live client
-        was already holding, so a half-typed host reached the connection pool
-        before the user had finished the word.
-
-        Args:
-            fields: The proxy fields this keystroke changed.
-        """
+        """Hold a proxy edit."""
         self._stage(replace(self._config, proxy=replace(self._config.proxy, **fields)))
 
     def _stage_api_key(self, event: ft.Event[ft.TextField]) -> None:
@@ -716,13 +606,7 @@ class SettingsScreen(Screen):
         self._stage_proxy(host=(event.control.value or "").strip())
 
     def _stage_proxy_port(self, event: ft.Event[ft.TextField]) -> None:
-        """Hold a typed proxy port in memory.
-
-        Bounded the same way :meth:`ProxyConfig.from_dict` bounds it. The two
-        used to disagree: anything made of digits was staged and written to
-        settings.json, and the next launch quietly dropped it, so a proxy the
-        user had configured and tested was simply off with no explanation.
-        """
+        """Hold a typed proxy port in memory."""
         raw = (event.control.value or "").strip()
         port = int(raw) if raw.isdigit() else 0
         self._stage_proxy(port=port if 0 < port <= MAX_PORT else None)
@@ -778,23 +662,14 @@ class SettingsScreen(Screen):
         await self._apply(replace(self._config, provider=Provider(chosen)))
 
     def _choose_thinking(self, event: ft.Event[ft.Dropdown]) -> None:
-        """Change how hard the model should think.
-
-        Args:
-            event: The list's selection event. Its callback cannot await, so
-                the save is scheduled.
-        """
+        """Change how hard the model should think."""
         level = event.control.value
         if level is None:  # pragma: no cover - the list always has a value
             return
         self._page.run_task(self._on_thinking, level)
 
     async def _on_thinking(self, level: str) -> None:
-        """Save a thinking level.
-
-        Args:
-            level: One of :class:`~practice_app.providers.ThinkingLevel`.
-        """
+        """Save a thinking level."""
         await self._apply(self._config.with_active(thinking=ThinkingLevel(level)))
 
     def _on_proxy_fold(self, event: ft.Event[ft.ExpansionTile]) -> None:
@@ -875,11 +750,7 @@ class SettingsScreen(Screen):
         )
 
     def _schedule_choose_model(self, model: ModelInfo) -> None:
-        """Select a model from the picker's callback, which cannot await.
-
-        Args:
-            model: The model the user tapped.
-        """
+        """Select a model from the picker's callback, which cannot await."""
         self._page.run_task(self._choose_model, model)
 
     def _schedule_reload_models(self) -> None:
@@ -887,12 +758,7 @@ class SettingsScreen(Screen):
         self._page.run_task(self._reload_models)
 
     async def _reload_models(self) -> None:
-        """Fetch the catalogue again and reopen the picker on top of it.
-
-        Guarded like :meth:`_on_open_models`, which is the copy that says so.
-        Nothing but the dialog being popped first kept a double-tap on Refresh
-        from putting two catalogue fetches on the same client at once.
-        """
+        """Fetch the catalogue again and reopen the picker on top of it."""
         if self._loading_models:
             return
 
@@ -911,14 +777,7 @@ class SettingsScreen(Screen):
         self._open_picker()
 
     async def _reconcile_capabilities(self) -> None:
-        """Record what a fresh catalogue says about the model already selected.
-
-        A model chosen through the picker arrives with its capabilities
-        attached. One restored from the settings file does not, and it is the
-        stored flags that :mod:`practice_app.llm` builds the request from — so
-        the first catalogue of a run is also the moment to correct them, rather
-        than waiting for the user to re-pick the model they already have.
-        """
+        """Record what a fresh catalogue says about the model already selected."""
         info = self._model()
         active = self._config.active
         if info is None or (
@@ -935,16 +794,7 @@ class SettingsScreen(Screen):
         )
 
     async def _choose_model(self, model: ModelInfo) -> None:
-        """Select a model, and carry its capabilities into the settings.
-
-        The catalogue is what says whether a model reasons or takes a JSON
-        response format, and the request builder needs both. Storing them with
-        the choice is what lets a restart send the right request without
-        fetching several hundred entries again to find out.
-
-        Args:
-            model: The model the user picked.
-        """
+        """Select a model, and carry its capabilities into the settings."""
         levels = supported_thinking_levels(
             self._config.provider, supports_thinking=model.supports_thinking
         )

@@ -1,13 +1,4 @@
-"""Build the content database from what the extraction stages wrote.
-
-The last stage of the pipeline, and the only one that writes SQLite. Every
-directory it reads comes from the one
-:class:`~practice_runtime.settings.PathSettings` the rest of the project uses,
-and the tables, with their constraints enforced, come from
-:func:`practice_core.schema.connect_content` — so
-the file this builds is by construction the file the bot opens and the bundler
-re-encodes.
-"""
+"""Build the content database from what the extraction stages wrote."""
 
 import json
 import sqlite3
@@ -43,22 +34,13 @@ _SUMMARY_TABLES = (
 
 
 def init_database(db_path: Path) -> None:
-    """Create the database and the content tables.
-
-    Args:
-        db_path: Where to create the file.
-    """
+    """Create the database and the content tables."""
     connect_content(db_path, create=True).close()
     print(f"Database initialized at: {db_path}")
 
 
 def import_units(conn: sqlite3.Connection, paths: PathSettings) -> None:
-    """Import units from unit_to_title.json and grammar markdown files.
-
-    Args:
-        conn: An open connection to the database being built.
-        paths: Where the extracted content lives.
-    """
+    """Import units from unit_to_title.json and grammar markdown files."""
     unit_titles_path = paths.metadata_dir / UNIT_TITLES_FILENAME
     with unit_titles_path.open(encoding="utf-8") as f:
         units_data = json.load(f)
@@ -92,17 +74,7 @@ def parse_exercise_id(exercise_id: str) -> tuple[int, int]:
 def _load_import_metadata(
     paths: PathSettings,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Load answers_full.json and rules.json, failing if extraction has not run.
-
-    Args:
-        paths: Where the extracted content lives.
-
-    Returns:
-        The answers and the rules, as the stages wrote them.
-
-    Raises:
-        FileNotFoundError: If either file is missing.
-    """
+    """Load answers_full.json and rules.json, failing if extraction has not run."""
     answers_full_path = paths.metadata_dir / ANSWERS_FULL_FILENAME
     rules_path = paths.metadata_dir / RULES_FILENAME
 
@@ -129,13 +101,7 @@ def _load_import_metadata(
 def _build_rules_map(
     rules_data: dict[str, Any],
 ) -> dict[tuple[str, str], dict[str, Any]]:
-    """Index rule metadata by ``(exercise_id, question_id)``.
-
-    The pair used to be packed into one delimited string, built in four
-    places across two modules with nothing connecting them -- and a lookup
-    that misses is silent: every question imports with no rule and no
-    section letter, and the database still validates clean.
-    """
+    """Index rule metadata by ``(exercise_id, question_id)``."""
     rules_map: dict[tuple[str, str], dict[str, Any]] = {}
     for unit in rules_data.get("units", []):
         for exercise in unit.get("exercises", []):
@@ -236,12 +202,7 @@ def _import_questions(
 def import_exercises_and_questions(
     conn: sqlite3.Connection, paths: PathSettings
 ) -> None:
-    """Import exercises and questions from answers_full.json and rules.json.
-
-    Args:
-        conn: An open connection to the database being built.
-        paths: Where the extracted content lives.
-    """
+    """Import exercises and questions from answers_full.json and rules.json."""
     answers_data, rules_data = _load_import_metadata(paths)
     rules_map = _build_rules_map(rules_data)
 
@@ -296,12 +257,7 @@ def import_exercises_and_questions(
 
 
 def import_topics(conn: sqlite3.Connection, paths: PathSettings) -> None:
-    """Import topics from topic_to_unit.json.
-
-    Args:
-        conn: An open connection to the database being built.
-        paths: Where the extracted content lives.
-    """
+    """Import topics from topic_to_unit.json."""
     topics_path = paths.metadata_dir / TOPIC_MAP_FILENAME
     with topics_path.open(encoding="utf-8") as f:
         topics_data = json.load(f)
@@ -333,18 +289,7 @@ def import_topics(conn: sqlite3.Connection, paths: PathSettings) -> None:
 
 
 def main(*, force: bool = False, paths: PathSettings | None = None) -> int:
-    """Build the content database from the extracted JSON and images.
-
-    Args:
-        force: Delete an existing database first. Without it an existing file
-            is left alone: this rebuilds from scratch, so running it by
-            accident against a populated database would destroy it.
-        paths: Where the extracted content lives, and where the database goes.
-            The configured layout when omitted.
-
-    Returns:
-        The process exit code.
-    """
+    """Build the content database from the extracted JSON and images."""
     paths = paths or get_settings().paths
     db_path = paths.database_path
 

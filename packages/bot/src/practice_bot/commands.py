@@ -1,8 +1,4 @@
-"""The bot's command menu, declared once.
-
-Telegram shows this menu next to the input field, and ``/help`` describes the
-same commands, so both are generated from this list rather than repeated.
-"""
+"""The bot's command menu, declared once."""
 
 from dataclasses import dataclass
 
@@ -35,23 +31,12 @@ ADMIN_COMMANDS = (Command("pending", "Review access requests"),)
 
 
 def menu() -> list[BotCommand]:
-    """Return the command menu to register with Telegram.
-
-    Returns:
-        The public commands, in menu order.
-    """
+    """Return the command menu to register with Telegram."""
     return [BotCommand(command.name, command.description) for command in COMMANDS]
 
 
 def help_text(*, include_admin: bool = False) -> Html:
-    """Describe the commands for a ``/help`` reply.
-
-    Args:
-        include_admin: Whether to list the admin-only commands too.
-
-    Returns:
-        The message text, in Telegram HTML.
-    """
+    """Describe the commands for a ``/help`` reply."""
     commands = list(COMMANDS)
     if include_admin:
         commands.extend(ADMIN_COMMANDS)

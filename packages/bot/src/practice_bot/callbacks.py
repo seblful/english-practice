@@ -1,20 +1,4 @@
-"""Typed inline-button payloads, and what each family of them means.
-
-Telegram gives every inline button 64 bytes of opaque string, which the bot
-receives back verbatim. Four things have to agree about that string: the prefix
-it starts with, the regex a handler registers to claim it, the button that
-emits it, and the parse that reads it back. They used to sit in four files, so
-adding one button was a four-file edit and a keyboard could quietly emit a
-payload no handler would claim.
-
-Now a :class:`Family` holds the first, second and fourth together, and
-:func:`button` builds the third from the payload itself. What is left per
-family is the payload type and one ``Family`` value.
-
-Every parse returns ``None`` for anything unexpected. Old messages stay
-clickable forever, so a payload from a previous version of the bot is a normal
-event, not an error.
-"""
+"""Typed inline-button payloads, and what each family of them means."""
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -56,26 +40,13 @@ class Payload(Protocol):
 
 
 def button(label: str, choice: Payload) -> InlineKeyboardButton:
-    """Return the button that emits one payload.
-
-    Args:
-        label: What the button says.
-        choice: The payload pressing it should send back.
-
-    Returns:
-        The button.
-    """
+    """Return the button that emits one payload."""
     return InlineKeyboardButton(label, callback_data=choice.payload())
 
 
 @dataclass(frozen=True, slots=True)
 class Family[T]:
-    """One prefix, the pattern that claims it, and how to read its payloads.
-
-    Registration and parsing come off the same value, so a handler cannot be
-    registered for one prefix and then parse another -- which is what the
-    three loose ``*_PATTERN`` constants left possible.
-    """
+    """One prefix, the pattern that claims it, and how to read its payloads."""
 
     prefix: str
     parse: Callable[[str], T | None]
@@ -124,14 +95,7 @@ type TopicChoice = KeywordChoice | SpecificTopic
 
 
 def parse_topic_choice(data: str) -> TopicChoice | None:
-    """Parse a topic callback payload.
-
-    Args:
-        data: The raw payload from Telegram.
-
-    Returns:
-        The choice, or ``None`` when the payload is not a topic choice.
-    """
+    """Parse a topic callback payload."""
     prefix, _, value = data.partition(":")
     if prefix != TOPIC_PREFIX or not value:
         return None
@@ -157,14 +121,7 @@ class ExerciseAction(StrEnum):
 
     @classmethod
     def parse(cls, data: str) -> "ExerciseAction | None":
-        """Parse an exercise-action payload.
-
-        Args:
-            data: The raw payload from Telegram.
-
-        Returns:
-            The action, or ``None`` when the payload names no known action.
-        """
+        """Parse an exercise-action payload."""
         prefix, _, value = data.partition(":")
         if prefix != ACTION_PREFIX:
             return None
@@ -194,14 +151,7 @@ class AdminAction:
 
     @classmethod
     def parse(cls, data: str) -> "AdminAction | None":
-        """Parse an admin-action payload.
-
-        Args:
-            data: The raw payload from Telegram.
-
-        Returns:
-            The action, or ``None`` when the payload is malformed.
-        """
+        """Parse an admin-action payload."""
         parts = data.split(":")
         if len(parts) != _ADMIN_PAYLOAD_PARTS or parts[0] != ADMIN_PREFIX:
             return None

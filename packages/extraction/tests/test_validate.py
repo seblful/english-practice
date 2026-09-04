@@ -1,8 +1,4 @@
-"""Tests for the database validation script.
-
-These run against a real SQLite file built from the real ``schema.sql``, so a
-renamed column breaks the checks rather than silently skipping them.
-"""
+"""Tests for the database validation script."""
 
 import sqlite3
 from collections.abc import Iterator
@@ -152,12 +148,7 @@ class TestSchemaConstraints:
         assert validator.validate_constraints().facts == ["Foreign keys enforced: True"]
 
     def test_uniqueness_needs_no_check(self, seeded_db_path: Path) -> None:
-        """SQLite refuses a duplicate outright, so none can be in the file.
-
-        The old duplicate check needed a hand-built, constraint-free database
-        to fire at all -- which is what showed it was a copy of the schema
-        rather than a test of the data.
-        """
+        """SQLite refuses a duplicate outright, so none can be in the file."""
         with (
             closing(connect_content(seeded_db_path)) as conn,
             pytest.raises(sqlite3.IntegrityError),

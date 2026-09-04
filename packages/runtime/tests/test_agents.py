@@ -1,10 +1,4 @@
-"""Tests for BaseAgent.
-
-The prompt these render is `practice_core`'s own grading template. It is a
-dependency of this package and it is packaged the way every prompt is, so the
-tests need no fixture template of their own — and they exercise the same
-resource-reading path a real agent uses.
-"""
+"""Tests for BaseAgent."""
 
 import base64
 from pathlib import Path
@@ -77,11 +71,7 @@ class TestRender:
             BaseAgent(MagicMock()).render(DummyModel(name="test"))
 
     def test_an_agent_without_an_anchor(self) -> None:
-        """Naming a template but not its package would read the wrong package.
-
-        The message used to name PROMPT_TEMPLATE either way, so this subclass
-        was told to declare the one thing it had declared.
-        """
+        """Naming a template but not its package would read the wrong package."""
 
         class _Anchorless(BaseAgent):
             PROMPT_TEMPLATE = "evaluate.j2"

@@ -1,8 +1,4 @@
-"""The bot's handlers, and the one place they are registered.
-
-Registration order matters: Telegram dispatches an update to the first handler
-that claims it, so the catch-all text handler comes last.
-"""
+"""The bot's handlers, and the one place they are registered."""
 
 from typing import Any
 
@@ -23,11 +19,7 @@ __all__ = ["build_handlers", "report_error"]
 
 
 def build_handlers() -> list[BaseHandler[Any, BotContext, None]]:
-    """Return every handler the application should register.
-
-    Returns:
-        The handlers, in dispatch order.
-    """
+    """Return every handler the application should register."""
     return [
         CommandHandler("start", menu.start_command),
         CommandHandler("exercise", menu.exercise_command),
