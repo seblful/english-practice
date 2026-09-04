@@ -38,6 +38,7 @@ from practice_app.providers import (
     supported_thinking_levels,
 )
 from practice_app.services import Services
+from practice_app.ui import motion
 from practice_app.ui.components import (
     SCROLL,
     STRETCH,
@@ -67,6 +68,24 @@ _MIN_TOKENS = 256
 _MAX_TOKENS = 32768
 _MIN_TIMEOUT = 10.0
 _MAX_TIMEOUT = 600.0
+
+# The panels this screen is a column of. They are named so that a saved
+# setting updates the panel the user is looking at rather than replacing the
+# whole screen under them -- and so that the two panels with a waiting state
+# can animate it. See :mod:`practice_app.ui.motion` on why a list needs keys.
+_PANEL_KEYS = (
+    "settings.provider",
+    "settings.model",
+    "settings.thinking",
+    "settings.practice",
+    "settings.proxy",
+    "settings.advanced",
+    "settings.about",
+)
+
+# The two things on this screen that keep the user waiting.
+_CHECK_REGION = "settings.check"
+_MODEL_TRAILING_REGION = "settings.model.trailing"
 
 _THEME_LABELS = (
     (ThemeChoice.SYSTEM, "System"),
@@ -166,7 +185,7 @@ class SettingsScreen(Screen):
         the two folds — so the settings a user actually opens this screen for
         are the ones above the first scroll.
         """
-        self.controls = [
+        panels = (
             self._provider_panel(),
             self._model_panel(),
             self._thinking_panel(),
@@ -174,6 +193,10 @@ class SettingsScreen(Screen):
             self._proxy_panel(),
             self._advanced_panel(),
             self._about_panel(),
+        )
+        self.controls = [
+            motion.keyed(panel, key)
+            for panel, key in zip(panels, _PANEL_KEYS, strict=True)
         ]
 
     def _provider_panel(self) -> ft.Control:
@@ -217,13 +240,16 @@ class SettingsScreen(Screen):
             The control.
         """
         if self._checking:
-            return ft.Row(
-                controls=[
-                    ft.ProgressRing(width=16, height=16, stroke_width=2),
-                    hint("Asking the model to answer..."),
-                ],
-                spacing=GAP_SMALL,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            return self._checking_region(
+                "waiting",
+                ft.Row(
+                    controls=[
+                        ft.ProgressRing(width=16, height=16, stroke_width=2),
+                        hint("Asking the model to answer..."),
+                    ],
+                    spacing=GAP_SMALL,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
             )
 
         children: list[ft.Control] = [
@@ -267,11 +293,39 @@ class SettingsScreen(Screen):
                     ),
                 )
             )
-        return ft.Column(
-            controls=children,
-            spacing=GAP_SMALL,
-            tight=True,
-            horizontal_alignment=STRETCH,
+        return self._checking_region(
+            "answered" if self._check_result is not None else "idle",
+            ft.Column(
+                controls=children,
+                spacing=GAP_SMALL,
+                tight=True,
+                horizontal_alignment=STRETCH,
+            ),
+        )
+
+    def _checking_region(self, state: str, content: ft.Control) -> ft.Control:
+        """Return the slot under the API key, in one of its three states.
+
+        Waiting for the provider, and then hearing back from it, are the only
+        two things on this screen that take time. They happen in one place, so
+        that is one region: the buttons fade out for a spinner and the spinner
+        fades out for the answer, rather than each appearing where the last one
+        was.
+
+        Args:
+            state: Which of the three this is.
+            content: What to show.
+
+        Returns:
+            The slot.
+        """
+        return motion.swap(
+            region=_CHECK_REGION,
+            state=state,
+            content=content,
+            pace=motion.Swap.DETAIL,
+            # A spinner on one line, then a notice of two or three.
+            resizes=True,
         )
 
     def _model_panel(self) -> ft.Control:
@@ -299,48 +353,58 @@ class SettingsScreen(Screen):
                         )
                     )
 
-        trailing: ft.Control = (
-            ft.ProgressRing(width=18, height=18, stroke_width=2)
-            if self._loading_models
-            else ft.Icon(
-                ft.Icons.CHEVRON_RIGHT_ROUNDED,
-                color=ft.Colors.ON_SURFACE_VARIANT,
-            )
+        # The chevron becomes a spinner while the catalogue is fetched. It is
+        # the same 18dp slot either way, so this one does not resize.
+        trailing = motion.swap(
+            region=_MODEL_TRAILING_REGION,
+            state="loading" if self._loading_models else "ready",
+            content=(
+                ft.ProgressRing(width=18, height=18, stroke_width=2)
+                if self._loading_models
+                else ft.Icon(
+                    ft.Icons.CHEVRON_RIGHT_ROUNDED,
+                    color=ft.Colors.ON_SURFACE_VARIANT,
+                )
+            ),
+            pace=motion.Swap.DETAIL,
         )
 
         children: list[ft.Control] = [
-            ft.Container(
-                content=ft.Row(
-                    controls=[
-                        ft.Icon(ft.Icons.BOLT_ROUNDED, color=ft.Colors.PRIMARY),
-                        ft.Column(
-                            controls=[
-                                ft.Text(
-                                    selected or "No model selected",
-                                    weight=ft.FontWeight.W_600,
-                                    max_lines=1,
-                                    overflow=ft.TextOverflow.ELLIPSIS,
-                                ),
-                                hint(
-                                    "Tap to search the catalogue"
-                                    if selected
-                                    else "Tap to load the catalogue"
-                                ),
-                            ],
-                            spacing=2,
-                            tight=True,
-                            expand=True,
-                        ),
-                        trailing,
-                    ],
-                    spacing=GAP_SMALL + 2,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            motion.keyed(
+                ft.Container(
+                    content=ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.BOLT_ROUNDED, color=ft.Colors.PRIMARY),
+                            ft.Column(
+                                controls=[
+                                    ft.Text(
+                                        selected or "No model selected",
+                                        weight=ft.FontWeight.W_600,
+                                        max_lines=1,
+                                        overflow=ft.TextOverflow.ELLIPSIS,
+                                    ),
+                                    hint(
+                                        "Tap to search the catalogue"
+                                        if selected
+                                        else "Tap to load the catalogue"
+                                    ),
+                                ],
+                                spacing=2,
+                                tight=True,
+                                expand=True,
+                            ),
+                            trailing,
+                        ],
+                        spacing=GAP_SMALL + 2,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    padding=ft.Padding.symmetric(horizontal=GAP_SMALL + 2, vertical=10),
+                    bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH,
+                    border_radius=RADIUS_SMALL,
+                    ink=True,
+                    on_click=self._on_open_models,
                 ),
-                padding=ft.Padding.symmetric(horizontal=GAP_SMALL + 2, vertical=10),
-                bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH,
-                border_radius=RADIUS_SMALL,
-                ink=True,
-                on_click=self._on_open_models,
+                f"{_MODEL_TRAILING_REGION}.tile",
             )
         ]
         if badges:

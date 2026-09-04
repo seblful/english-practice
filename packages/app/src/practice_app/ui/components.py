@@ -3,13 +3,17 @@
 Each function returns a plain control, so a screen composes them rather than
 inheriting from them, and a test can build one and read its parts.
 
-Two rules hold the screens together, and both live here rather than in each
-screen. Everything that sits in a column **stretches**: Flet's ``Column``
+Three rules hold the screens together, and all three live here rather than in
+each screen. Everything that sits in a column **stretches**: Flet's ``Column``
 packs its children to the start of the cross axis unless told otherwise, so a
 panel whose contents happen to be narrow ends up narrower than the panel above
-it — which is what made the settings screen look ragged. And every surface,
+it — which is what made the settings screen look ragged. Every surface,
 button and fold comes from one of these builders, so "the same kind of thing
-looks the same" is a property of this module instead of a habit.
+looks the same" is a property of this module instead of a habit. And anything
+here that *changes* does so over time rather than between frames, on the
+durations :mod:`~practice_app.ui.motion` names — which is why the pieces that
+animate carry a key: without one Flet rebuilds them from scratch on every
+repaint, and a control that was just built has no previous value to tween from.
 """
 
 from collections.abc import Callable, Sequence
@@ -17,6 +21,7 @@ from typing import Any
 
 import flet as ft
 
+from practice_app.ui import motion
 from practice_app.ui.page import DialogPage
 from practice_app.ui.theme import (
     ACTION_HEIGHT,
@@ -36,6 +41,7 @@ ClickHandler = Callable[..., Any]
 
 __all__ = [
     "CHIP_LABEL_SIZE",
+    "FOOT",
     "SCROLL",
     "SEGMENT_LABEL_SIZE",
     "STRETCH",
@@ -80,6 +86,11 @@ STRETCH = ft.CrossAxisAlignment.STRETCH
 # does not already know. Every scrolling screen names this rather than
 # choosing for itself, so no screen ends up with a bar the others lack.
 SCROLL = ft.ScrollMode.HIDDEN
+
+# The strip pinned under a screen's body. It is one region and not two, which
+# is what lets a sheet grow out of a bar rather than replace it -- see
+# :func:`_foot`.
+FOOT = "screen.foot"
 
 
 def push(control: ft.Control) -> None:
@@ -835,28 +846,82 @@ def progress_track(
     )
 
 
-def action_bar(*controls: ft.Control) -> ft.Container:
+def _foot(
+    body: ft.Control,
+    *,
+    state: str,
+    bgcolor: str,
+    padding: ft.PaddingValue,
+    radius: int,
+    border: ft.Border | None,
+) -> ft.Container:
+    """Return the one surface pinned under the body of a screen.
+
+    Both shapes a screen's bottom takes -- the bar of buttons and the tinted
+    sheet -- are this same keyed container wearing different clothes, and that
+    is deliberate. Because the key does not change, the client keeps the widget
+    and tweens what did change: the colour floods, the corners round off, the
+    padding grows. A verdict therefore *becomes* the bar it replaces instead of
+    appearing where the bar was, which is the difference between the screen
+    answering and the screen blinking.
+
+    Args:
+        body: What goes inside.
+        state: Which shape this is, so the contents cross-fade when it changes
+            while the surface underneath them tweens.
+        bgcolor: The surface colour.
+        padding: The inner padding.
+        radius: The radius of the two top corners.
+        border: The rule along the top, for the shape that has one.
+
+    Returns:
+        The surface.
+    """
+    return ft.Container(
+        key=FOOT,
+        content=motion.swap(
+            region=f"{FOOT}.body",
+            state=state,
+            content=body,
+            # A bar and a sheet are nothing like the same height, and holding
+            # the taller of the two while the shorter fades in is what made
+            # the region stand tall for a moment and then hop down.
+            resizes=True,
+        ),
+        padding=padding,
+        bgcolor=bgcolor,
+        border=border,
+        border_radius=ft.BorderRadius.only(top_left=radius, top_right=radius),
+        animate=motion.SETTLE_SLOW,
+    )
+
+
+def action_bar(*controls: ft.Control, state: str = "actions") -> ft.Container:
     """Return the bar pinned under the body of a screen.
 
     Args:
         *controls: What goes in it, left to right.
+        state: What this bar is showing, told apart from the other things the
+            same slot holds -- see :func:`_foot`.
 
     Returns:
         The bar, ruled off from the content it acts on.
     """
-    return ft.Container(
-        content=ft.Row(
+    return _foot(
+        ft.Row(
             controls=list(controls),
             spacing=GAP_SMALL,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         ),
-        padding=ft.Padding.symmetric(horizontal=GAP, vertical=GAP_SMALL + 4),
+        state=state,
         bgcolor=ft.Colors.SURFACE,
+        padding=ft.Padding.symmetric(horizontal=GAP, vertical=GAP_SMALL + 4),
+        radius=0,
         border=ft.Border.only(top=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT)),
     )
 
 
-def sheet(*controls: ft.Control, bgcolor: str) -> ft.Container:
+def sheet(*controls: ft.Control, bgcolor: str, state: str = "sheet") -> ft.Container:
     """Return the panel that rises over the bottom of the screen.
 
     This is where a verdict goes. It covers the action bar rather than joining
@@ -866,22 +931,26 @@ def sheet(*controls: ft.Control, bgcolor: str) -> ft.Container:
     Args:
         *controls: What goes in it, top to bottom.
         bgcolor: The tint that carries the verdict.
+        state: What this sheet is saying, told apart from the other things the
+            same slot holds -- see :func:`_foot`. Two sheets that say different
+            things need different states, or the second one's words arrive in
+            the first one's sheet with nothing to mark the change.
 
     Returns:
         The sheet, its contents stretched to the full width of the screen.
     """
-    return ft.Container(
-        content=ft.Column(
+    return _foot(
+        ft.Column(
             controls=list(controls),
             spacing=GAP_SMALL,
             tight=True,
             horizontal_alignment=STRETCH,
         ),
-        padding=ft.Padding.only(left=GAP, right=GAP, top=GAP, bottom=GAP_SMALL + 4),
+        state=state,
         bgcolor=bgcolor,
-        border_radius=ft.BorderRadius.only(
-            top_left=RADIUS_LARGE, top_right=RADIUS_LARGE
-        ),
+        padding=ft.Padding.only(left=GAP, right=GAP, top=GAP, bottom=GAP_SMALL + 4),
+        radius=RADIUS_LARGE,
+        border=None,
     )
 
 

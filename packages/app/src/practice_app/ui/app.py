@@ -20,6 +20,14 @@ the app.
 The three panes are held as :class:`~practice_app.ui.screen.Screen` and
 nothing more, so opening a tab, reloading it, titling it and offering it the
 Back gesture are all one line rather than one branch per screen.
+
+A tab change is the largest thing that moves in the app, so it is also the
+slowest: the body is one region that cross-fades, on
+:data:`~practice_app.ui.motion.Swap.SCREEN`. The chrome is the exception. An
+app bar and a navigation bar leave the layout when they are hidden rather than
+fading out of it, and nothing in Flet animates that — so a lesson taking the
+screen still takes it in one frame, under the cross-fade of the pane that is
+arriving.
 """
 
 from collections.abc import Sequence
@@ -29,6 +37,7 @@ import flet as ft
 
 from practice_app.config import ThemeChoice
 from practice_app.services import Services
+from practice_app.ui import motion
 from practice_app.ui.page import ShellPage
 from practice_app.ui.practice_view import PracticeScreen
 from practice_app.ui.screen import Screen
@@ -45,6 +54,9 @@ SETTINGS_TAB = 2
 # The app bar already supplies the top inset, so a screen only needs breathing
 # room under it.
 _BODY_TOP_GAP = GAP // 2
+
+# The slot the three tabs take turns in.
+_BODY_REGION = "shell.body"
 
 # Cycled by the app-bar button. Declaration order is the order a user expects
 # a toggle to go, so the enum is the list -- one place to add a fourth theme.
@@ -103,9 +115,28 @@ class PracticeApp:
         # `if` chain is what made a fourth tab six edits, and what let one
         # reload be called without awaiting it.
         self.screens: tuple[Screen, ...] = (self.practice, self.stats, self.settings)
-        self._panes = tuple(_pane(screen) for screen in self.screens)
+        # Each pane keeps the key that names it, because the shell keeps the
+        # panes: `select_tab` then only has to hand the switcher a different
+        # one, and the key it already carries is what says a tab changed.
+        self._panes = tuple(
+            motion.keyed(
+                _pane(screen), motion.state_key(_BODY_REGION, screen.tab_label)
+            )
+            for screen in self.screens
+        )
 
-        self._body = ft.Container(content=self._panes[self._index], expand=True)
+        # One pane at a time, cross-fading. The switcher is built once and kept,
+        # so swapping what it holds is a change *to* it rather than a rebuild
+        # *of* it -- which is the only way the client has an outgoing pane left
+        # to fade out. The panes are kept too, by `_panes`, because a lesson
+        # part-way through lives in one of them.
+        self._body = motion.swap(
+            region=_BODY_REGION,
+            state=self.screens[self._index].tab_label,
+            content=self._panes[self._index],
+            pace=motion.Swap.SCREEN,
+            expand=True,
+        )
         self._theme_button = ft.IconButton(
             icon=_THEME_ICONS[services.config.theme],
             tooltip="Switch theme",

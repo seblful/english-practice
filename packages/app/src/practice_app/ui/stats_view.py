@@ -9,6 +9,7 @@ import flet as ft
 
 from practice_app.services import Services
 from practice_app.stats import DayStat, StatsSummary, TopicStat
+from practice_app.ui import motion
 from practice_app.ui.components import (
     SCROLL,
     STRETCH,
@@ -27,6 +28,19 @@ from practice_app.ui.screen import Screen
 from practice_app.ui.theme import GAP, GAP_LARGE, GAP_SMALL, RADIUS, RADIUS_SMALL
 
 __all__ = ["StatsScreen"]
+
+# The panels this screen is a column of, named so that reloading the figures
+# updates the panels rather than remounting them -- which is also what lets the
+# weekly bars grow to their new heights instead of jumping. See
+# :mod:`practice_app.ui.motion` on why a list needs keys.
+_PANEL_KEYS = (
+    "stats.hero",
+    "stats.streaks",
+    "stats.week",
+    "stats.topics",
+    "stats.footer",
+)
+_WEEK_ROW_KEY = "stats.week.row"
 
 _MAX_BAR_HEIGHT = 72
 _MIN_BAR_HEIGHT = 4
@@ -100,12 +114,16 @@ class StatsScreen(Screen):
             ]
             return
 
-        self.controls = [
+        panels = (
             self._hero(summary),
             self._streaks(summary),
             self._week(summary),
             self._topics(summary),
             self._footer(summary),
+        )
+        self.controls = [
+            motion.keyed(panel, key)
+            for panel, key in zip(panels, _PANEL_KEYS, strict=True)
         ]
 
     def _hero(self, summary: StatsSummary) -> ft.Control:
@@ -231,10 +249,13 @@ class StatsScreen(Screen):
         """
         busiest = max((day.attempts for day in summary.recent_days), default=0)
         return panel(
-            ft.Row(
-                controls=[self._bar(day, busiest) for day in summary.recent_days],
-                spacing=GAP_SMALL,
-                vertical_alignment=ft.CrossAxisAlignment.END,
+            motion.keyed(
+                ft.Row(
+                    controls=[self._bar(day, busiest) for day in summary.recent_days],
+                    spacing=GAP_SMALL,
+                    vertical_alignment=ft.CrossAxisAlignment.END,
+                ),
+                _WEEK_ROW_KEY,
             ),
             title="Last 7 days",
             spacing=GAP,
@@ -256,35 +277,45 @@ class StatsScreen(Screen):
 
         # STRETCH is what gives the bar a width: a Container with only a height
         # shrink-wraps to nothing under any other cross-axis alignment.
-        return ft.Column(
-            controls=[
-                ft.Text(
-                    str(day.attempts) if day.attempts else "",
-                    size=10,
-                    color=ft.Colors.ON_SURFACE_VARIANT,
-                    text_align=ft.TextAlign.CENTER,
-                ),
-                ft.Container(
-                    height=height,
-                    bgcolor=_accuracy_color(day.accuracy, day.attempts),
-                    border_radius=RADIUS_SMALL,
-                    tooltip=(
-                        f"{day.day.isoformat()}: {day.correct}/{day.attempts}"
-                        if day.attempts
-                        else f"{day.day.isoformat()}: nothing"
+        return motion.keyed(
+            ft.Column(
+                controls=[
+                    ft.Text(
+                        str(day.attempts) if day.attempts else "",
+                        size=10,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
+                        text_align=ft.TextAlign.CENTER,
                     ),
-                ),
-                ft.Text(
-                    day.day.strftime("%a")[0],
-                    size=11,
-                    color=ft.Colors.ON_SURFACE_VARIANT,
-                    text_align=ft.TextAlign.CENTER,
-                ),
-            ],
-            spacing=4,
-            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-            expand=True,
-            tight=True,
+                    # Keyed and animated: answering a question and coming back to
+                    # this tab grows the day's bar to its new height rather than
+                    # redrawing the chart at it.
+                    motion.keyed(
+                        ft.Container(
+                            height=height,
+                            bgcolor=_accuracy_color(day.accuracy, day.attempts),
+                            border_radius=RADIUS_SMALL,
+                            animate=motion.SETTLE_SLOW,
+                            tooltip=(
+                                f"{day.day.isoformat()}: {day.correct}/{day.attempts}"
+                                if day.attempts
+                                else f"{day.day.isoformat()}: nothing"
+                            ),
+                        ),
+                        f"{_WEEK_ROW_KEY}.{day.day.isoformat()}.bar",
+                    ),
+                    ft.Text(
+                        day.day.strftime("%a")[0],
+                        size=11,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                ],
+                spacing=4,
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+                expand=True,
+                tight=True,
+            ),
+            f"{_WEEK_ROW_KEY}.{day.day.isoformat()}",
         )
 
     def _topics(self, summary: StatsSummary) -> ft.Control:

@@ -28,6 +28,7 @@ from practice_app.providers import (
 from practice_app.services import Services
 from practice_app.session import Lesson
 from practice_app.stats import Attempt, DayStat, StatsStore, StatsSummary, TopicStat
+from practice_app.ui import motion
 from practice_app.ui.app import PRACTICE_TAB, SETTINGS_TAB, STATS_TAB, PracticeApp
 from practice_app.ui.components import (
     SEGMENT_LABEL_SIZE,
@@ -2397,3 +2398,582 @@ class TestTheBackGesture:
         await page.drain()
 
         assert app._body.content is app._panes[SETTINGS_TAB]
+
+
+# ----------------------------------------------------------------------
+# Motion
+# ----------------------------------------------------------------------
+
+_KEYED_ATTRIBUTES = (
+    "content",
+    "controls",
+    "title",
+    "subtitle",
+    "label",
+    "actions",
+    "leading",
+    "trailing",
+)
+
+# Every property Flet can animate implicitly. A control that sets one of these
+# and carries no key is rebuilt from scratch on the next repaint, so the client
+# throws its widget away and has nothing to tween from -- the animation is dead
+# weight. See `practice_app.ui.motion`.
+_ANIMATED_ATTRIBUTES = (
+    "animate",
+    "animate_opacity",
+    "animate_size",
+    "animate_position",
+    "animate_offset",
+    "animate_scale",
+    "animate_rotation",
+    "animate_align",
+    "animate_margin",
+)
+
+
+def _walk(control: Any, visit: Any) -> None:
+    """Call ``visit`` on every control under ``control``, and on each list."""
+    if isinstance(control, (list, tuple)):
+        visit(control)
+        for item in control:
+            _walk(item, visit)
+        return
+    if not isinstance(control, ft.BaseControl):
+        return
+    visit(control)
+    for attribute in _KEYED_ATTRIBUTES:
+        _walk(getattr(control, attribute, None), visit)
+
+
+def _keys_under(control: Any) -> dict[str, Any]:
+    """Return every keyed control under ``control``, by key."""
+    found: dict[str, Any] = {}
+
+    def visit(node: Any) -> None:
+        if isinstance(node, ft.BaseControl) and node.key is not None:
+            found[str(node.key)] = node
+
+    _walk(control, visit)
+    return found
+
+
+def _region(control: Any, name: str) -> Any:
+    """Return the switcher for region ``name``, wherever it is in the tree."""
+    region = _keys_under(control).get(name)
+    assert isinstance(region, ft.AnimatedSwitcher), f"no {name!r} region"
+    return region
+
+
+def _state_of(control: Any, region: str) -> str:
+    """Return which state region ``name`` is currently showing."""
+    return str(_region(control, region).content.key)
+
+
+def _animated_without_keys(control: Any) -> list[Any]:
+    """Return every control that animates a property but has no key to keep it."""
+    offenders: list[Any] = []
+
+    def visit(node: Any) -> None:
+        if not isinstance(node, ft.BaseControl) or node.key is not None:
+            return
+        if any(getattr(node, name, None) is not None for name in _ANIMATED_ATTRIBUTES):
+            offenders.append(node)
+
+    _walk(control, visit)
+    return offenders
+
+
+def _duplicate_sibling_keys(control: Any) -> list[list[str]]:
+    """Return each list of siblings in which one key is used twice."""
+    clashes: list[list[str]] = []
+
+    def visit(node: Any) -> None:
+        if not isinstance(node, (list, tuple)):
+            return
+        keys = [
+            str(item.key)
+            for item in node
+            if isinstance(item, ft.BaseControl) and item.key is not None
+        ]
+        if len(set(keys)) != len(keys):
+            clashes.append(keys)
+
+    _walk(control, visit)
+    return clashes
+
+
+class TestMotionVocabulary:
+    """Three speeds, one direction each, and no fourth of either."""
+
+    def test_the_durations_are_ordered_by_how_much_moves(self) -> None:
+        assert motion.LEAVE_AT_ONCE < motion.LEAVE < motion.FAST
+        assert motion.FAST < motion.MEDIUM < motion.SLOW
+
+    def test_what_is_leaving_is_quicker_than_what_arrives(self) -> None:
+        """Two halves fading at one rate spend the overlap as a double exposure."""
+        for pace in motion.Swap:
+            assert pace.value > motion.LEAVE
+
+    def test_every_pace_is_one_of_the_three_durations(self) -> None:
+        assert {pace.value for pace in motion.Swap} == {
+            motion.FAST,
+            motion.MEDIUM,
+            motion.SLOW,
+        }
+
+    def test_a_key_is_stamped_on_the_control_it_is_given(self) -> None:
+        control = ft.Container()
+
+        assert motion.keyed(control, "here") is control
+        assert control.key == "here"
+
+    def test_a_state_key_names_the_region_and_then_the_state(self) -> None:
+        assert motion.state_key("a.b", "c") == "a.b:c"
+
+
+class TestSwap:
+    """A region outlives the repaint; the state in it is what changes."""
+
+    def test_the_region_is_the_switchers_own_key(self) -> None:
+        region = motion.swap(region="r", state="s", content=ft.Container())
+
+        assert isinstance(region, ft.AnimatedSwitcher)
+        assert region.key == "r"
+
+    def test_the_state_is_the_contents_key(self) -> None:
+        region = motion.swap(region="r", state="s", content=ft.Container())
+
+        assert region.content.key == motion.state_key("r", "s")
+
+    def test_the_pace_sets_how_long_the_arriving_half_takes(self) -> None:
+        region = motion.swap(
+            region="r", state="s", content=ft.Container(), pace=motion.Swap.SCREEN
+        )
+
+        assert region.duration == motion.SLOW
+        assert region.reverse_duration == motion.LEAVE
+
+    def test_a_region_that_resizes_drops_the_outgoing_half_at_once(self) -> None:
+        """Fading it holds the region at the taller of the two states."""
+        region = motion.swap(
+            region="r", state="s", content=ft.Container(), resizes=True
+        )
+
+        assert region.reverse_duration == motion.LEAVE_AT_ONCE
+
+    def test_a_cross_fade_and_never_a_scale(self) -> None:
+        """A pane growing from nothing reads as a pop, not a change of subject."""
+        region = motion.swap(region="r", state="s", content=ft.Container())
+
+        assert region.transition == ft.AnimatedSwitcherTransition.FADE
+
+
+class TestTheShellAnimatesATabChange:
+    async def test_the_body_is_one_region_the_tabs_take_turns_in(
+        self, page: FakePage, services: Services
+    ) -> None:
+        app = PracticeApp(page, services)
+
+        await app.start()
+
+        assert isinstance(app._body, ft.AnimatedSwitcher)
+        assert app._body.expand is True
+
+    async def test_each_tab_carries_its_own_state_key(
+        self, page: FakePage, services: Services
+    ) -> None:
+        app = PracticeApp(page, services)
+        await app.start()
+
+        keys = [pane.key for pane in app._panes]
+
+        assert keys == [f"shell.body:{screen.tab_label}" for screen in app.screens]
+        assert len(set(keys)) == len(keys)
+
+    async def test_changing_tab_changes_which_state_the_region_holds(
+        self, page: FakePage, services: Services
+    ) -> None:
+        app = PracticeApp(page, services)
+        await app.start()
+        before = app._body.content
+
+        await app.select_tab(STATS_TAB)
+
+        assert app._body.content is not before
+        assert app._body.content.key != before.key
+
+    async def test_a_tab_change_is_the_slowest_thing_in_the_app(
+        self, page: FakePage, services: Services
+    ) -> None:
+        app = PracticeApp(page, services)
+
+        await app.start()
+
+        assert app._body.duration == motion.SLOW
+
+
+class TestThePracticeScreenAnimatesItsStates:
+    """Four screens in three slots, and the slots are the same ones every time."""
+
+    async def test_the_body_names_the_state_it_is_showing(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        assert _state_of(screen, "practice.body") == "practice.body:home"
+
+        await _start(screen)
+
+        assert _state_of(screen, "practice.body") == "practice.body:lesson"
+
+    async def test_the_magnified_picture_is_a_state_of_the_same_slots(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """It replaces the lesson, so it should arrive the way a screen does."""
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+
+        screen._open_zoom()
+
+        assert _state_of(screen, "practice.body") == "practice.body:zoom"
+        assert _state_of(screen, "practice.bar") == "practice.bar:zoom"
+
+    async def test_the_result_is_a_state_of_the_same_slot(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen, length=1)
+        await _answer(screen)
+
+        await screen._on_continue()
+
+        assert _state_of(screen, "practice.body") == "practice.body:result"
+
+    async def test_the_slots_keep_their_names_across_every_state(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """A slot renamed between two states is a slot the client remounts."""
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        during_lesson = set(_keys_under(screen))
+
+        screen._open_zoom()
+
+        during_zoom = set(_keys_under(screen))
+        assert {"practice.bar", "practice.body"} <= during_lesson & during_zoom
+
+    async def test_the_progress_bar_is_the_same_bar_from_question_to_question(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+
+        await _start(screen)
+
+        assert "practice.progress" in _keys_under(screen)
+
+
+class TestWhatUnfoldsInsideAQuestion:
+    """A fold is a slot with two states, so it fades rather than appearing."""
+
+    async def test_what_the_unit_covers_unfolds(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        assert _state_of(screen, "practice.body.unit") == "practice.body.unit:shut"
+
+        screen._toggle_unit()
+
+        assert _state_of(screen, "practice.body.unit") == "practice.body.unit:open"
+
+    async def test_the_shut_fold_keeps_its_words_out_of_the_tree(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """A slot needs both states; it does not need to carry both texts."""
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+
+        assert "Present Continuous" not in rendered(screen)
+
+        screen._toggle_unit()
+
+        assert "Present Continuous" in rendered(screen)
+
+    async def test_the_rule_unfolds_the_same_way(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        await _answer(screen)
+        assert _state_of(screen, "practice.foot.rule") == "practice.foot.rule:shut"
+
+        screen._on_toggle_rule()
+
+        assert _state_of(screen, "practice.foot.rule") == "practice.foot.rule:open"
+
+    async def test_a_picture_and_a_note_that_there_is_none_are_two_states(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """One key over both would patch a banner into a picture card."""
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        assert _state_of(screen, "practice.body.image") == "practice.body.image:picture"
+
+        await screen.start_lesson(2, "Past Tenses")
+
+        assert _state_of(screen, "practice.body.image") == "practice.body.image:none"
+
+
+class TestTheFootMorphs:
+    """The bar and the sheet are one surface wearing two looks."""
+
+    async def test_the_bar_and_the_sheet_are_the_same_slot(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        bar = screen.controls[-1]
+
+        await _answer(screen)
+
+        assert bar.key == screen.controls[-1].key == "screen.foot"
+
+    async def test_the_surface_is_what_changes_between_them(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """Its colour, its corners and its padding are what the client tweens."""
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        bar: Any = screen.controls[-1]
+
+        await _answer(screen)
+        raised: Any = screen.controls[-1]
+
+        assert bar.bgcolor != raised.bgcolor
+        assert bar.border_radius.top_left != raised.border_radius.top_left
+        assert bar.animate is not None
+        assert raised.animate is not None
+
+    async def test_each_thing_the_foot_says_is_a_state_of_its_own(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        states = [_state_of(screen.controls[-1], "screen.foot.body")]
+
+        await _answer(screen)
+        states.append(_state_of(screen.controls[-1], "screen.foot.body"))
+        screen.request_leave()
+        states.append(_state_of(screen.controls[-1], "screen.foot.body"))
+
+        assert states == [
+            "screen.foot.body:actions",
+            "screen.foot.body:verdict:right",
+            "screen.foot.body:leaving",
+        ]
+
+    async def test_a_wrong_answer_and_a_revealed_one_read_differently(
+        self, page: FakePage, wrong_services: Services
+    ) -> None:
+        screen = PracticeScreen(page, wrong_services)
+        await _start(screen)
+
+        await _answer(screen, "did")
+
+        assert (
+            _state_of(screen.controls[-1], "screen.foot.body")
+            == "screen.foot.body:verdict:wrong"
+        )
+
+    async def test_the_foot_drops_what_is_leaving_rather_than_holding_it(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """A bar and a sheet are nothing like the same height."""
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+
+        region = _region(screen.controls[-1], "screen.foot.body")
+
+        assert region.reverse_duration == motion.LEAVE_AT_ONCE
+
+
+class TestTheAnswerFieldSurvivesBeingRebuilt:
+    """Flet freezes what it mounts in a keyed pass, so the field is rebuilt."""
+
+    async def test_the_field_is_a_new_control_on_every_render(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        before = screen._answer
+
+        screen.repaint()
+
+        assert screen._answer is not before
+
+    async def test_it_keeps_its_key_so_the_client_keeps_the_field(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+
+        screen.repaint()
+
+        assert screen._answer.key == "practice.answer"
+
+    async def test_it_keeps_what_was_typed(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        screen._answer.value = "half a sentence"
+
+        screen._toggle_unit()
+
+        assert screen._answer.value == "half a sentence"
+
+    async def test_locking_it_is_a_property_the_client_can_animate(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        assert screen._answer.read_only is False
+
+        await _answer(screen)
+
+        assert screen._answer.read_only is True
+        assert screen._answer.fill_color is not None
+
+    async def test_the_next_question_arrives_with_an_empty_field(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """Emptying it must not be an assignment to a control that may be frozen."""
+        screen = PracticeScreen(page, services)
+        await _start(screen)
+        await _answer(screen)
+
+        await screen._on_continue()
+
+        assert screen._answer.value == ""
+
+
+class TestTheOtherScreensAnimateTheirWaiting:
+    def test_the_home_notice_is_a_slot_in_both_of_its_states(self) -> None:
+        view = HomeView(on_start=lambda *_: None, on_open_settings=lambda: None)
+
+        with_problem = view.build(HomeState(problem="No API key"))
+        without = view.build(HomeState())
+
+        assert _state_of(with_problem, "home.notice") == "home.notice:problem"
+        assert _state_of(without, "home.notice") == "home.notice:ready"
+
+    def test_each_topic_card_is_named_by_its_topic(self) -> None:
+        view = HomeView(on_start=lambda *_: None)
+        state = HomeState(topics=(Topic(id=7, name="Present Tenses", unit_count=3),))
+
+        built = view.build(state)
+
+        assert "home.topics.7" in _keys_under(built)
+
+    async def test_testing_the_connection_is_one_slot_with_three_states(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = SettingsScreen(page, services)
+        assert _state_of(screen, "settings.check") == "settings.check:idle"
+
+        screen._checking = True
+        screen.render()
+        assert _state_of(screen, "settings.check") == "settings.check:waiting"
+
+        screen._checking = False
+        screen._check_result = ("It answered.", True)
+        screen.render()
+
+        assert _state_of(screen, "settings.check") == "settings.check:answered"
+
+    async def test_fetching_the_catalogue_swaps_the_chevron_for_a_spinner(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = SettingsScreen(page, services)
+        region = "settings.model.trailing"
+        assert _state_of(screen, region) == f"{region}:ready"
+
+        screen._loading_models = True
+        screen.render()
+
+        assert _state_of(screen, region) == f"{region}:loading"
+
+    async def test_the_settings_panels_are_named_and_named_once_each(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = SettingsScreen(page, services)
+
+        keys = [shown.key for shown in screen.controls]
+
+        assert all(key is not None for key in keys)
+        assert len(set(keys)) == len(keys)
+
+    async def test_a_weekly_bar_has_a_height_to_grow_to(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """It is the one figure on the screen whose size can be animated."""
+        await services.stats.record(
+            Attempt(
+                topic_name="Present Tenses",
+                unit_number=1,
+                exercise_id="1.1",
+                question_id="2",
+                is_correct=True,
+            )
+        )
+        screen = StatsScreen(page, services)
+        await screen.reload()
+
+        bars = [
+            control
+            for key, control in _keys_under(screen).items()
+            if key.endswith(".bar")
+        ]
+
+        assert len(bars) == 7
+        assert all(bar.animate is not None for bar in bars)
+
+
+class TestTheMotionRulesHoldEverywhere:
+    """Two rules the whole app has to keep, checked over every screen it draws."""
+
+    @staticmethod
+    async def _every_state(page: FakePage, services: Services) -> list[Any]:
+        """Return each screen of the app, in every state it can be drawn in."""
+        app = PracticeApp(page, services)
+        await app.start()
+        drawn: list[Any] = [app.stats, app.settings, app.practice.controls[:]]
+
+        await app.practice.start_lesson(1, "Present Tenses")
+        drawn.append(app.practice.controls[:])
+        app.practice._open_zoom()
+        drawn.append(app.practice.controls[:])
+        app.practice._close_zoom()
+        await _answer(app.practice)
+        drawn.append(app.practice.controls[:])
+        app.practice.request_leave()
+        drawn.append(app.practice.controls[:])
+        app.practice._stay()
+        await app.practice._on_continue()
+        drawn.append(app.practice.controls[:])
+        return drawn
+
+    async def test_nothing_animates_a_property_without_a_key_to_keep_it(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """An unkeyed control is remounted, so its animation never runs."""
+        for drawn in await self._every_state(page, services):
+            offenders = _animated_without_keys(drawn)
+            assert not offenders, [type(node).__name__ for node in offenders]
+
+    async def test_no_two_siblings_are_given_the_same_key(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """Two siblings sharing a key is a reconciliation the client gets wrong."""
+        for drawn in await self._every_state(page, services):
+            assert _duplicate_sibling_keys(drawn) == []

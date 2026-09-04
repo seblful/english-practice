@@ -18,6 +18,7 @@ from practice_core.models import Topic
 
 from practice_app.session import LESSON_LENGTH
 from practice_app.stats import StatsSummary, TopicStat
+from practice_app.ui import motion
 from practice_app.ui.components import (
     STRETCH,
     banner,
@@ -43,6 +44,19 @@ __all__ = ["MIXED_LESSON_LABEL", "HomeState", "HomeView"]
 
 # What a run across every topic is called on screen.
 MIXED_LESSON_LABEL = "Mixed practice"
+
+# The slot at the top of the screen that says why the app cannot grade yet.
+# It is a region rather than a control that comes and goes, so fixing the
+# setting fades the notice out instead of making the whole screen jump up.
+_NOTICE_REGION = "home.notice"
+
+# The cards below it, named so that a reloaded figure updates the card the user
+# is looking at rather than remounting the list. See
+# :mod:`practice_app.ui.motion` on why a list needs keys.
+_TODAY_KEY = "home.today"
+_AGAIN_KEY = "home.again"
+_TOPICS_KEY = "home.topics"
+_TAIL_KEY = "home.tail"
 
 # Starts a lesson: the topic to draw from, and what to call it.
 StartLesson = Callable[[int | None, str], None]
@@ -91,18 +105,37 @@ class HomeView:
             The setup notice if there is one, today's card, the last topic
             again if there was one, and the topics to pick from.
         """
-        children: list[ft.Control] = []
+        children: list[ft.Control] = [self._notice(state.problem)]
 
-        if state.problem is not None:
-            children.append(self._setup_banner(state.problem))
-
-        children.append(self._today_card(state.summary))
+        children.append(motion.keyed(self._today_card(state.summary), _TODAY_KEY))
         if state.last_topic_id is not None:
-            children.append(self._again_button(state))
-        children.append(self._topic_list(state))
+            children.append(motion.keyed(self._again_button(state), _AGAIN_KEY))
+        children.append(motion.keyed(self._topic_list(state), _TOPICS_KEY))
         # The last card would otherwise end up under the navigation bar.
-        children.append(ft.Container(height=GAP_LARGE))
+        children.append(motion.keyed(ft.Container(height=GAP_LARGE), _TAIL_KEY))
         return children
+
+    def _notice(self, problem: str | None) -> ft.Control:
+        """Return the top slot: the setup warning, or nothing taking no room.
+
+        Args:
+            problem: The first thing stopping the app from grading, if any.
+
+        Returns:
+            The slot. The empty state is a zero-height box rather than an
+            absent control, because a region has to exist in both states for
+            the client to have something to fade between.
+        """
+        return motion.swap(
+            region=_NOTICE_REGION,
+            state="problem" if problem is not None else "ready",
+            content=(
+                self._setup_banner(problem)
+                if problem is not None
+                else ft.Container(height=0)
+            ),
+            resizes=True,
+        )
 
     # ------------------------------------------------------------------
     # Pieces
@@ -257,7 +290,10 @@ class HomeView:
             controls=[
                 section_title("Practise a topic"),
                 *(
-                    self._topic_card(topic, state.topic_stats.get(topic.name))
+                    motion.keyed(
+                        self._topic_card(topic, state.topic_stats.get(topic.name)),
+                        f"{_TOPICS_KEY}.{topic.id}",
+                    )
                     for topic in state.topics
                 ),
             ],
