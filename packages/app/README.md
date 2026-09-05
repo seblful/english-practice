@@ -170,6 +170,25 @@ open a file inside one. `[tool.flet.android] extract_packages` asks the build
 to ship this package unpacked; `practice_app/storage.py` copes either way,
 copying the database out on first launch when it has to.
 
+## Releasing
+
+```bash
+git tag app-v0.1.0 && git push origin app-v0.1.0
+```
+
+The tag runs `.github/workflows/release.yml`: lint, type-check and test every
+package, then draft a GitHub Release with generated notes. The APK is never
+built there — its source database is the gitignored one above, which is why
+it stays off any runner — so a workstation with Flutter, the Android SDK and
+`data/production.db` builds and attaches it:
+
+```bash
+pwsh scripts/release-apk.ps1 -Tag app-v0.1.0
+```
+
+That rebuilds the bundle, builds the APK, uploads it to the draft release and
+publishes it.
+
 ## How it is put together
 
 ```

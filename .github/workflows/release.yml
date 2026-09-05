@@ -1,0 +1,74 @@
+name: Release
+
+# The APK itself is never built here: `flet build apk` needs the source book
+# database, which is gitignored on purpose and never reaches a runner. This
+# workflow only gates quality and drafts the release; scripts/release-apk.ps1
+# builds the APK on a workstation and publishes the draft it creates.
+on:
+  push:
+    tags:
+      - "app-v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  quality:
+    name: Lint, type-check, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Sync the workspace (core, runtime, bot, extraction)
+        run: uv sync --all-packages
+
+      - name: Sync the app (its own lock file, excluded from the workspace)
+        run: uv sync --directory packages/app
+
+      - name: Lint, format check, and type-check every package
+        run: uv run pre-commit run --all-files
+
+      - name: Test core
+        run: uv run --directory packages/core pytest
+      - name: Test runtime
+        run: uv run --directory packages/runtime pytest
+      - name: Test bot
+        run: uv run --directory packages/bot pytest
+      - name: Test extraction
+        run: uv run --directory packages/extraction pytest
+      - name: Test app
+        run: uv run --directory packages/app pytest
+
+  release:
+    name: Draft the GitHub release
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag must match the app's declared version
+        run: |
+          tag_version="${GITHUB_REF_NAME#app-v}"
+          pkg_version=$(grep -m1 '^version' packages/app/pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::$GITHUB_REF_NAME does not match packages/app/pyproject.toml version $pkg_version" >&2
+            exit 1
+          fi
+
+      # Draft only: no asset exists yet, and the release should not be
+      # visible until scripts/release-apk.ps1 attaches the APK and publishes.
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "English Practice $GITHUB_REF_NAME" \
+            --generate-notes \
+            --draft

@@ -150,6 +150,17 @@ docker run --rm --env-file .env -v .\data:/app/data -v .\logs:/app/logs english-
 Or `docker compose up -d`. The image is the bot only. See
 [docs/deployment.md](docs/deployment.md) for a VPS walkthrough.
 
+### Releasing
+
+```bash
+git tag app-v0.1.0 && git push origin app-v0.1.0
+```
+
+Tags matching `app-v*` run the release workflow: every package's lint, type
+checks and tests, then a draft GitHub Release with generated notes. The APK
+is built and attached from a workstation — see
+[packages/app/README.md#releasing](packages/app/README.md#releasing).
+
 ## Data sources
 
 - **Exercises**: extracted from *English Grammar in Use* (Murphy)
