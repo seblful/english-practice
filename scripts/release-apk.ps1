@@ -23,6 +23,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# $ErrorActionPreference only covers PowerShell errors -- an external command's
+# non-zero exit (or a graceful "can't run yet" no-op) does not stop the script
+# on its own, so every step below is checked by hand.
+function Invoke-Checked {
+    param([string]$Description)
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Description failed (exit $LASTEXITCODE)"
+    }
+}
+
 Set-Location (git rev-parse --show-toplevel)
 
 # cp1252 can't encode the emoji flet prints while building; see the
@@ -31,10 +41,15 @@ $env:PYTHONIOENCODING = "utf-8"
 $env:PYTHONUTF8 = "1"
 
 Write-Host "Rebuilding the bundled exercise database..."
-uv run --directory packages/extraction practice-content bundle
+# --package, not --directory: the CLI resolves its source database as a path
+# relative to the process's cwd, and --directory would chdir into extraction
+# and break that -- this keeps cwd at the repo root, where it works.
+uv run --package english-practice-extraction practice-content bundle
+Invoke-Checked "practice-content bundle"
 
 Write-Host "Building the APK (about 6 minutes)..."
 uv run --directory packages/app flet build apk --project "English Practice"
+Invoke-Checked "flet build apk"
 
 $apk = Get-ChildItem "packages/app/build/apk/*.apk" | Select-Object -First 1
 if (-not $apk) {
@@ -43,6 +58,8 @@ if (-not $apk) {
 
 Write-Host "Uploading $($apk.Name) to the $Tag release..."
 gh release upload $Tag $apk.FullName --clobber
+Invoke-Checked "gh release upload"
 gh release edit $Tag --draft=false
+Invoke-Checked "gh release edit --draft=false"
 
 Write-Host "Published: https://github.com/seblful/english-practice/releases/tag/$Tag"
