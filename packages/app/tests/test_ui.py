@@ -1848,14 +1848,20 @@ class TestSettingsScreen:
         assert services.config_store.load().theme == ThemeChoice.DARK
 
     async def test_the_key_page_can_be_opened(
-        self, page: FakePage, services: Services
+        self, page: FakePage, services: Services, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The real `launch_url` is a coroutine, so it has to be awaited."""
+        """Open the key page through Flet's URL service and await the launch."""
         screen = SettingsScreen(page, services)
+        launched: list[str] = []
+
+        async def launch_url(url: str) -> None:
+            launched.append(url)
+
+        monkeypatch.setattr(screen._url_launcher, "launch_url", launch_url)
 
         await _find(screen.controls[0], ft.TextButton).on_click()
 
-        assert page.launched == [Provider.OPENROUTER.console_url]
+        assert launched == [Provider.OPENROUTER.console_url]
 
     async def test_a_successful_connection_test_is_reported(
         self, page: FakePage, services: Services

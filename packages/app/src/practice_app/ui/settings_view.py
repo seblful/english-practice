@@ -108,6 +108,7 @@ class SettingsScreen(Screen):
     ) -> None:
         """Build the screen."""
         self._page = page
+        self._url_launcher = ft.UrlLauncher()
         self._services = services
         self._on_changed = on_changed
         self._counts: ContentCounts | None = None
@@ -582,7 +583,7 @@ class SettingsScreen(Screen):
 
     async def _open_key_page(self) -> None:
         """Open the provider's key page in a browser."""
-        await self._page.launch_url(self._config.provider.console_url)
+        await self._url_launcher.launch_url(self._config.provider.console_url)
 
     def _stage(self, config: AppConfig) -> None:
         """Hold an edit until the field that made it loses focus."""

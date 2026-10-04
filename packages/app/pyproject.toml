@@ -3,7 +3,7 @@ name = "english-practice-app"
 description = "Android app that grades English grammar exercises from English Grammar in Use (Murphy) with a vision LLM."
 readme = "README.md"
 requires-python = ">=3.13"
-version = "0.1.1"
+version = "0.1.2"
 
 license = "Apache-2.0"
 
@@ -15,7 +15,7 @@ keywords = ["android", "flet", "english", "grammar", "llm"]
 # `practice-core` is the domain shared with the bot; no provider SDK fits an APK.
 dependencies = [
     "practice-core",
-    "flet>=0.86.5",
+    "flet>=1.0.3",
     "httpx>=0.28.1",
     "socksio>=1.0.0",
 ]
@@ -25,8 +25,8 @@ practice-core = { path = "../core" }
 
 [dependency-groups]
 dev = [
-    "flet-cli>=0.86.5",
-    "flet-desktop>=0.86.5",
+    "flet-cli>=1.0.3",
+    "flet-desktop>=1.0.3",
     "pytest>=9.0.0",
     "pytest-asyncio>=0.24",
     "pytest-cov>=7.0.0",
@@ -74,7 +74,7 @@ known-first-party = ["practice_app"]
 root = ["./src", "."]
 
 [tool.flet]
-build_number = 2
+build_number = 3
 org = "com.seblful"
 product = "English Practice"
 company = "Aliaksei Chymba"

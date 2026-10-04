@@ -69,7 +69,6 @@ class FakePage:
 
     dialogs: list[Any] = field(default_factory=list)
     popped: int = 0
-    launched: list[str] = field(default_factory=list)
     tasks: list[tuple[Any, tuple[Any, ...]]] = field(default_factory=list)
 
     updates: int = 0
@@ -91,10 +90,6 @@ class FakePage:
     def pop_dialog(self) -> None:
         """Record that the screen closed the top dialog."""
         self.popped += 1
-
-    async def launch_url(self, url: str) -> None:
-        """Record an external link the screen opened."""
-        self.launched.append(url)
 
     def run_task(self, handler: Any, *args: Any) -> None:
         """Record a coroutine the screen scheduled instead of awaiting."""

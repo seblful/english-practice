@@ -19,10 +19,6 @@ class DialogPage(Protocol):
         """Close the topmost dialog."""
         ...
 
-    async def launch_url(self, url: str) -> None:
-        """Open a link outside the app."""
-        ...
-
     def run_task(self, handler: Callable[..., Awaitable[Any]], *args: Any) -> Any:
         """Schedule a coroutine from a callback that cannot await."""
         ...
