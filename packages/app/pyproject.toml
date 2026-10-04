@@ -3,7 +3,7 @@ name = "english-practice-app"
 description = "Android app that grades English grammar exercises from English Grammar in Use (Murphy) with a vision LLM."
 readme = "README.md"
 requires-python = ">=3.13"
-version = "0.1.0"
+version = "0.1.1"
 
 license = "Apache-2.0"
 
@@ -74,6 +74,7 @@ known-first-party = ["practice_app"]
 root = ["./src", "."]
 
 [tool.flet]
+build_number = 2
 org = "com.seblful"
 product = "English Practice"
 company = "Aliaksei Chymba"
