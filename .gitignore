@@ -1,5 +1,17 @@
 # Project specific
-data/
+# Track reviewed metadata and its audit record; keep source assets and scratch files local.
+/data/*
+!/data/content/
+/data/content/*
+!/data/content/metadata/
+/data/content/metadata/*
+!/data/content/metadata/answers_full.json
+!/data/content/metadata/rules.json
+!/data/manual-review/
+/data/manual-review/*
+!/data/manual-review/audit.json
+!/data/manual-review/progress.json
+!/data/manual-review/book-key-audit.json
 drafts/
 /models/
 .vscode/

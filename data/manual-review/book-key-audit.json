@@ -1,0 +1,177 @@
+{
+  "complete": true,
+  "reviewed_date": "2026-10-04",
+  "result": "The extracted source answer key matches the book. No answer corrections required.",
+  "scope": "Key to Exercises, units 1–145; printed book pages 336–367. Additional Exercises and Study Guide answers are outside this metadata scope.",
+  "units": 145,
+  "exercises": 566,
+  "questions": 4025,
+  "answer_key_pages": 32,
+  "text_mismatches": 0,
+  "missing_questions": 0,
+  "extra_questions": 0,
+  "duplicate_question_ids": 0,
+  "method": [
+    "Extracted text independently from all 32 pages of data/source/snippets/answers.pdf.",
+    "Confirmed every snippet page has exactly the same extracted text as its corresponding page in data/source/murphy.pdf.",
+    "Compared every answer and exercise/question identifier with data/content/metadata/answers.json.",
+    "Normalized Unicode presentation forms, typographic apostrophes, whitespace, and spacing around slashes; excluded explanatory labels and footnotes from answer values.",
+    "Preserved and checked subquestion letters, repeated numbered subparts, grouped example answers, and the combined 111.1 question 10–12.",
+    "Visually inspected the 13 pages containing all parser ambiguities, plus the end of the key. This is a complete text comparison with targeted visual checks, not a manual reading of every page."
+  ],
+  "visually_checked_key_pdf_pages": [
+    1,
+    3,
+    4,
+    5,
+    7,
+    10,
+    15,
+    16,
+    17,
+    22,
+    25,
+    31,
+    32
+  ],
+  "special_grouping": {
+    "18.3": "Five bullet answers for questions 2–6 are correctly split into five JSON entries.",
+    "75.1": "Four example answers for questions 2–5 are correctly split into four JSON entries.",
+    "111.1": "The grouped question ID 10-12 correctly retains all four example choices printed for three requested sentences."
+  },
+  "book_page_mapping": [
+    {
+      "key_pdf_page": 1,
+      "book_pdf_page": 348
+    },
+    {
+      "key_pdf_page": 2,
+      "book_pdf_page": 349
+    },
+    {
+      "key_pdf_page": 3,
+      "book_pdf_page": 350
+    },
+    {
+      "key_pdf_page": 4,
+      "book_pdf_page": 351
+    },
+    {
+      "key_pdf_page": 5,
+      "book_pdf_page": 352
+    },
+    {
+      "key_pdf_page": 6,
+      "book_pdf_page": 353
+    },
+    {
+      "key_pdf_page": 7,
+      "book_pdf_page": 354
+    },
+    {
+      "key_pdf_page": 8,
+      "book_pdf_page": 355
+    },
+    {
+      "key_pdf_page": 9,
+      "book_pdf_page": 356
+    },
+    {
+      "key_pdf_page": 10,
+      "book_pdf_page": 357
+    },
+    {
+      "key_pdf_page": 11,
+      "book_pdf_page": 358
+    },
+    {
+      "key_pdf_page": 12,
+      "book_pdf_page": 359
+    },
+    {
+      "key_pdf_page": 13,
+      "book_pdf_page": 360
+    },
+    {
+      "key_pdf_page": 14,
+      "book_pdf_page": 361
+    },
+    {
+      "key_pdf_page": 15,
+      "book_pdf_page": 362
+    },
+    {
+      "key_pdf_page": 16,
+      "book_pdf_page": 363
+    },
+    {
+      "key_pdf_page": 17,
+      "book_pdf_page": 364
+    },
+    {
+      "key_pdf_page": 18,
+      "book_pdf_page": 365
+    },
+    {
+      "key_pdf_page": 19,
+      "book_pdf_page": 366
+    },
+    {
+      "key_pdf_page": 20,
+      "book_pdf_page": 367
+    },
+    {
+      "key_pdf_page": 21,
+      "book_pdf_page": 368
+    },
+    {
+      "key_pdf_page": 22,
+      "book_pdf_page": 369
+    },
+    {
+      "key_pdf_page": 23,
+      "book_pdf_page": 370
+    },
+    {
+      "key_pdf_page": 24,
+      "book_pdf_page": 371
+    },
+    {
+      "key_pdf_page": 25,
+      "book_pdf_page": 372
+    },
+    {
+      "key_pdf_page": 26,
+      "book_pdf_page": 373
+    },
+    {
+      "key_pdf_page": 27,
+      "book_pdf_page": 374
+    },
+    {
+      "key_pdf_page": 28,
+      "book_pdf_page": 375
+    },
+    {
+      "key_pdf_page": 29,
+      "book_pdf_page": 376
+    },
+    {
+      "key_pdf_page": 30,
+      "book_pdf_page": 377
+    },
+    {
+      "key_pdf_page": 31,
+      "book_pdf_page": 378
+    },
+    {
+      "key_pdf_page": 32,
+      "book_pdf_page": 379
+    }
+  ],
+  "source_sha256": {
+    "data/content/metadata/answers.json": "ecc3d209cc2adbbf14956bb767c84fc9b4b520d02432163ea695caddbcf83ea2",
+    "data/source/snippets/answers.pdf": "960d85be550fcda44d8bb28617b50e4c91b930f863f05d95741d07d68b9d3aa4",
+    "data/source/murphy.pdf": "2f316efc5973da9dadaf39dd60d212a483924e0a20e61d35e4e7993c43427018"
+  }
+}
