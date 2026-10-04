@@ -186,8 +186,9 @@ it stays off any runner — so a workstation with Flutter, the Android SDK and
 pwsh scripts/release-apk.ps1 -Tag app-v0.1.0
 ```
 
-That rebuilds the bundle, builds the APK, uploads it to the draft release and
-publishes it.
+That rebuilds the bundle, builds and signs the APK, uploads it to the draft
+release and publishes it. Signing requires the repository's release key;
+see [Android signing and backups](../../docs/android-signing.md).
 
 ## How it is put together
 

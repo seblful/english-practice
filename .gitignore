@@ -79,6 +79,12 @@ Thumbs.db
 # Secrets
 *.key
 *.pem
+*.jks
+*.keystore
+*.p12
+*-signing-password.xml
+key.properties
+/keystore.properties
 secrets/
 credentials/
 

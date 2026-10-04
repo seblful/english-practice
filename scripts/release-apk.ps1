@@ -56,6 +56,10 @@ if (-not $apk) {
     throw "No APK found under packages/app/build/apk/ -- did flet build apk fail?"
 }
 
+Write-Host "Signing with the repository's release key..."
+pwsh -NoProfile -File (Join-Path $PSScriptRoot 'sign-apk.ps1') -ApkPath $apk.FullName
+Invoke-Checked "sign-apk.ps1"
+
 Write-Host "Uploading $($apk.Name) to the $Tag release..."
 gh release upload $Tag $apk.FullName --clobber
 Invoke-Checked "gh release upload"
