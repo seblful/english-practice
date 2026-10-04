@@ -19967,15 +19967,15 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "so that",
+                  "short_answer": "so that … would hear us.",
                   "full_answer": "We spoke very quietly **so that** nobody else **would hear us.**"
                 },
                 {
-                  "short_answer": "would hear us.",
+                  "short_answer": "so that … could hear us.",
                   "full_answer": "We spoke very quietly **so that** nobody else **could hear us.**"
                 },
                 {
-                  "short_answer": "so that",
+                  "short_answer": "so that … would be able to hear us.",
                   "full_answer": "We spoke very quietly **so that** nobody else **would be able to hear us.**"
                 }
               ]
