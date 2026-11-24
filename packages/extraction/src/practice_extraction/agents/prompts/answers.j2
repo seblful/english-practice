@@ -33,6 +33,14 @@ Strictly follow these extraction rules based on the exercise type:
    - Split these by the slash "/" and output multiple `short_answers`.
    - Output corresponding multiple `full_answers` for each variation.
    - Words in brackets (e.g., "(that)") are optional. Include them in the full sentence without the brackets.
+
+4. **Several Gaps in One Question**:
+   - An ellipsis "…" in the expected short answer separates the answers to several gaps of the same question (e.g., "takes … does it take").
+   - Keep every part in each short answer, joined by " … ", and bold every gap in the full sentence. Never shorten it to the first gap.
+   - A slash inside one part offers alternatives for that gap only: "I’ve lost / I have lost … Have you seen" gives "I’ve lost … Have you seen" and "I have lost … Have you seen".
+
+5. **No Word Needed**:
+   - A dash "–" or "—" as the expected answer means the gap takes no word. Output "—" as the short answer and the sentence with nothing in the gap as the full answer.
 </Instructions>
 
 <OutputFormat>

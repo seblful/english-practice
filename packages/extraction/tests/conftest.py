@@ -72,8 +72,8 @@ VALUES
     (3, 3, '1', 0, 'A', 'Use past simple', 0);
 
 INSERT INTO question_answers (question_id, short_answer, full_answer)
-VALUES (1, 'is doing', 'He is doing.'),
-       (1, "'s doing", "He's doing.");
+VALUES (1, 'is doing', 'He **is doing**.'),
+       (1, "'s doing", "He**'s doing**.");
 """
 
 

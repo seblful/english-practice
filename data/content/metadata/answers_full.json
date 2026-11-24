@@ -551,7 +551,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "takes",
+                  "short_answer": "takes … does it take",
                   "full_answer": "It **takes** me an hour to get to work in the morning. How long **does it take** you?"
                 }
               ]
@@ -641,7 +641,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "Does",
+                  "short_answer": "Does … play tennis",
                   "full_answer": "**Does** your sister **play tennis**?"
                 }
               ]
@@ -855,7 +855,7 @@
               "answers": [
                 {
                   "short_answer": "OK",
-                  "full_answer": "They don't get on well. They're always arguing."
+                  "full_answer": "They don't get on well. **They're always arguing**."
                 }
               ]
             }
@@ -1534,7 +1534,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "was tired",
+                  "short_answer": "was tired … got",
                   "full_answer": "She **was tired** when she **got** home."
                 }
               ]
@@ -1613,7 +1613,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "fell",
+                  "short_answer": "fell … hurt",
                   "full_answer": "Dave **fell** down the stairs this morning and **hurt** his leg."
                 }
               ]
@@ -1623,7 +1623,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "threw",
+                  "short_answer": "threw … caught",
                   "full_answer": "Joe **threw** the ball to Sue, who **caught** it."
                 }
               ]
@@ -1633,7 +1633,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "spent",
+                  "short_answer": "spent … bought … cost",
                   "full_answer": "Kate **spent** a lot of money yesterday. She **bought** a dress which **cost** £100."
                 }
               ]
@@ -1953,7 +1953,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "didn't see",
+                  "short_answer": "didn't see … was looking",
                   "full_answer": "I saw Sue in town yesterday, but she **didn't see** me. She **was looking** the other way."
                 }
               ]
@@ -1963,7 +1963,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "was cycling",
+                  "short_answer": "was cycling … stepped … was going … managed … didn't hit",
                   "full_answer": "I **was cycling** home yesterday when a man **stepped** out into the road in front of me. I **was going** quite fast, but luckily I **managed** to stop in time, and I **didn't hit** him."
                 }
               ]
@@ -1998,7 +1998,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "were you driving",
+                  "short_answer": "were you driving … happened",
                   "full_answer": "How fast **were you driving** when the accident **happened**?"
                 }
               ]
@@ -2008,7 +2008,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "took",
+                  "short_answer": "took … wasn’t looking",
                   "full_answer": "Sam **took** a picture of me while I **wasn’t looking**."
                 }
               ]
@@ -2028,7 +2028,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "saw",
+                  "short_answer": "saw … was trying",
                   "full_answer": "I haven’t seen Alan for ages. When I last **saw** him, he **was trying** to find a job."
                 }
               ]
@@ -2038,7 +2038,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "was walking",
+                  "short_answer": "was walking … heard … was following … started",
                   "full_answer": "I **was walking** along the street when suddenly I **heard** something behind me. Somebody **was following** me. I was scared and I **started** to run."
                 }
               ]
@@ -2048,7 +2048,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "wanted",
+                  "short_answer": "wanted … changed",
                   "full_answer": "When I was young, I **wanted** to be a pilot. Later I **changed** my mind."
                 }
               ]
@@ -2058,7 +2058,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "dropped",
+                  "short_answer": "dropped … was doing … didn’t break",
                   "full_answer": "Last night I **dropped** a plate when I **was doing** the washing up. Fortunately it **didn’t break**."
                 }
               ]
@@ -3309,11 +3309,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "I’ve lost",
+                  "short_answer": "I’ve lost … Have you seen",
                   "full_answer": "**I’ve lost** my phone. **Have you seen** it?"
                 },
                 {
-                  "short_answer": "I have lost",
+                  "short_answer": "I have lost … Have you seen",
                   "full_answer": "**I have lost** my phone. **Have you seen** it?"
                 }
               ]
@@ -3323,11 +3323,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "I’ve been reading",
+                  "short_answer": "I’ve been reading … I haven’t finished",
                   "full_answer": "**I’ve been reading** the book you lent me, but **I haven’t finished** it yet. It’s really interesting."
                 },
                 {
-                  "short_answer": "I have been reading",
+                  "short_answer": "I have been reading … I haven’t finished",
                   "full_answer": "**I have been reading** the book you lent me, but **I haven’t finished** it yet. It’s really interesting."
                 }
               ]
@@ -4228,7 +4228,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "did you find",
+                  "short_answer": "did you find … It was",
                   "full_answer": "A: I’ve found my phone.\nB: Oh, good. Where **did you find** it?\nA: **It was** at the bottom of my bag."
                 }
               ]
@@ -4238,15 +4238,15 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "He’s broken",
+                  "short_answer": "He’s broken … did that happen … He fell",
                   "full_answer": "A: Ben won’t be able to play tennis for a while. **He’s broken** his arm.\nB: Oh. How **did that happen**?\nA: **He fell** off a ladder."
                 },
                 {
-                  "short_answer": "He has broken",
+                  "short_answer": "He has broken … did that happen … He fell",
                   "full_answer": "A: Ben won’t be able to play tennis for a while. **He has broken** his arm.\nB: Oh. How **did that happen**?\nA: **He fell** off a ladder."
                 },
                 {
-                  "short_answer": "He broke",
+                  "short_answer": "He broke … did that happen … He fell",
                   "full_answer": "A: Ben won’t be able to play tennis for a while. **He broke** his arm.\nB: Oh. How **did that happen**?\nA: **He fell** off a ladder."
                 }
               ]
@@ -4436,7 +4436,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "There was",
+                  "short_answer": "There was … there were",
                   "full_answer": "**There was** a bus drivers' strike last week, so **there were** no buses."
                 }
               ]
@@ -4446,7 +4446,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "worked",
+                  "short_answer": "worked … he gave",
                   "full_answer": "Edward **worked** in a bank for 15 years. Then **he gave** it up. Now he works as a gardener."
                 }
               ]
@@ -4470,7 +4470,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "died",
+                  "short_answer": "died … I never met",
                   "full_answer": "My grandfather **died** before I was born. **I never met** him."
                 }
               ]
@@ -4504,7 +4504,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "Did you go",
+                  "short_answer": "Did you go … was",
                   "full_answer": "A: **Did you go** to the cinema last night? B: Yes, but the movie **was** awful."
                 }
               ]
@@ -4514,11 +4514,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "It's been",
+                  "short_answer": "It's been … it was",
                   "full_answer": "A: **It's been** very warm here since we arrived. B: Yes, **it was** 35 degrees yesterday."
                 },
                 {
-                  "short_answer": "It has been",
+                  "short_answer": "It has been … it was",
                   "full_answer": "A: **It has been** very warm here since we arrived. B: Yes, **it was** 35 degrees yesterday."
                 }
               ]
@@ -4528,11 +4528,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "have you lived",
+                  "short_answer": "have you lived … did you live … did you live",
                   "full_answer": "A: Where do you live?\nB: In Boston.\nA: How long **have you lived** there?\nB: Five years.\nA: Where **did you live** before that?\nB: In Chicago.\nA: And how long **did you live** in Chicago?\nB: Two years."
                 },
                 {
-                  "short_answer": "have you been living",
+                  "short_answer": "have you been living … did you live … did you live",
                   "full_answer": "A: Where do you live?\nB: In Boston.\nA: How long **have you been living** there?\nB: Five years.\nA: Where **did you live** before that?\nB: In Chicago.\nA: And how long **did you live** in Chicago?\nB: Two years."
                 }
               ]
@@ -4679,11 +4679,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "there was",
+                  "short_answer": "there was … She’d gone",
                   "full_answer": "I went to Laura’s house this morning and rang her doorbell, but **there was** no answer. **She’d gone** out."
                 },
                 {
-                  "short_answer": "She’d gone",
+                  "short_answer": "there was … She had gone",
                   "full_answer": "I went to Laura’s house this morning and rang her doorbell, but **there was** no answer. **She had gone** out."
                 }
               ]
@@ -4693,11 +4693,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "He’d just come back from",
+                  "short_answer": "He’d just come back from … He looked",
                   "full_answer": "I met Joe a few days ago. **He’d just come back from** holiday. **He looked** very well."
                 },
                 {
-                  "short_answer": "He had just come back from",
+                  "short_answer": "He had just come back from … He looked",
                   "full_answer": "I met Joe a few days ago. **He had just come back from** holiday. **He looked** very well."
                 }
               ]
@@ -4778,7 +4778,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "we saw",
+                  "short_answer": "we saw … had broken … we stopped",
                   "full_answer": "We were driving along the road when **we saw** a car which **had broken** down, so **we stopped** to help."
                 }
               ]
@@ -4873,11 +4873,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "I'd been waiting",
+                  "short_answer": "I'd been waiting … realised … was",
                   "full_answer": "**I'd been waiting** for 20 minutes when I **realised** that I **was** in the wrong restaurant."
                 },
                 {
-                  "short_answer": "I had been waiting",
+                  "short_answer": "I had been waiting … realised … was",
                   "full_answer": "**I had been waiting** for 20 minutes when I **realised** that I **was** in the wrong restaurant."
                 }
               ]
@@ -4887,11 +4887,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "went",
+                  "short_answer": "went … had been working",
                   "full_answer": "At the time the company **went** out of business, Sarah **had been working** there for twelve years."
                 },
                 {
-                  "short_answer": "had been working",
+                  "short_answer": "went … had worked",
                   "full_answer": "At the time the company **went** out of business, Sarah **had worked** there for twelve years."
                 }
               ]
@@ -4901,7 +4901,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "had been playing",
+                  "short_answer": "had been playing … started",
                   "full_answer": "The orchestra **had been playing** for about ten minutes when a man in the audience suddenly **started** shouting."
                 }
               ]
@@ -4991,7 +4991,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "she was waiting",
+                  "short_answer": "she was waiting … she’d been waiting",
                   "full_answer": "I had arranged to meet Kate, but I was late. When I finally arrived, **she was waiting** for me. She was annoyed because **she’d been waiting** such a long time."
                 }
               ]
@@ -5929,11 +5929,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "I’m going",
+                  "short_answer": "I’m going … does it start",
                   "full_answer": "A: **I’m going** to a concert tonight. B: That’s nice. What time **does it start**?"
                 },
                 {
-                  "short_answer": "I am going",
+                  "short_answer": "I am going … does it start",
                   "full_answer": "A: **I am going** to a concert tonight. B: That’s nice. What time **does it start**?"
                 }
               ]
@@ -5967,7 +5967,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "does this term end",
+                  "short_answer": "does this term end … starts",
                   "full_answer": "A: When **does this term end**? B: Next Friday. And next term **starts** four weeks after that."
                 }
               ]
@@ -5977,11 +5977,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "We’re going",
+                  "short_answer": "We’re going … Who’s getting",
                   "full_answer": "A: **We’re going** to a wedding at the weekend. B: Really? **Who’s getting** married?"
                 },
                 {
-                  "short_answer": "We are going",
+                  "short_answer": "We are going … Who is getting",
                   "full_answer": "A: **We are going** to a wedding at the weekend. B: Really? **Who is getting** married?"
                 }
               ]
@@ -6001,7 +6001,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "leaves",
+                  "short_answer": "leaves … arrives",
                   "full_answer": "A: What time is your train tomorrow?\nB: It **leaves** at 9.35 and **arrives** at 12.47."
                 }
               ]
@@ -6547,7 +6547,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "Shall we get a taxi",
+                  "short_answer": "Shall we get a taxi … shall we walk",
                   "full_answer": "**Shall we get a taxi** or **shall we walk**?"
                 }
               ]
@@ -7055,7 +7055,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "he’s going to have",
+                  "short_answer": "he’s going to have … he’s going to do",
                   "full_answer": "A: Has Dan decided what to do when he leaves school?\nB: Yes. Everything is planned. First **he’s going to have** a holiday for a few weeks. Then **he’s going to do** a management training course."
                 }
               ]
@@ -7244,7 +7244,7 @@
               "answers": [
                 {
                   "short_answer": "a and c are true",
-                  "full_answer": "At 9.15: **a — he’ll be working**; **c — he’ll have started work**."
+                  "full_answer": "At 9.15, **a and c are true**: he’ll be working, and he’ll have started work."
                 }
               ]
             },
@@ -7254,7 +7254,7 @@
               "answers": [
                 {
                   "short_answer": "b and d are true",
-                  "full_answer": "At 12.45: **b — he’ll be having lunch**; **d — he’ll have started his lunch**."
+                  "full_answer": "At 12.45, **b and d are true**: he’ll be having lunch, and he’ll have started his lunch."
                 }
               ]
             },
@@ -7264,7 +7264,7 @@
               "answers": [
                 {
                   "short_answer": "c and d are true",
-                  "full_answer": "At 4 o’clock: **c — he’ll be working**; **d — he won’t have finished work**."
+                  "full_answer": "At 4 o’clock, **c and d are true**: he’ll be working, and he won’t have finished work."
                 }
               ]
             },
@@ -7620,11 +7620,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "I’ll wait",
+                  "short_answer": "I’ll wait … you’re",
                   "full_answer": "There’s no need to hurry. **I’ll wait** for you until **you’re** ready."
                 },
                 {
-                  "short_answer": "I will wait",
+                  "short_answer": "I will wait … you are",
                   "full_answer": "There’s no need to hurry. **I will wait** for you until **you are** ready."
                 }
               ]
@@ -7634,7 +7634,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "Will you still be",
+                  "short_answer": "Will you still be … I get",
                   "full_answer": "I’m going out for about an hour. **Will you still be** here when **I get** back?"
                 }
               ]
@@ -7644,11 +7644,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "there are",
+                  "short_answer": "there are … I’ll let",
                   "full_answer": "I think everything will be fine, but if **there are** any problems, **I’ll let** you know, OK?"
                 },
                 {
-                  "short_answer": "I’ll let",
+                  "short_answer": "there are … I will let",
                   "full_answer": "I think everything will be fine, but if **there are** any problems, **I will let** you know, OK?"
                 }
               ]
@@ -7658,11 +7658,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "You won’t recognise",
+                  "short_answer": "You won’t recognise … you see",
                   "full_answer": "Kate looks completely different now. **You won’t recognise** her when **you see** her again."
                 },
                 {
-                  "short_answer": "You will not recognise",
+                  "short_answer": "You will not recognise … you see",
                   "full_answer": "Kate looks completely different now. **You will not recognise** her when **you see** her again."
                 }
               ]
@@ -7672,11 +7672,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "you need",
+                  "short_answer": "you need … I’m",
                   "full_answer": "I’m going to be away for a few days. If **you need** to contact me while **I’m** away, you can call me."
                 },
                 {
-                  "short_answer": "I’m",
+                  "short_answer": "you need … I am",
                   "full_answer": "I’m going to be away for a few days. If **you need** to contact me while **I am** away, you can call me."
                 }
               ]
@@ -9722,7 +9722,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "needn’t",
+                  "short_answer": "needn’t … must",
                   "full_answer": "A: What sort of house do you want to buy? Something big?\nB: It **needn’t** be big – that’s not so important. But it **must** have a nice garden."
                 }
               ]
@@ -11794,11 +11794,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "somebody gave",
+                  "short_answer": "somebody gave … I’d have",
                   "full_answer": "If **somebody gave** me $20,000, **I’d have** a long holiday."
                 },
                 {
-                  "short_answer": "I’d have",
+                  "short_answer": "somebody gave … I would have",
                   "full_answer": "If **somebody gave** me $20,000, **I would have** a long holiday."
                 }
               ]
@@ -11808,7 +11808,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "Would you be",
+                  "short_answer": "Would you be … you met",
                   "full_answer": "**Would you be** nervous if **you met** a famous person?"
                 }
               ]
@@ -11818,7 +11818,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "would you do",
+                  "short_answer": "would you do … you were … it stopped",
                   "full_answer": "What **would you do** if **you were** in a lift and **it stopped** between floors?"
                 }
               ]
@@ -11963,11 +11963,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "I wouldn’t wait",
+                  "short_answer": "I wouldn’t wait … I’d go",
                   "full_answer": "If I were you, **I wouldn’t wait**. **I’d go** now."
                 },
                 {
-                  "short_answer": "I’d go",
+                  "short_answer": "I wouldn’t wait … I would go",
                   "full_answer": "If I were you, **I wouldn’t wait**. **I would go** now."
                 }
               ]
@@ -11977,7 +11977,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "you didn’t go",
+                  "short_answer": "you didn’t go … you wouldn’t be",
                   "full_answer": "You’re always tired because you go to bed so late. If **you didn’t go** to bed so late every night, **you wouldn’t be** tired all the time."
                 }
               ]
@@ -11987,7 +11987,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "there weren’t",
+                  "short_answer": "there weren’t … there wouldn’t be",
                   "full_answer": "I think there are too many cars. If **there weren’t** so many cars, **there wouldn’t be** so much pollution."
                 }
               ]
@@ -11997,7 +11997,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "would you do",
+                  "short_answer": "would you do … you didn’t have",
                   "full_answer": "We all need jobs and money, but what **would you do** if **you didn’t have** to work?"
                 }
               ]
@@ -12012,11 +12012,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "I’d buy",
+                  "short_answer": "I’d buy … they weren’t",
                   "full_answer": "**I’d buy** them if **they weren’t** so expensive."
                 },
                 {
-                  "short_answer": "I would buy",
+                  "short_answer": "I would buy … they weren’t",
                   "full_answer": "**I would buy** them if **they weren’t** so expensive."
                 }
               ]
@@ -12026,11 +12026,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "We’d go",
+                  "short_answer": "We’d go … we could afford it",
                   "full_answer": "**We’d go** on holiday if **we could afford it**."
                 },
                 {
-                  "short_answer": "We would go",
+                  "short_answer": "We would go … we could afford it",
                   "full_answer": "**We would go** on holiday if **we could afford it**."
                 }
               ]
@@ -12040,11 +12040,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "could have lunch outside",
+                  "short_answer": "could have lunch outside … it weren’t raining",
                   "full_answer": "We **could have lunch outside** if **it weren’t raining**."
                 },
                 {
-                  "short_answer": "it weren’t raining",
+                  "short_answer": "could have lunch outside … it wasn’t raining",
                   "full_answer": "We **could have lunch outside** if **it wasn’t raining**."
                 }
               ]
@@ -12054,11 +12054,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "I wanted his advice",
+                  "short_answer": "I wanted his advice … I’d ask for it",
                   "full_answer": "If **I wanted his advice**, **I’d ask for it**."
                 },
                 {
-                  "short_answer": "I’d ask for it",
+                  "short_answer": "I wanted his advice … I would ask for it",
                   "full_answer": "If **I wanted his advice**, **I would ask for it**."
                 }
               ]
@@ -12208,11 +12208,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "she’d missed",
+                  "short_answer": "she’d missed … she’d have missed",
                   "full_answer": "Sarah got to the station just in time to catch her train to the airport. If **she’d missed** the train, **she’d have missed** her flight too."
                 },
                 {
-                  "short_answer": "she had missed",
+                  "short_answer": "she had missed … she would have missed",
                   "full_answer": "Sarah got to the station just in time to catch her train to the airport. If **she had missed** the train, **she would have missed** her flight too."
                 }
               ]
@@ -12222,11 +12222,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "I’d have forgotten",
+                  "short_answer": "I’d have forgotten … you hadn’t reminded",
                   "full_answer": "Thanks for reminding me about Lisa’s birthday. **I’d have forgotten** if **you hadn’t reminded** me."
                 },
                 {
-                  "short_answer": "I would have forgotten",
+                  "short_answer": "I would have forgotten … you had not reminded",
                   "full_answer": "Thanks for reminding me about Lisa’s birthday. **I would have forgotten** if **you had not reminded** me."
                 }
               ]
@@ -12236,11 +12236,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "I’d had",
+                  "short_answer": "I’d had … I’d have sent",
                   "full_answer": "I didn’t have your email address, so I couldn’t contact you. If **I’d had** your email address, **I’d have sent** you an email."
                 },
                 {
-                  "short_answer": "I had had",
+                  "short_answer": "I had had … I would have sent",
                   "full_answer": "I didn’t have your email address, so I couldn’t contact you. If **I had had** your email address, **I would have sent** you an email."
                 }
               ]
@@ -12250,11 +12250,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "they’d have enjoyed",
+                  "short_answer": "they’d have enjoyed … had been",
                   "full_answer": "Their trip was OK, but **they’d have enjoyed** it more if the weather **had been** better."
                 },
                 {
-                  "short_answer": "they would have enjoyed",
+                  "short_answer": "they would have enjoyed … had been",
                   "full_answer": "Their trip was OK, but **they would have enjoyed** it more if the weather **had been** better."
                 }
               ]
@@ -12264,11 +12264,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "It would have been",
+                  "short_answer": "It would have been … we’d walked",
                   "full_answer": "Sorry we’re late. Our taxi got stuck in the traffic. **It would have been** quicker if **we’d walked**."
                 },
                 {
-                  "short_answer": "we’d walked",
+                  "short_answer": "It would have been … we had walked",
                   "full_answer": "Sorry we’re late. Our taxi got stuck in the traffic. **It would have been** quicker if **we had walked**."
                 }
               ]
@@ -12278,11 +12278,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "you’d told",
+                  "short_answer": "you’d told … I’d have tried",
                   "full_answer": "Why didn’t you tell me about your problem? If **you’d told** me, **I’d have tried** to help you."
                 },
                 {
-                  "short_answer": "you had told",
+                  "short_answer": "you had told … I would have tried",
                   "full_answer": "Why didn’t you tell me about your problem? If **you had told** me, **I would have tried** to help you."
                 }
               ]
@@ -14952,7 +14952,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "tell",
+                  "short_answer": "tell … said",
                   "full_answer": "Don't **tell** anybody what I **said**. It's a secret just between us."
                 }
               ]
@@ -14962,7 +14962,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "tell",
+                  "short_answer": "tell … say",
                   "full_answer": "'Did Kate **tell** you what happened?' 'No, she didn't **say** anything to me.'"
                 }
               ]
@@ -15794,19 +15794,19 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "am",
+                  "short_answer": "am … isn’t",
                   "full_answer": "'Are you and Chris going to the party?' 'I **am**, but Chris **isn’t**.'"
                 },
                 {
-                  "short_answer": "isn’t",
+                  "short_answer": "I’m not … is",
                   "full_answer": "'Are you and Chris going to the party?' '**I’m not**, but Chris **is**.'"
                 },
                 {
-                  "short_answer": "’m not",
+                  "short_answer": "can’t … can",
                   "full_answer": "'Are you and Chris going to the party?' 'I **can’t**, but Chris **can**.'"
                 },
                 {
-                  "short_answer": "is",
+                  "short_answer": "can’t … is",
                   "full_answer": "'Are you and Chris going to the party?' 'I **can’t**, but Chris **is**.'"
                 }
               ]
@@ -15816,7 +15816,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "would",
+                  "short_answer": "would … could … can’t",
                   "full_answer": "'Please help me.' 'I’m sorry. I **would** if I **could**, but I **can’t**.'"
                 }
               ]
@@ -17372,7 +17372,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "talking",
+                  "short_answer": "talking … to see",
                   "full_answer": "I've enjoyed **talking** to you. I hope **to see** you again soon."
                 }
               ]
@@ -18865,7 +18865,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "wasn't used to driving",
+                  "short_answer": "wasn't used to driving … got used to … is used to driving",
                   "full_answer": "When Jack started working in this job, he **wasn't used to driving** two hours to work every morning, but after some time he **got used to** it. Now it's no problem for him. He **is used to driving** two hours every morning."
                 }
               ]
@@ -19924,7 +19924,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "for",
+                  "short_answer": "for … to",
                   "full_answer": "I wish we had a garden **for** the children **to** play in."
                 }
               ]
@@ -21762,7 +21762,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "Your hair is",
+                  "short_answer": "Your hair is … it",
                   "full_answer": "**Your hair is** too long. You should have **it** cut."
                 }
               ]
@@ -22233,7 +22233,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "Questions, questions, questions! You’re always asking questions!"
                 }
               ]
@@ -22253,7 +22253,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "Do you like staying in hotels?"
                 }
               ]
@@ -22273,7 +22273,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "Those are nice shoes. Where did you get them?"
                 }
               ]
@@ -22333,7 +22333,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "an",
+                  "short_answer": "an … A … a … The … the … the",
                   "full_answer": "I saw **an** accident this morning. **A** car crashed into **a** tree. **The** driver of **the** car wasn’t hurt, but **the** car was badly damaged."
                 }
               ]
@@ -22353,7 +22353,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "an",
+                  "short_answer": "an … a … a … the … a",
                   "full_answer": "My friends live in **an** old house in **a** small village. There is **a** beautiful garden behind **the** house. I would like to have **a** garden like that."
                 }
               ]
@@ -22738,7 +22738,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "the",
+                  "short_answer": "the … a",
                   "full_answer": "A: We spent all our money because we stayed at **the** most expensive hotel in town. B: Why didn't you stay at **a** cheaper hotel?"
                 }
               ]
@@ -22748,7 +22748,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "— … the",
                   "full_answer": "A: Would you like to travel in space? B: Yes, I'd love to go to **the** moon."
                 }
               ]
@@ -22863,7 +22863,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "the ground",
+                  "short_answer": "the ground … the sky",
                   "full_answer": "I lay down on **the ground** and looked up at **the sky**."
                 }
               ]
@@ -22873,7 +22873,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "The next train",
+                  "short_answer": "The next train … platform 3",
                   "full_answer": "**The next train** to London leaves from **platform 3**."
                 }
               ]
@@ -22908,7 +22908,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "a very hot",
+                  "short_answer": "a very hot … the hottest … the year",
                   "full_answer": "It was **a very hot** day. It was **the hottest** day of **the year**."
                 }
               ]
@@ -22918,7 +22918,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "a nice",
+                  "short_answer": "a nice … the sea",
                   "full_answer": "We had lunch in **a nice** restaurant by **the sea**."
                 }
               ]
@@ -22948,7 +22948,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "the information",
+                  "short_answer": "the information … the top",
                   "full_answer": "You’ll find **the information** you need at **the top** of page 15."
                 }
               ]
@@ -23103,7 +23103,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "school",
+                  "short_answer": "school … The school",
                   "full_answer": "My children walk to **school**. **The school** isn’t very far."
                 }
               ]
@@ -24025,7 +24025,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "a German",
+                  "short_answer": "a German … Germans",
                   "full_answer": "Germany — one person: **a German**; the people in general: **Germans**."
                 }
               ]
@@ -24035,7 +24035,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "a Frenchman",
+                  "short_answer": "a Frenchman … a Frenchwoman … the French",
                   "full_answer": "France — one person: **a Frenchman** or **a Frenchwoman**; the people in general: **the French**."
                 }
               ]
@@ -24045,7 +24045,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "a Russian",
+                  "short_answer": "a Russian … Russians",
                   "full_answer": "Russia — one person: **a Russian**; the people in general: **Russians**."
                 }
               ]
@@ -24055,7 +24055,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "a Japanese",
+                  "short_answer": "a Japanese … the Japanese",
                   "full_answer": "Japan — one person: **a Japanese**; the people in general: **the Japanese**."
                 }
               ]
@@ -24065,7 +24065,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "a Brazilian",
+                  "short_answer": "a Brazilian … Brazilians",
                   "full_answer": "Brazil — one person: **a Brazilian**; the people in general: **Brazilians**."
                 }
               ]
@@ -24075,7 +24075,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "an Englishman",
+                  "short_answer": "an Englishman … an Englishwoman … the English",
                   "full_answer": "England — one person: **an Englishman** or **an Englishwoman**; the people in general: **the English**."
                 }
               ]
@@ -24265,7 +24265,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "The Seychelles",
+                  "short_answer": "The Seychelles … the Indian Ocean",
                   "full_answer": "**The Seychelles** are a group of islands in **the Indian Ocean**."
                 }
               ]
@@ -24285,7 +24285,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "The River Volga",
+                  "short_answer": "The River Volga … the Caspian Sea",
                   "full_answer": "**The River Volga** flows into **the Caspian Sea**."
                 }
               ]
@@ -24730,7 +24730,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "The Imperial Hotel",
+                  "short_answer": "The Imperial Hotel … Baker Street",
                   "full_answer": "**The Imperial Hotel** is in **Baker Street**."
                 }
               ]
@@ -24740,7 +24740,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "The Statue of Liberty",
+                  "short_answer": "The Statue of Liberty … New York Harbor",
                   "full_answer": "**The Statue of Liberty** is at the entrance to **New York Harbor**."
                 }
               ]
@@ -27022,7 +27022,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "there would be somebody",
+                  "short_answer": "there would be somebody … there wasn’t anybody",
                   "full_answer": "I was told that **there would be somebody** to meet me at the station, but **there wasn’t anybody**."
                 }
               ]
@@ -27072,7 +27072,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "any",
+                  "short_answer": "any … some",
                   "full_answer": "I didn't have **any** money. I had to borrow **some**."
                 }
               ]
@@ -27132,7 +27132,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "some",
+                  "short_answer": "some … any",
                   "full_answer": "We wanted to buy **some** grapes, but they didn't have **any** in the shop."
                 }
               ]
@@ -27275,11 +27275,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "somebody",
+                  "short_answer": "somebody … anybody",
                   "full_answer": "Quick, let's go! There's **somebody** coming and I don't want **anybody** to see us."
                 },
                 {
-                  "short_answer": "someone",
+                  "short_answer": "someone … anyone",
                   "full_answer": "Quick, let's go! There's **someone** coming and I don't want **anyone** to see us."
                 }
               ]
@@ -27319,11 +27319,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "something",
+                  "short_answer": "something … anybody",
                   "full_answer": "Sarah was upset about **something** and refused to talk to **anybody**."
                 },
                 {
-                  "short_answer": "anybody",
+                  "short_answer": "something … anyone",
                   "full_answer": "Sarah was upset about **something** and refused to talk to **anyone**."
                 }
               ]
@@ -27333,11 +27333,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "somebody",
+                  "short_answer": "somebody … anybody",
                   "full_answer": "I need **somebody** to translate. Is there **anybody** here who speaks English?"
                 },
                 {
-                  "short_answer": "someone",
+                  "short_answer": "someone … anyone",
                   "full_answer": "I need **someone** to translate. Is there **anyone** here who speaks English?"
                 }
               ]
@@ -27347,11 +27347,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "anybody",
+                  "short_answer": "anybody … anything",
                   "full_answer": "Sue is very secretive. She never tells **anybody** **anything**."
                 },
                 {
-                  "short_answer": "anyone",
+                  "short_answer": "anyone … anything",
                   "full_answer": "Sue is very secretive. She never tells **anyone** **anything**."
                 }
               ]
@@ -27754,7 +27754,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "Nothing",
+                  "short_answer": "Nothing … anything",
                   "full_answer": "‘What did you buy?’ ‘**Nothing**. I couldn’t find **anything** I wanted.’"
                 }
               ]
@@ -27764,11 +27764,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "Nobody",
+                  "short_answer": "Nobody … anything",
                   "full_answer": "There was complete silence in the room. **Nobody** said **anything**."
                 },
                 {
-                  "short_answer": "no-one",
+                  "short_answer": "No-one … anything",
                   "full_answer": "There was complete silence in the room. **No-one** said **anything**."
                 }
               ]
@@ -27853,7 +27853,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "No-one",
+                  "short_answer": "No-one … anyone",
                   "full_answer": "'Who were you talking to just now?' '**No-one**. I wasn't talking to **anyone**.'"
                 }
               ]
@@ -28267,7 +28267,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "There were problems at the airport and some flights were cancelled."
                 }
               ]
@@ -28287,7 +28287,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "Joe never goes to museums. He says that all museums are boring."
                 }
               ]
@@ -28297,7 +28297,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "I think some people watch too much TV."
                 }
               ]
@@ -28327,7 +28327,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "Joe has lived in Chicago all his life."
                 },
                 {
@@ -28341,7 +28341,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "Most days I get up before 7 o’clock."
                 }
               ]
@@ -28351,7 +28351,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "I usually have a little sugar in my coffee."
                 }
               ]
@@ -28721,15 +28721,15 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "neither",
+                  "short_answer": "neither … both",
                   "full_answer": "I saw an accident this morning. One car drove into the back of another. Fortunately **neither** driver was injured, but **both** cars were badly damaged."
                 },
                 {
-                  "short_answer": "both",
+                  "short_answer": "neither … both the",
                   "full_answer": "I saw an accident this morning. One car drove into the back of another. Fortunately **neither** driver was injured, but **both the** cars were badly damaged."
                 },
                 {
-                  "short_answer": "both the",
+                  "short_answer": "neither … both of the",
                   "full_answer": "I saw an accident this morning. One car drove into the back of another. Fortunately **neither** driver was injured, but **both of the** cars were badly damaged."
                 }
               ]
@@ -30264,7 +30264,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "She gives her children everything they want."
                 },
                 {
@@ -30308,7 +30308,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "I won't be able to do much, but I'll do the best I can."
                 },
                 {
@@ -30332,7 +30332,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "I don't trust him. I don't believe anything he says."
                 },
                 {
@@ -30545,7 +30545,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "2009",
+                  "short_answer": "2009 … Amanda got married",
                   "full_answer": "**2009** was the year **Amanda got married**."
                 }
               ]
@@ -30565,7 +30565,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "saw Sam",
+                  "short_answer": "saw Sam … about six months ago",
                   "full_answer": "The last time I **saw Sam** was **about six months ago**."
                 }
               ]
@@ -31247,7 +31247,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "sitting",
+                  "short_answer": "sitting … reading",
                   "full_answer": "The waiting room was empty except for an old man **sitting** in the corner **reading** a magazine."
                 }
               ]
@@ -31257,7 +31257,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "working",
+                  "short_answer": "working … studying",
                   "full_answer": "Ian has a brother **working** in a bank in London and a sister **studying** economics at university in Manchester."
                 }
               ]
@@ -31507,7 +31507,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "terrifying",
+                  "short_answer": "terrifying … shocked",
                   "full_answer": "It was a really **terrifying** experience. Everybody was very **shocked**."
                 }
               ]
@@ -31517,7 +31517,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "bored",
+                  "short_answer": "bored … boring",
                   "full_answer": "Why do you always look so **bored**? Is your life really so **boring**?"
                 }
               ]
@@ -31527,7 +31527,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "boring",
+                  "short_answer": "boring … interesting",
                   "full_answer": "He's one of the most **boring** people I've ever met. He never stops talking and he never says anything **interesting**."
                 }
               ]
@@ -32085,7 +32085,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "perfectly",
+                  "short_answer": "perfectly … slowly … clearly",
                   "full_answer": "I don't speak French very well, but I can understand **perfectly** if people speak **slowly** and **clearly**."
                 }
               ]
@@ -32464,7 +32464,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "well",
+                  "short_answer": "well … good",
                   "full_answer": "Lucy speaks German **well**. She's **good** at languages."
                 }
               ]
@@ -33539,7 +33539,7 @@
               "answers": [
                 {
                   "short_answer": "more than a little",
-                  "full_answer": "Anna’s English is quite good. Here **quite** means **more than ‘a little’, less than ‘very’**."
+                  "full_answer": "Anna’s English is quite good. Here quite means **more than ‘a little’, less than ‘very’**."
                 }
               ]
             },
@@ -33549,7 +33549,7 @@
               "answers": [
                 {
                   "short_answer": "completely",
-                  "full_answer": "I couldn’t believe it. It was quite incredible. Here **quite** means **completely**."
+                  "full_answer": "I couldn’t believe it. It was quite incredible. Here quite means **completely**."
                 }
               ]
             },
@@ -33559,7 +33559,7 @@
               "answers": [
                 {
                   "short_answer": "more than a little",
-                  "full_answer": "My bedroom is quite big. Here **quite** means **more than ‘a little’, less than ‘very’**."
+                  "full_answer": "My bedroom is quite big. Here quite means **more than ‘a little’, less than ‘very’**."
                 }
               ]
             },
@@ -33569,7 +33569,7 @@
               "answers": [
                 {
                   "short_answer": "more than a little",
-                  "full_answer": "I’m quite tired. I think I’ll go to bed. Here **quite** means **more than ‘a little’, less than ‘very’**."
+                  "full_answer": "I’m quite tired. I think I’ll go to bed. Here quite means **more than ‘a little’, less than ‘very’**."
                 }
               ]
             },
@@ -33579,7 +33579,7 @@
               "answers": [
                 {
                   "short_answer": "completely",
-                  "full_answer": "I quite agree with you. Here **quite** means **completely**."
+                  "full_answer": "I quite agree with you. Here quite means **completely**."
                 }
               ]
             }
@@ -33966,7 +33966,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "longer by",
+                  "short_answer": "longer by … than by",
                   "full_answer": "The journey takes **longer by** train **than by** car."
                 }
               ]
@@ -34873,7 +34873,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "the highest",
+                  "short_answer": "the highest … higher",
                   "full_answer": "Everest is **the highest** mountain in the world. It is **higher** than any other mountain."
                 }
               ]
@@ -34883,7 +34883,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "sharper",
+                  "short_answer": "sharper … the sharpest",
                   "full_answer": "A: This knife isn't very sharp. Do you have a **sharper** one? B: No, it's **the sharpest** one I have."
                 }
               ]
@@ -35727,7 +35727,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "We were all",
+                  "short_answer": "We were all … we all fell",
                   "full_answer": "**We were all** tired, so **we all fell** asleep."
                 }
               ]
@@ -35737,7 +35737,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "always says",
+                  "short_answer": "always says … she never does",
                   "full_answer": "Tanya **always says** that she’ll phone me, but **she never does**."
                 }
               ]
@@ -37378,7 +37378,7 @@
               "answers": [
                 {
                   "short_answer": "because",
-                  "full_answer": "As I was tired, I went to bed early. Here **as** means **because**."
+                  "full_answer": "As I was tired, I went to bed early. Here as means **because**."
                 }
               ]
             },
@@ -37408,7 +37408,7 @@
               "answers": [
                 {
                   "short_answer": "because",
-                  "full_answer": "We decided to go out to eat as we had no food at home. Here **as** means **because**."
+                  "full_answer": "We decided to go out to eat as we had no food at home. Here as means **because**."
                 }
               ]
             },
@@ -37418,7 +37418,7 @@
               "answers": [
                 {
                   "short_answer": "because",
-                  "full_answer": "As we don’t use the car very often, we’ve decided to sell it. Here **as** means **because**."
+                  "full_answer": "As we don’t use the car very often, we’ve decided to sell it. Here as means **because**."
                 }
               ]
             }
@@ -39063,7 +39063,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "on 7 January",
+                  "short_answer": "on … in",
                   "full_answer": "The course begins **on** 7 January and ends sometime **in** April."
                 }
               ]
@@ -39629,7 +39629,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "On the door.",
+                  "short_answer": "on the door … in the door",
                   "full_answer": "The notice is **on the door**. The key is **in the door**."
                 }
               ]
@@ -39659,7 +39659,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "At the gate.",
+                  "short_answer": "at the gate … on the gate",
                   "full_answer": "The man is **at the gate**. The bird is **on the gate**."
                 }
               ]
@@ -40567,7 +40567,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "I missed the bus, so I walked home."
                 }
               ]
@@ -40657,7 +40657,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "I did some shopping on my way home."
                 }
               ]
@@ -40667,7 +40667,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "to",
+                  "short_answer": "to … in",
                   "full_answer": "Marcel is French. He has just returned **to** France after two years **in** Brazil."
                 }
               ]
@@ -40677,7 +40677,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "in",
+                  "short_answer": "in … to",
                   "full_answer": "Carl was born **in** Chicago, but his family moved **to** Boston when he was three."
                 }
               ]
@@ -40727,7 +40727,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "What time did you get home last night?"
                 }
               ]
@@ -40757,7 +40757,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "We were delayed and arrived home very late."
                 }
               ]
@@ -41359,11 +41359,11 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "by bike",
+                  "short_answer": "by bike … on foot",
                   "full_answer": "He doesn't drive much. He goes everywhere **by bike** or **on foot**."
                 },
                 {
-                  "short_answer": "on his bike",
+                  "short_answer": "on his bike … on foot",
                   "full_answer": "He doesn't drive much. He goes everywhere **on his bike** or **on foot**."
                 }
               ]
@@ -41533,7 +41533,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "by",
+                  "short_answer": "by … with … on",
                   "full_answer": "There was a small table **by** the bed **with** a lamp and a clock **on** it."
                 }
               ]
@@ -43155,7 +43155,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "I don't want to discuss what happened last night. Let's forget it."
                 }
               ]
@@ -43260,7 +43260,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "I want to have a good holiday. I don't care how much it costs."
                 }
               ]
@@ -43563,7 +43563,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "think",
+                  "short_answer": "think … of",
                   "full_answer": "I don't **think** much **of** this coffee. It's like water."
                 }
               ]
@@ -43642,7 +43642,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "to",
+                  "short_answer": "to … about",
                   "full_answer": "Our neighbours complained **to** us **about** the noise we made."
                 }
               ]
@@ -43777,7 +43777,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "We finished our meal, paid the bill, and left the restaurant."
                 }
               ]
@@ -44038,7 +44038,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "Sophie will have to borrow money to pay her college fees."
                 }
               ]
@@ -44342,7 +44342,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "",
+                  "short_answer": "—",
                   "full_answer": "I was amazed when I heard the news. I couldn't believe it."
                 }
               ]
@@ -44392,7 +44392,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "from",
+                  "short_answer": "from … into",
                   "full_answer": "Some things are difficult to translate **from** one language **into** another."
                 }
               ]
@@ -46127,7 +46127,7 @@
               "is_open_ended": false,
               "answers": [
                 {
-                  "short_answer": "bent down",
+                  "short_answer": "bent down … picked them up",
                   "full_answer": "Lisa dropped her keys, so she **bent down** and **picked them up**."
                 }
               ]
@@ -46578,7 +46578,7 @@
               "answers": [
                 {
                   "short_answer": "d",
-                  "full_answer": "**d** — Jane came up with **a good suggestion**."
+                  "full_answer": "d — Jane came up with **a good suggestion**."
                 }
               ]
             },
@@ -46588,7 +46588,7 @@
               "answers": [
                 {
                   "short_answer": "e",
-                  "full_answer": "**e** — Paul is always making up **excuses**."
+                  "full_answer": "e — Paul is always making up **excuses**."
                 }
               ]
             },
@@ -46598,7 +46598,7 @@
               "answers": [
                 {
                   "short_answer": "c",
-                  "full_answer": "**c** — I think you should do up **your jacket**."
+                  "full_answer": "c — I think you should do up **your jacket**."
                 }
               ]
             },
@@ -46608,7 +46608,7 @@
               "answers": [
                 {
                   "short_answer": "g",
-                  "full_answer": "**g** — I don’t think you should bring up **that subject**."
+                  "full_answer": "g — I don’t think you should bring up **that subject**."
                 }
               ]
             },
@@ -46618,7 +46618,7 @@
               "answers": [
                 {
                   "short_answer": "a",
-                  "full_answer": "**a** — I’m saving up for **a motorbike**."
+                  "full_answer": "a — I’m saving up for **a motorbike**."
                 }
               ]
             },
@@ -46628,7 +46628,7 @@
               "answers": [
                 {
                   "short_answer": "b",
-                  "full_answer": "**b** — We had to put up with **a lot of bad weather**."
+                  "full_answer": "b — We had to put up with **a lot of bad weather**."
                 }
               ]
             }

@@ -181,6 +181,26 @@ class TestAnswersExtractor:
 
         assert [q.question_id for q in built.questions] == ["1"]
 
+    def test_a_short_answer_cut_to_its_first_gap_is_completed(self, extractor) -> None:
+        """The model keeps the key's first gap; the full sentence bolds them all."""
+        result = MagicMock()
+        result.questions = [
+            MagicMock(
+                question_id="8",
+                is_open_ended=False,
+                short_answers=["takes"],
+                full_answers=["It **takes** an hour. How long **does it take** you?"],
+            )
+        ]
+
+        built = extractor._build_exercise_data(
+            "2.2",
+            [AnswersQuestion(question_id="8", short_answer="takes … does it take")],
+            result,
+        )
+
+        assert built.questions[0].answers[0].short_answer == "takes … does it take"
+
     def test_short_answer_without_a_full_answer_is_kept(self, extractor) -> None:
         """Truncating here would silently drop an accepted answer."""
         result = MagicMock()

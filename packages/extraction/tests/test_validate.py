@@ -158,6 +158,55 @@ class TestSchemaConstraints:
             )
 
 
+class TestAnswerGaps:
+    """Every answer marks its gaps, and its short answer names all of them."""
+
+    def _add(self, db_path: Path, short: str, full: str) -> None:
+        _execute(
+            db_path,
+            "INSERT INTO question_answers (question_id, short_answer, full_answer) "
+            "VALUES (1, ?, ?)",
+            (short, full),
+        )
+
+    def _issue(self, validator: DatabaseValidator, label: str) -> list[str]:
+        result = validator.validate_answer_gaps()
+        return next(issue.rows for issue in result.issues if issue.label == label)
+
+    def test_seeded_database_is_clean(self, validator: DatabaseValidator) -> None:
+        assert validator.validate_answer_gaps().passed
+
+    def test_reports_a_short_answer_missing_a_gap(self, seeded_db_path: Path) -> None:
+        self._add(seeded_db_path, "takes", "It **takes** long. **Does it take** you?")
+
+        with DatabaseValidator(seeded_db_path) as validator:
+            rows = self._issue(validator, "Short answers that leave out a gap")
+
+        assert rows == ["Exercise 1.1, Question 2: 'takes'"]
+
+    def test_reports_a_full_answer_with_no_gap(self, seeded_db_path: Path) -> None:
+        self._add(seeded_db_path, "walked", "I walked home.")
+
+        with DatabaseValidator(seeded_db_path) as validator:
+            rows = self._issue(validator, "Full answers with no marked gap")
+
+        assert rows == ["Exercise 1.1, Question 2: 'walked'"]
+
+    def test_a_gap_that_takes_no_word_needs_no_bold(self, seeded_db_path: Path) -> None:
+        self._add(seeded_db_path, "—", "I walked home.")
+
+        with DatabaseValidator(seeded_db_path) as validator:
+            assert validator.validate_answer_gaps().passed
+
+    def test_reports_an_empty_short_answer(self, seeded_db_path: Path) -> None:
+        self._add(seeded_db_path, "", "I walked home.")
+
+        with DatabaseValidator(seeded_db_path) as validator:
+            rows = self._issue(validator, "Empty short answers")
+
+        assert rows == ["Exercise 1.1, Question 2: ''"]
+
+
 class TestRun:
     """Every registered check runs, in order."""
 
@@ -169,6 +218,7 @@ class TestRun:
             "[IMG]",
             "[DATA]",
             "[REF]",
+            "[GAP]",
         ]
 
 

@@ -9,6 +9,7 @@ from types import TracebackType
 from practice_core.schema import connect_content
 from practice_runtime.logging import get_logger
 
+from practice_extraction.gaps import NO_WORD, gaps, missing_gaps
 from practice_extraction.settings import get_settings
 
 logger = get_logger(__name__)
@@ -233,6 +234,59 @@ class DatabaseValidator:
             ],
         )
 
+    def validate_answer_gaps(self) -> CheckResult:
+        """Check that every answer marks its gaps and names all of them."""
+        rows = self.cursor.execute(
+            """
+            SELECT e.exercise_id, q.question_id, qa.short_answer, qa.full_answer
+            FROM question_answers qa
+            JOIN questions q ON qa.question_id = q.id
+            JOIN exercises e ON q.exercise_id = e.id
+            ORDER BY e.id, q.display_order, qa.id
+            """
+        ).fetchall()
+
+        def describe(row: sqlite3.Row) -> str:
+            return (
+                f"Exercise {row['exercise_id']}, Question {row['question_id']}: "
+                f"{row['short_answer']!r}"
+            )
+
+        return CheckResult(
+            title="[GAP] ANSWER GAPS",
+            all_clear="Every answer marks its gaps and names all of them",
+            issues=[
+                Issue(
+                    "Empty short answers",
+                    [describe(row) for row in rows if not row["short_answer"].strip()],
+                    sample=MAX_LISTED_QUESTIONS,
+                    show_remainder=True,
+                ),
+                Issue(
+                    "Short answers that leave out a gap",
+                    [
+                        describe(row)
+                        for row in rows
+                        if missing_gaps(row["short_answer"], row["full_answer"])
+                    ],
+                    sample=MAX_LISTED_QUESTIONS,
+                    show_remainder=True,
+                ),
+                Issue(
+                    "Full answers with no marked gap",
+                    [
+                        describe(row)
+                        for row in rows
+                        # Only a gap that takes no word has nothing to bold.
+                        if not gaps(row["full_answer"])
+                        and row["short_answer"].strip() != NO_WORD
+                    ],
+                    sample=MAX_LISTED_QUESTIONS,
+                    show_remainder=True,
+                ),
+            ],
+        )
+
     def _foreign_keys_on(self) -> bool:
         """Return whether this connection is enforcing foreign keys."""
         return bool(self._count("PRAGMA foreign_keys"))
@@ -247,6 +301,7 @@ CHECKS: tuple[Callable[[DatabaseValidator], CheckResult], ...] = (
     DatabaseValidator.validate_image_blobs,
     DatabaseValidator.validate_orphaned_data,
     DatabaseValidator.validate_constraints,
+    DatabaseValidator.validate_answer_gaps,
 )
 
 

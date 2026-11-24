@@ -6,6 +6,7 @@ from practice_runtime.logging import get_logger
 from practice_runtime.settings import PathSettings
 
 from practice_extraction.agents import AnswersAgent
+from practice_extraction.gaps import complete_short_answer
 from practice_extraction.models import (
     AnswersQuestion,
     ExerciseAnswersOutput,
@@ -97,14 +98,18 @@ class AnswersExtractor:
             else:
                 # zip would drop an answer the model gave no sentence for.
                 full_answers = q_result.full_answers
-                answers = [
-                    ExtractedAnswer(
-                        short_answer=sa,
-                        full_answer=(full_answers[i] if i < len(full_answers) else "")
-                        or f"[{sa}]",
+                answers = []
+                for i, sa in enumerate(q_result.short_answers):
+                    full = (full_answers[i] if i < len(full_answers) else "") or (
+                        f"[{sa}]"
                     )
-                    for i, sa in enumerate(q_result.short_answers)
-                ]
+                    # The model keeps the key's first gap and drops the rest.
+                    answers.append(
+                        ExtractedAnswer(
+                            short_answer=complete_short_answer(sa, full),
+                            full_answer=full,
+                        )
+                    )
                 questions.append(
                     ExtractedQuestionAnswers(
                         question_id=question_id,
