@@ -14,6 +14,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 __all__ = [
     "BASE_DIR",
+    "ENV_FILENAME",
     "LAYOUT",
     "RENAMED",
     "AppSettings",
@@ -39,11 +40,12 @@ __all__ = [
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
-# Read before any settings exist, so not fields; APP_ like the group they join.
-# Chosen by an OS variable; a missing .env.<environment> is ignored.
-_ENVIRONMENT_VAR = "APP_ENVIRONMENT"
 _DEFAULT_ENVIRONMENT = "development"
+# Read before any settings exist, so not a field; APP_ like the group it joins.
 _ROOT_VAR = "APP_PROJECT_ROOT"
+
+#: The one file that seeds the environment, at the project root.
+ENV_FILENAME = ".env"
 
 #: Variables older versions read, and what replaced each; "" when nothing did.
 RENAMED: Final[Mapping[str, str]] = MappingProxyType(
@@ -133,28 +135,18 @@ def secret_value(secret: SecretStr | None) -> str | None:
     return secret.get_secret_value().strip() or None
 
 
-def load_env(
-    base_dir: Path | None = None,
-    environment: str | None = None,
-) -> dict[str, str]:
-    """Seed ``os.environ`` from ``.env`` and ``.env.{environment}``."""
-    root = base_dir or BASE_DIR
-    env_name = environment or os.getenv(_ENVIRONMENT_VAR, _DEFAULT_ENVIRONMENT)
+def load_env(base_dir: Path | None = None) -> dict[str, str]:
+    """Seed ``os.environ`` from ``.env``; a missing file is no error."""
+    env_file = (base_dir or BASE_DIR) / ENV_FILENAME
+    if not env_file.exists():
+        return {}
 
-    # Later files win, so the environment-specific file overrides the base.
-    from_files: dict[str, str] = {}
-    for env_file in (root / ".env", root / f".env.{env_name}"):
-        if not env_file.exists():
-            continue
-        from_files.update(
-            {
-                key: value
-                for key, value in dotenv_values(env_file, encoding="utf-8").items()
-                if value is not None
-            }
-        )
-
-    applied = {k: v for k, v in from_files.items() if k not in os.environ}
+    from_file = {
+        key: value
+        for key, value in dotenv_values(env_file, encoding="utf-8").items()
+        if value is not None
+    }
+    applied = {k: v for k, v in from_file.items() if k not in os.environ}
     os.environ.update(applied)
     return applied
 

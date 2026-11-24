@@ -3,14 +3,12 @@ services:
     build: .
     container_name: english-practice-bot
     restart: unless-stopped
+    # .dockerignore keeps secrets out of the image, so compose injects them.
     env_file:
       - path: .env
         required: true
-      # .dockerignore keeps secrets out of the image, so compose injects them.
-      - path: .env.production
-        required: false
     environment:
-      # Selects .env.production and feeds Settings.app.environment.
+      # Feeds Settings.app.environment: production logs are JSON.
       - APP_ENVIRONMENT=production
     volumes:
       - ./data:/app/data

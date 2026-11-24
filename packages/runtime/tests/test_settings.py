@@ -84,19 +84,27 @@ class TestProjectRoot:
 
 
 class TestLoadEnv:
-    def test_environment_specific_file_wins_over_base(
+    def test_seeds_the_environment_from_dotenv(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        (tmp_path / ".env").write_text("SHARED=base\nONLY_BASE=1\n", encoding="utf-8")
-        (tmp_path / ".env.staging").write_text("SHARED=staging\n", encoding="utf-8")
-        for name in ("SHARED", "ONLY_BASE"):
-            monkeypatch.delenv(name, raising=False)
+        (tmp_path / ".env").write_text("SHARED=base\n", encoding="utf-8")
+        monkeypatch.delenv("SHARED", raising=False)
 
-        applied = load_env(base_dir=tmp_path, environment="staging")
+        applied = load_env(base_dir=tmp_path)
 
-        assert applied["SHARED"] == "staging"
-        assert applied["ONLY_BASE"] == "1"
-        assert os.environ["SHARED"] == "staging"
+        assert applied == {"SHARED": "base"}
+        assert os.environ["SHARED"] == "base"
+
+    def test_reads_no_other_dotenv(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """One .env and its example: no per-environment files to drift apart."""
+        (tmp_path / ".env.production").write_text("STRAY=1\n", encoding="utf-8")
+        monkeypatch.setenv("APP_ENVIRONMENT", "production")
+        monkeypatch.delenv("STRAY", raising=False)
+
+        assert load_env(base_dir=tmp_path) == {}
+        assert "STRAY" not in os.environ
 
     def test_real_environment_is_never_overwritten(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -105,13 +113,13 @@ class TestLoadEnv:
         (tmp_path / ".env").write_text("TELEGRAM_BOT_TOKEN=stale\n", encoding="utf-8")
         monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "from-deployment")
 
-        applied = load_env(base_dir=tmp_path, environment="production")
+        applied = load_env(base_dir=tmp_path)
 
         assert "TELEGRAM_BOT_TOKEN" not in applied
         assert os.environ["TELEGRAM_BOT_TOKEN"] == "from-deployment"
 
     def test_missing_files_are_ignored(self, tmp_path: Path) -> None:
-        assert load_env(base_dir=tmp_path, environment="nope") == {}
+        assert load_env(base_dir=tmp_path) == {}
 
 
 class TestLoadSettings:

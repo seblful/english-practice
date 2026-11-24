@@ -80,8 +80,7 @@ set:
 cd packages/app && uv sync && uv run flet run src/main.py
 ```
 
-Settings come from the environment; `.env` and `.env.<environment>` only seed
-it. See [packages/bot/README.md](packages/bot/README.md) for the bot's
+Settings come from the environment; `.env` only seeds it. See [packages/bot/README.md](packages/bot/README.md) for the bot's
 variables and [`.env.example`](.env.example) for the full list.
 
 ## The database

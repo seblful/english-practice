@@ -74,11 +74,11 @@ version, environment, decision model and provider, and database path.
 
 ### Configuration
 
-Settings come from the environment; `.env` and `.env.<environment>` only seed
-it. Precedence, highest first: real environment variables, `.env.<environment>`,
-`.env` — so a deployment that exports `TELEGRAM_BOT_TOKEN` is never overridden
-by a stale checked-out file. Set `APP_ENVIRONMENT` (default `development`) to
-choose which `.env.<environment>` is loaded; a missing file is ignored.
+Settings come from the environment; `.env` (a copy of `.env.example`) only
+seeds it, and no other dotenv file is read. A real environment variable wins
+over `.env`, so a deployment that exports `TELEGRAM_BOT_TOKEN` is never
+overridden by a stale file. `APP_ENVIRONMENT=production` switches the logs to
+JSON.
 
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
