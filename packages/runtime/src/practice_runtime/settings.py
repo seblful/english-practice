@@ -14,7 +14,6 @@ __all__ = [
     "LAYOUT",
     "AppSettings",
     "BaseAppSettings",
-    "DashscopeSettings",
     "GeminiSettings",
     "LLMAppSettings",
     "LLMProvider",
@@ -32,7 +31,7 @@ __all__ = [
 ]
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-LLMProvider = Literal["dashscope", "gemini", "openrouter"]
+LLMProvider = Literal["gemini", "openrouter"]
 
 # Chosen by an OS variable; a missing .env.<environment> is ignored.
 _ENVIRONMENT_VAR = "APP__ENVIRONMENT"
@@ -178,18 +177,6 @@ class PathSettings(BaseSettings):
                 path.mkdir(parents=True, exist_ok=True)
 
 
-class DashscopeSettings(BaseSettings):
-    """DashScope (Alibaba) OpenAI-compatible endpoint."""
-
-    model_config = SettingsConfigDict(env_prefix="DASHSCOPE_", case_sensitive=False)
-
-    base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-    api_key: SecretStr | None = None
-    model: str = "qwen3-vl-flash-2026-01-22"
-    temperature: float = 0.7
-    max_tokens: int = 2048
-
-
 class GeminiSettings(BaseSettings):
     """Google Gemini API settings."""
 
@@ -220,14 +207,13 @@ class LLMSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="LLM_", case_sensitive=False)
 
-    provider: LLMProvider = "dashscope"
+    provider: LLMProvider = "gemini"
     request_timeout: float = Field(
         default=60.0, gt=0, description="Per-request timeout in seconds"
     )
     max_retries: int = Field(
         default=2, ge=0, description="Retries for transient provider failures"
     )
-    dashscope: DashscopeSettings = Field(default_factory=DashscopeSettings)
     gemini: GeminiSettings = Field(default_factory=GeminiSettings)
     openrouter: OpenRouterSettings = Field(default_factory=OpenRouterSettings)
 
@@ -235,8 +221,6 @@ class LLMSettings(BaseSettings):
     def active_api_key(self) -> str | None:
         """Return the API key of the selected provider, if configured."""
         match self.provider:
-            case "dashscope":
-                provider_settings = self.dashscope
             case "gemini":
                 provider_settings = self.gemini
             case "openrouter":

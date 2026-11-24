@@ -237,14 +237,14 @@ class TestLlmStages:
         staged("extract-answers")
 
         def explode(_config: object) -> None:
-            raise ConfigurationError("DASHSCOPE_API_KEY is not set")
+            raise ConfigurationError("GEMINI_API_KEY is not set")
 
         monkeypatch.setattr(cli, "get_llm", explode)
 
         result = runner.invoke(cli.app, ["extract-answers"])
 
         assert result.exit_code == 1
-        assert "DASHSCOPE_API_KEY is not set" in result.output
+        assert "GEMINI_API_KEY is not set" in result.output
 
 
 class TestPopulate:

@@ -21,20 +21,6 @@ def _require_key(key: SecretStr | None, env_var: str) -> SecretStr:
     return SecretStr(value)
 
 
-def _create_dashscope(config: LLMSettings) -> ChatOpenAI:
-    """Create a DashScope client through its OpenAI-compatible endpoint."""
-    provider = config.dashscope
-    return ChatOpenAI(
-        model=provider.model,
-        api_key=_require_key(provider.api_key, "DASHSCOPE_API_KEY"),
-        base_url=provider.base_url,
-        temperature=provider.temperature,
-        max_tokens=provider.max_tokens,
-        timeout=config.request_timeout,
-        max_retries=config.max_retries,
-    )
-
-
 def _create_gemini(config: LLMSettings) -> ChatGoogleGenerativeAI:
     """Create a Google Gemini client."""
     provider = config.gemini
@@ -71,8 +57,6 @@ def _create_openrouter(config: LLMSettings) -> ChatOpenAI:
 def get_llm(config: LLMSettings) -> BaseChatModel:
     """Create a chat model for the configured provider."""
     match config.provider:
-        case "dashscope":
-            return _create_dashscope(config)
         case "gemini":
             return _create_gemini(config)
         case "openrouter":

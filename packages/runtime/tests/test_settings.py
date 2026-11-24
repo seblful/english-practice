@@ -10,7 +10,6 @@ from practice_runtime.settings import (
     DATABASE_FILENAME,
     LAYOUT,
     BaseAppSettings,
-    DashscopeSettings,
     GeminiSettings,
     LangSmithSettings,
     LLMAppSettings,
@@ -30,8 +29,8 @@ def _configured(**overrides: object) -> LLMAppSettings:
     """Settings with a provider key in place, which is all they require."""
     fields: dict[str, object] = {
         "llm": LLMSettings(
-            provider="dashscope",
-            dashscope=DashscopeSettings(api_key=SecretStr("key")),
+            provider="gemini",
+            gemini=GeminiSettings(api_key=SecretStr("key")),
         )
     }
     fields.update(overrides)
@@ -139,18 +138,16 @@ class TestActiveApiKey:
     @pytest.mark.parametrize(
         ("provider", "expected"),
         [
-            ("dashscope", "dash-key"),
             ("gemini", "gem-key"),
             ("openrouter", "or-key"),
         ],
-        ids=["dashscope", "gemini", "openrouter"],
+        ids=["gemini", "openrouter"],
     )
     def test_returns_selected_provider_key(
         self, provider: LLMProvider, expected: str
     ) -> None:
         config = LLMSettings(
             provider=provider,
-            dashscope=DashscopeSettings(api_key=SecretStr("dash-key")),
             gemini=GeminiSettings(api_key=SecretStr("gem-key")),
             openrouter=OpenRouterSettings(api_key=SecretStr("or-key")),
         )
@@ -169,9 +166,9 @@ class TestMissingRequired:
 
     def test_reports_missing_provider_key(self) -> None:
         settings = _configured()
-        settings.llm.dashscope.api_key = None
+        settings.llm.gemini.api_key = None
 
-        assert any("DASHSCOPE_API_KEY" in p for p in settings.missing_required())
+        assert any("GEMINI_API_KEY" in p for p in settings.missing_required())
 
     def test_names_the_provider_that_needs_the_key(self) -> None:
         settings = _configured(llm=LLMSettings(provider="openrouter"))
@@ -199,12 +196,12 @@ class TestMissingRequired:
 
     def test_the_missing_key_is_reported_first(self) -> None:
         settings = _configured()
-        settings.llm.dashscope.api_key = None
+        settings.llm.gemini.api_key = None
         settings.langsmith = LangSmithSettings(tracing=True, api_key=None)
 
         problems = settings.missing_required()
 
-        assert "DASHSCOPE_API_KEY" in problems[0]
+        assert "GEMINI_API_KEY" in problems[0]
         assert "LANGSMITH_API_KEY" in problems[1]
 
 

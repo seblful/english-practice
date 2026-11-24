@@ -9,13 +9,11 @@ from pydantic import SecretStr
 
 from practice_runtime.errors import ConfigurationError
 from practice_runtime.llm import (
-    _create_dashscope,
     _create_gemini,
     _create_openrouter,
     get_llm,
 )
 from practice_runtime.settings import (
-    DashscopeSettings,
     GeminiSettings,
     LLMProvider,
     LLMSettings,
@@ -24,7 +22,7 @@ from practice_runtime.settings import (
 
 
 def _config(
-    provider: LLMProvider = "dashscope", key: str | None = "test-key"
+    provider: LLMProvider = "gemini", key: str | None = "test-key"
 ) -> LLMSettings:
     """Build LLM settings with the given provider keyed and ready."""
     secret = SecretStr(key) if key is not None else None
@@ -32,7 +30,6 @@ def _config(
         provider=provider,
         request_timeout=12.5,
         max_retries=3,
-        dashscope=DashscopeSettings(api_key=secret, model="qwen3-vl-flash"),
         gemini=GeminiSettings(api_key=secret, model="gemini-2.5-flash"),
         openrouter=OpenRouterSettings(api_key=secret, model="openai/gpt-4o-mini"),
     )
@@ -40,11 +37,6 @@ def _config(
 
 class TestGetLLM:
     """Tests for provider dispatch."""
-
-    def test_dashscope_provider(self) -> None:
-        llm = get_llm(_config("dashscope"))
-        assert isinstance(llm, ChatOpenAI)
-        assert llm.model_name == "qwen3-vl-flash"
 
     def test_gemini_provider(self) -> None:
         assert isinstance(get_llm(_config("gemini")), ChatGoogleGenerativeAI)
@@ -54,27 +46,14 @@ class TestGetLLM:
         assert isinstance(llm, ChatOpenAI)
         assert llm.model_name == "openai/gpt-4o-mini"
 
-    def test_invalid_provider_is_rejected_by_settings(self) -> None:
+    @pytest.mark.parametrize("provider", ["unknown", "dashscope"])
+    def test_invalid_provider_is_rejected_by_settings(self, provider: str) -> None:
         """An unknown provider cannot be constructed, so dispatch stays total."""
         with pytest.raises(ValueError, match="provider"):
-            LLMSettings.model_validate({"provider": "unknown"})
+            LLMSettings.model_validate({"provider": provider})
 
-
-class TestCreateDashscope:
-    """Tests for the DashScope client."""
-
-    def test_missing_api_key(self) -> None:
-        with pytest.raises(ConfigurationError, match="DASHSCOPE_API_KEY is not set"):
-            _create_dashscope(_config(key=None))
-
-    def test_blank_api_key_counts_as_unset(self) -> None:
-        with pytest.raises(ConfigurationError, match="DASHSCOPE_API_KEY is not set"):
-            _create_dashscope(_config(key="   "))
-
-    def test_applies_timeout_and_retries(self) -> None:
-        llm = _create_dashscope(_config())
-        assert llm.request_timeout == 12.5
-        assert llm.max_retries == 3
+    def test_gemini_is_the_default_provider(self) -> None:
+        assert LLMSettings().provider == "gemini"
 
 
 class TestCreateGemini:
@@ -115,5 +94,14 @@ class TestCreateOpenRouter:
         with pytest.raises(ConfigurationError, match="OPENROUTER_API_KEY is not set"):
             _create_openrouter(_config(key=None))
 
+    def test_blank_api_key_counts_as_unset(self) -> None:
+        with pytest.raises(ConfigurationError, match="OPENROUTER_API_KEY is not set"):
+            _create_openrouter(_config(key="   "))
+
     def test_returns_chat_openai(self) -> None:
         assert isinstance(_create_openrouter(_config()), ChatOpenAI)
+
+    def test_applies_timeout_and_retries(self) -> None:
+        llm = _create_openrouter(_config())
+        assert llm.request_timeout == 12.5
+        assert llm.max_retries == 3

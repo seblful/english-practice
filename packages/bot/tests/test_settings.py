@@ -156,7 +156,7 @@ class TestDecisionSettings:
 
     def test_an_unknown_route_is_refused(self) -> None:
         with pytest.raises(ValueError, match="route"):
-            DecisionSettings.model_validate({"route": "dashscope"})
+            DecisionSettings.model_validate({"route": "openai"})
 
     def test_a_timeout_must_be_positive(self) -> None:
         with pytest.raises(ValueError, match="request_timeout"):

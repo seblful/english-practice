@@ -64,7 +64,7 @@ class ModelPicker(ft.AlertDialog):
             ),
             # In the field the filters are typed in; its own line cost an entry.
             suffix=self._count,
-            # Autocorrect turning "qwen" into a word would silently empty the list.
+            # Autocorrect turning "jev" into a word would silently empty the list.
             autocorrect=False,
             capitalization=ft.TextCapitalization.NONE,
             on_change=self._refilter,

@@ -12,7 +12,7 @@ the pipeline calls one now: the bot grades through a decision model of its own.
 | :----- | :--------- |
 | `settings.py` | The settings groups both read (`paths`, `langsmith`, `logging`, `app`), how `.env` files seed the environment, `BaseAppSettings` for each program to extend with its own groups, and `LLMAppSettings`, which adds the `llm` group and its key check for a program that calls a chat model. |
 | `logging.py` | One structlog configuration, taking the group it needs rather than reading the environment itself. |
-| `llm.py` | One chat-model client per provider — DashScope, Gemini, OpenRouter — with the timeout and retry policy applied. |
+| `llm.py` | One chat-model client per provider — Gemini, OpenRouter — with the timeout and retry policy applied. |
 | `agents.py` | `BaseAgent`: a prompt, an LLM call, a typed result, and one place where a provider failure becomes an `AgentError`. |
 | `tracing.py` | A signature-preserving wrapper around LangSmith's `traceable`. |
 
