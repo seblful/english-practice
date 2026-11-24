@@ -1,0 +1,24 @@
+# The uv ecosystem is left out on purpose: a ruff or ty bump can change lint results,
+# so `uv lock --upgrade` stays a deliberate step. The cooldown lets a compromised
+# release be yanked before it reaches you.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      pre-commit:
+        patterns: ["*"]

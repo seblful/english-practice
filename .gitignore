@@ -1,3 +1,6 @@
+# Not the stock GitHub Python list: entries like `lib/` and `var/` are setuptools-era
+# and would silently swallow a real source directory.
+
 # Project specific
 # Track reviewed metadata and its audit record; keep source assets and scratch files local.
 /data/*
@@ -21,60 +24,33 @@ drafts/
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.pytype/
 
-# Distribution / packaging
-build/
+# Packaging (uv build)
 dist/
-*.egg-info/
-*.egg/
-MANIFEST
 
-# Virtual environments
+# Virtual environments (uv)
 .venv/
-venv/
-ENV/
-env.bak/
-venv.bak/
 
-# Environments
+# Environments; .env.example is the committed config contract.
 .env
 .env.*
 !.env.example
 
 # Testing / coverage
-.tox/
-.nox/
 .pytest_cache/
 .coverage
 .coverage.*
-cover/
+coverage.xml
 htmlcov/
-.hypothesis/
+
+# Type checking
+.ty_cache/
+
+# Ruff
+.ruff_cache/
 
 # Logs
-logs/
 *.log
-
-# Docs
-docs/_build/
-site/
-
-# Jupyter
-.ipynb_checkpoints/
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Claude Code local settings (contains secrets/proxy credentials)
-.claude/settings.local.json
-
-# OS
-.DS_Store
-Thumbs.db
 
 # Secrets
 *.key
@@ -87,47 +63,14 @@ key.properties
 /keystore.properties
 secrets/
 credentials/
+.ssh/
 
-# Ruff
-.ruff_cache/
+# Claude Code personal files (may contain machine-specific paths or credentials).
+# Creating a CLAUDE.local.md stops Claude Code from reading AGENTS.md, unless /config
+# sets Project instructions to claude-md-and-agents-md.
+.claude/settings.local.json
+CLAUDE.local.md
 
-# Pre-commit
-.pre-commit-cache/
-
-# pyinstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage
-nosetests.xml
-coverage.xml
-*.py,cover
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# IPython
-profile_default/
-ipython_config.py
-
-# PEP 582
-__pypackages__/
-
-# Distribution
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-.installed.cfg
-.Python
-develop-eggs/
+# OS
+.DS_Store
+Thumbs.db

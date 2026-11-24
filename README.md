@@ -129,7 +129,7 @@ Requires Python 3.13+, [uv](https://docs.astral.sh/uv/), and SQLite (built in).
 
 ```bash
 uv sync --all-packages
-uv run pre-commit run --all-files     # everything the hooks run
+uv run prek run --all-files --hook-stage manual   # every check, as CI runs it
 
 # Per package — each has its own coverage gate at 95%.
 uv run --directory packages/core       pytest

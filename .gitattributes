@@ -1,0 +1,12 @@
+# Force LF: a Windows CRLF checkout would fail ruff format --check on Linux CI.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+
+# Generated; keep it out of pull request diffs by default.
+uv.lock linguist-generated=true

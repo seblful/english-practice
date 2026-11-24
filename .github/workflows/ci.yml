@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"  # weekly dependency audit
+  workflow_call:  # release.yml runs every check before it publishes, if there is one
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # The schedule exists for the audit; an unchanged lockfile needs no re-check.
+    if: github.event_name != 'schedule'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      # Actions are pinned by hash, as zizmor requires: a tag can be moved to other
+      # code. Dependabot bumps the hash and the version comment together.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          version: "0.13.x"  # the line pyproject.toml caps uv_build to
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked  # fails on a stale lockfile instead of masking it
+
+      - name: Cache prek environments
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          # prek keeps its environments in ~/.cache on Linux, %LOCALAPPDATA% on Windows.
+          path: |
+            ~/.cache/prek
+            ~/AppData/Local/prek
+          key: prek-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Checks
+        run: uv run prek run --all-files --hook-stage manual --show-diff-on-failure
+
+  audit:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Fails only the weekly run: a new CVE elsewhere in the tree is not a reason to
+    # block an unrelated pull request, or the release that calls this workflow.
+    continue-on-error: ${{ github.event_name != 'schedule' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          version: "0.13.x"
+          enable-cache: true
+
+      # --preview-features opts in to a command uv still marks experimental.
+      - name: Audit locked dependencies
+        run: uv audit --locked --preview-features audit-command

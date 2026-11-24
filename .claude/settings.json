@@ -1,41 +1,46 @@
 {
-  "env": {
-    "CLAUDE_ISSUES_REPO": "seblful/seblful-claude-plugins"
-  },
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "$comment": [
+    "Committed, project-scoped rules only. Machine-local overrides go in .claude/settings.local.json, which is gitignored.",
+    "allow names exact commands, never `uv *`: `uv run` executes whatever follows it, so a broad rule would auto-approve `uv run rm -rf .` past every deny rule. Deny rules are guardrails, not a boundary: for enforcement, turn on the sandbox with /sandbox.",
+    "Read(!.env.example) carves the committed contract back out of Read(.env.*); an allow rule couldn't, because deny always wins."
+  ],
   "permissions": {
-    "defaultMode": "auto",
     "allow": [
-      "Bash(uv *)",
-      "Bash(uvx *)",
-      "Bash(git *)",
-      "Bash(ruff *)",
-      "Bash(pre-commit *)",
-      "Bash(ty *)",
-      "Bash(pytest *)",
-      "Bash(mdformat *)",
-      "Bash(mkdocs *)",
-      "Bash(python *)",
-      "Bash(python3 *)"
+      "Bash(uv sync *)",
+      "Bash(uv lock *)",
+      "Bash(uv tree *)",
+      "Bash(uv run pytest *)",
+      "Bash(uv run ruff *)",
+      "Bash(uv run ty *)",
+      "Bash(uv run mdformat *)",
+      "Bash(uv run prek run *)",
+      "Bash(uv run prek install *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git switch -c *)",
+      "Bash(git checkout -b *)",
+      "Bash(git restore --staged *)"
     ],
     "deny": [
       "Bash(rm -rf *)",
       "Bash(git push --force *)",
+      "Bash(git push * --force)",
+      "Bash(git push * --force *)",
+      "Bash(git push -f *)",
+      "Bash(git push * -f)",
+      "Bash(git push * -f *)",
       "Bash(git reset --hard *)",
+      "Bash(git clean *)",
+      "Bash(git commit *--no-verify*)",
       "Bash(uv publish *)",
       "Read(.env)",
-      "Read(.env.*)"
+      "Read(.env.*)",
+      "Read(!.env.example)",
+      "Read(secrets/**)",
+      "Read(credentials/**)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)"
     ]
-  },
-  "extraKnownMarketplaces": {
-    "seblful-claude-plugins": {
-      "source": {
-        "source": "github",
-        "repo": "seblful/seblful-claude-plugins"
-      },
-      "autoUpdate": true
-    }
-  },
-  "enabledPlugins": {
-    "python-plugin@seblful-claude-plugins": true
   }
 }

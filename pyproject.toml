@@ -23,12 +23,7 @@ dev = [
     "ruff>=0.4.0",
     "ty>=0.0.28",
     "mdformat>=1.0.0",
-    "pre-commit>=4.0.0",
-]
-docs = [
-    "mkdocs>=1.6.0",
-    "mkdocs-material>=9.5.0",
-    "mkdocstrings[python]>=0.25.0",
+    "prek>=0.5.5,<0.6",  # pre-1.0: breaking changes land between patch releases
 ]
 
 # --- Lint and format rules, extended by every package ---
@@ -36,6 +31,9 @@ docs = [
 [tool.ruff]
 target-version = "py313"
 line-length = 88
+
+[tool.ruff.format]
+line-ending = "lf"  # matches .gitattributes, whatever the checkout
 
 [tool.ruff.lint]
 select = [

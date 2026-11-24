@@ -10,48 +10,25 @@ on:
       - "app-v*.*.*"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  # Every check CI runs, lint to every package's tests, before anything is drafted.
   quality:
-    name: Lint, type-check, test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: astral-sh/setup-uv@v10.0.1
-        with:
-          python-version: "3.13"
-          enable-cache: true
-
-      - name: Sync the workspace (core, runtime, bot, extraction)
-        run: uv sync --all-packages
-
-      - name: Sync the app (its own lock file, excluded from the workspace)
-        run: uv sync --directory packages/app
-
-      - name: Lint, format check, and type-check every package
-        run: uv run pre-commit run --all-files
-
-      - name: Test core
-        run: uv run --directory packages/core pytest
-      - name: Test runtime
-        run: uv run --directory packages/runtime pytest
-      - name: Test bot
-        run: uv run --directory packages/bot pytest
-      - name: Test extraction
-        run: uv run --directory packages/extraction pytest
-      - name: Test app
-        run: uv run --directory packages/app pytest
+    name: Every check
+    uses: ./.github/workflows/ci.yml  # zizmor: ignore[self-repository] the long-documented form
 
   release:
     name: Draft the GitHub release
     needs: quality
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # gh release create; no other job needs to write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Tag must match the app's declared version
         run: |

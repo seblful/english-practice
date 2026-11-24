@@ -1,27 +1,48 @@
+# The one definition of this project's checks: commits run the fast ones, pushes add
+# the tests, and the manual stage runs all of them. CI runs
+# `uv run prek run --all-files --hook-stage manual`, so add a check here, not to CI.
+#
+# Local hooks go through `uv run`, so the lockfile pins their versions
+# instead of prek's own environments.
+default_install_hook_types: [pre-commit, pre-push, commit-msg]
+default_stages: [pre-commit, manual]
+
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.10
+  - repo: local
     hooks:
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix --exit-non-zero-on-fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
       - id: ruff-format
-  - repo: https://github.com/executablebooks/mdformat
-    rev: 1.0.0
-    hooks:
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
       - id: mdformat
+        name: mdformat
+        entry: uv run mdformat
+        language: system
+        types: [markdown]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
       - id: check-yaml
       - id: check-toml
+      - id: check-json
       - id: check-added-large-files
         # Reviewed answer metadata and its before/after audit exceed 500 KB.
         exclude: ^(data/content/metadata/(answers_full|rules)\.json|data/manual-review/audit\.json)$
       - id: check-merge-conflict
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.9.7
+    rev: 0.13.0
     hooks:
       - id: uv-lock
       - id: uv-lock
@@ -29,10 +50,28 @@ repos:
         args: [--project, packages/app]
         files: ^packages/app/(pyproject\.toml|uv\.lock)$
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.28.0
+    rev: v8.30.1
     hooks:
       - id: gitleaks
-  # One type check per package: each resolves a different dependency set.
+        stages: [pre-commit]
+      # The hook above scans staged changes only, which in CI is nothing at all.
+      - id: gitleaks
+        alias: gitleaks-history
+        name: Detect hardcoded secrets in history
+        entry: gitleaks git --redact --verbose
+        stages: [manual]
+  # Skips itself when there is no workflow to scan, as in a GitLab project.
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.30.1
+    hooks:
+      - id: zizmor
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+  # Types and tests run per package: each resolves a different dependency set,
+  # and the app is not in the workspace at all.
   - repo: local
     hooks:
       - id: ty-core
@@ -65,3 +104,38 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      - id: pytest-core
+        name: pytest (core)
+        entry: uv run --directory packages/core pytest -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push, manual]
+      - id: pytest-runtime
+        name: pytest (runtime)
+        entry: uv run --directory packages/runtime pytest -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push, manual]
+      - id: pytest-bot
+        name: pytest (bot)
+        entry: uv run --directory packages/bot pytest -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push, manual]
+      - id: pytest-extraction
+        name: pytest (extraction)
+        entry: uv run --directory packages/extraction pytest -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push, manual]
+      - id: pytest-app
+        name: pytest (app)
+        entry: uv run --directory packages/app pytest -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push, manual]
