@@ -1,10 +1,10 @@
-"""The decision models the user can pick from, and how each route lists them."""
+"""The decision models the user can pick from, and how each provider lists them."""
 
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from typing import Any, Final
 
-from practice_core.decisions import DecisionRoute
+from practice_core.providers import Provider
 
 __all__ = [
     "ModelInfo",
@@ -22,7 +22,7 @@ _THOUSAND = 1_000
 
 @dataclass(frozen=True, slots=True)
 class ModelInfo:
-    """One entry of a route's decision-model catalogue."""
+    """One entry of a provider's decision-model catalogue."""
 
     id: str
     name: str
@@ -60,9 +60,9 @@ _GEMINI_DECISION: Final = ModelInfo(
 )
 
 
-def default_model_info(route: DecisionRoute) -> ModelInfo:
-    """Return the entry always offered on a route, listed or not."""
-    return replace(_GEMINI_DECISION, id=route.default_model)
+def default_model_info(provider: Provider) -> ModelInfo:
+    """Return the entry always offered on a provider, listed or not."""
+    return replace(_GEMINI_DECISION, id=provider.decision_model)
 
 
 def is_decision_model(model_id: str, methods: Iterable[object] = ()) -> bool:
@@ -91,7 +91,7 @@ def _list(value: object) -> list[Any] | None:
     return value if isinstance(value, list) else None
 
 
-def _google_entry(entry: object) -> ModelInfo | None:
+def _gemini_entry(entry: object) -> ModelInfo | None:
     """Return one ``GET /v1beta/models`` entry, if it is a decision model."""
     if not isinstance(entry, dict):
         return None
@@ -136,32 +136,30 @@ def _openrouter_entry(entry: object) -> ModelInfo | None:
     )
 
 
-_READERS: Final[
-    dict[DecisionRoute, tuple[str, Callable[[object], ModelInfo | None]]]
-] = {
-    DecisionRoute.OPENROUTER: ("data", _openrouter_entry),
-    DecisionRoute.GOOGLE: ("models", _google_entry),
+_READERS: Final[dict[Provider, tuple[str, Callable[[object], ModelInfo | None]]]] = {
+    Provider.OPENROUTER: ("data", _openrouter_entry),
+    Provider.GEMINI: ("models", _gemini_entry),
 }
 
 
-def parse_models(route: DecisionRoute, payload: object) -> list[ModelInfo]:
-    """Return the decision models in a route's model listing, its default first.
+def parse_models(provider: Provider, payload: object) -> list[ModelInfo]:
+    """Return the decision models in a provider's model listing, its default first.
 
     The default is always present, so the picker is never empty: neither
     listing documents exactly how a decision model appears in it.
     """
-    field, read = _READERS[route]
+    field, read = _READERS[provider]
     entries = payload.get(field) if isinstance(payload, dict) else None
     listed = [model for model in map(read, _list(entries) or []) if model is not None]
 
     seen: dict[str, ModelInfo] = {}
     for model in sorted(listed, key=lambda model: model.id):
         seen.setdefault(model.id, model)
-    default = seen.pop(route.default_model, None)
+    default = seen.pop(provider.decision_model, None)
     # Google documents image input for it, which outranks an odd listing.
     default = (
         replace(default, supports_images=True)
         if default is not None
-        else default_model_info(route)
+        else default_model_info(provider)
     )
     return [default, *seen.values()]

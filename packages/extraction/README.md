@@ -50,8 +50,10 @@ unless passed `--force`.
 
 ## What it needs configured
 
-`OCR_API_KEY` for the OCR stage, and the usual `LLM_PROVIDER` plus that
-provider's key for the two extraction stages. `practice-content check` says
+`MISTRAL_API_KEY` (and optionally `OCR_MODEL`) for the OCR stage, and
+`LLM_PROVIDER` plus that provider's key (`GEMINI_API_KEY` or
+`OPENROUTER_API_KEY`) for the two extraction stages; `LLM_MODEL`,
+`LLM_TEMPERATURE` and the rest of `LLM_*` tune it. `practice-content check` says
 what is missing, including whether the source book is where the settings expect
 it. Nothing else in the repository needs these, which is the point of the
 split: the bot's deployment carries no OCR key.

@@ -38,7 +38,7 @@ def visible_models(
 
 
 class ModelPicker(ft.AlertDialog):
-    """A searchable list of one route's decision models."""
+    """A searchable list of one provider's decision models."""
 
     def __init__(
         self,

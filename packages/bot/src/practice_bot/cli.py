@@ -22,10 +22,10 @@ def main(ctx: typer.Context) -> None:
 def info() -> None:
     """Display project information."""
     settings = get_settings()
-    typer.echo(f"{settings.app.app_name} v{__version__}")
+    typer.echo(f"{settings.app.name} v{__version__}")
     typer.echo(f"Environment: {settings.app.environment}")
     typer.echo(
-        f"Grader: {settings.decision.active_model} via {settings.decision.route.label}"
+        f"Grader: {settings.grader.active_model} via {settings.grader.provider.label}"
     )
     typer.echo(f"Database: {settings.paths.database_path}")
 

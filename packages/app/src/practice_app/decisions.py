@@ -6,8 +6,9 @@ from dataclasses import dataclass, field
 from typing import Any, Final
 
 import httpx
-from practice_core.decisions import DecisionRoute, decision_request, read_decision
+from practice_core.decisions import decision_request, read_decision
 from practice_core.grading import EvaluateAnswerInput, EvaluateAnswerOutput
+from practice_core.providers import Provider
 
 from practice_app.catalogue import ModelInfo, parse_models
 from practice_app.config import AppConfig
@@ -22,15 +23,15 @@ __all__ = [
     "models_call",
 ]
 
-#: Where each route lists its models.
+#: Where each provider lists its models.
 MODELS_URLS: Final = {
-    DecisionRoute.OPENROUTER: "https://openrouter.ai/api/v1/models",
-    DecisionRoute.GOOGLE: "https://generativelanguage.googleapis.com/v1beta/models",
+    Provider.OPENROUTER: "https://openrouter.ai/api/v1/models",
+    Provider.GEMINI: "https://generativelanguage.googleapis.com/v1beta/models",
 }
 # OpenRouter filters its catalogue to decision models; Google pages through all.
 _MODELS_PARAMS: Final = {
-    DecisionRoute.OPENROUTER: {"output_modalities": "decisions"},
-    DecisionRoute.GOOGLE: {"pageSize": "1000"},
+    Provider.OPENROUTER: {"output_modalities": "decisions"},
+    Provider.GEMINI: {"pageSize": "1000"},
 }
 
 # 524 and 529 are OpenRouter's upstream timeout and overload.
@@ -59,29 +60,29 @@ class HttpCall:
     body: dict[str, Any] | None = None
 
 
-def models_call(route: DecisionRoute, api_key: str) -> HttpCall:
-    """Return the request that lists a route's decision models."""
+def models_call(provider: Provider, api_key: str) -> HttpCall:
+    """Return the request that lists a provider's decision models."""
     return HttpCall(
         "GET",
-        MODELS_URLS[route],
-        route.headers(api_key),
-        params=dict(_MODELS_PARAMS[route]),
+        MODELS_URLS[provider],
+        provider.headers(api_key),
+        params=dict(_MODELS_PARAMS[provider]),
     )
 
 
-def decision_call(route: DecisionRoute, api_key: str, body: dict[str, Any]) -> HttpCall:
+def decision_call(provider: Provider, api_key: str, body: dict[str, Any]) -> HttpCall:
     """Return the request that asks a decision model a set of questions."""
-    return HttpCall("POST", route.url, route.headers(api_key), body=body)
+    return HttpCall("POST", provider.decision_url, provider.headers(api_key), body=body)
 
 
-def check_call(route: DecisionRoute, api_key: str, model: str) -> HttpCall:
+def check_call(provider: Provider, api_key: str, model: str) -> HttpCall:
     """Return the cheapest decision that proves a key and a model work."""
     body: dict[str, Any] = {"model": model, "questions": _CHECK_QUESTIONS}
-    if route is DecisionRoute.OPENROUTER:
+    if provider is Provider.OPENROUTER:
         body["state"] = [_CHECK_TEXT]
     else:
         body["input"] = [{"type": "text", "text": _CHECK_TEXT}]
-    return decision_call(route, api_key, body)
+    return decision_call(provider, api_key, body)
 
 
 def _error(payload: object) -> tuple[str, str]:
@@ -115,7 +116,7 @@ class DecisionClient:
     ) -> None:
         """Initialize the client."""
         self.config = config
-        self.route = config.route
+        self.provider = config.provider
         self._transport = transport
         self._sleep = sleep or asyncio.sleep
         self._client: httpx.AsyncClient | None = None
@@ -174,7 +175,9 @@ class DecisionClient:
                     "Check the proxy host, port and credentials."
                 ) from exc
             except httpx.HTTPError as exc:
-                last_error = ProviderError(f"Could not reach {self.route.label}: {exc}")
+                last_error = ProviderError(
+                    f"Could not reach {self.provider.label}: {exc}"
+                )
             else:
                 if response.is_success:
                     return self._decode(response)
@@ -193,7 +196,7 @@ class DecisionClient:
             return response.json()
         except ValueError as exc:
             raise ProviderError(
-                f"{self.route.label} replied with something that is not JSON. "
+                f"{self.provider.label} replied with something that is not JSON. "
                 "If you are behind a proxy, check its settings."
             ) from exc
 
@@ -206,7 +209,7 @@ class DecisionClient:
         detail = ": ".join(part for part in (code, message) if part)
         suffix = f" ({detail})" if detail else ""
         status = response.status_code
-        label = self.route.label
+        label = self.provider.label
 
         match status:
             case 401 | 403:
@@ -239,15 +242,15 @@ class DecisionClient:
     # --- Operations ---
 
     async def list_models(self) -> list[ModelInfo]:
-        """Return the route's decision models, its default always first."""
+        """Return the provider's decision models, its default always first."""
         api_key = self.config.active.api_key
         # OpenRouter's catalogue is public; Google's needs a key.
-        if not api_key and self.route is DecisionRoute.GOOGLE:
+        if not api_key and self.provider is Provider.GEMINI:
             raise ConfigurationError(
-                f"Enter your {self.route.label} API key to load its models."
+                f"Enter your {self.provider.label} API key to load its models."
             )
-        payload = await self._send(models_call(self.route, api_key))
-        return parse_models(self.route, payload)
+        payload = await self._send(models_call(self.provider, api_key))
+        return parse_models(self.provider, payload)
 
     async def grade(
         self, context: EvaluateAnswerInput, image: bytes | None = None
@@ -256,9 +259,9 @@ class DecisionClient:
         self._require_settings()
         active = self.config.active
         body = decision_request(
-            context, route=self.route, model=active.model, image=image
+            context, provider=self.provider, model=active.model, image=image
         )
-        payload = await self._send(decision_call(self.route, active.api_key, body))
+        payload = await self._send(decision_call(self.provider, active.api_key, body))
         return read_decision(payload, context)
 
     async def check(self) -> str:
@@ -266,5 +269,5 @@ class DecisionClient:
         self._require_settings()
         active = self.config.active
         # Only that a decision came back matters; `_send` raises when none does.
-        await self._send(check_call(self.route, active.api_key, active.model))
-        return f"{self.route.label} answered as {active.model}."
+        await self._send(check_call(self.provider, active.api_key, active.model))
+        return f"{self.provider.label} answered as {active.model}."

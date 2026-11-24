@@ -73,16 +73,20 @@ micro .env
 | `TELEGRAM_BOT_TOKEN` | Token from @BotFather | Yes |
 | `TELEGRAM_ADMIN_USER_ID` | Your Telegram user ID; approves new users | Yes |
 | `GEMINI_API_KEY` | Google AI Studio key; the bot grades through Google by default | Yes\* |
-| `APP__ENVIRONMENT` | Set to `production` | Yes |
+| `APP_ENVIRONMENT` | Set to `production` | Yes |
 | `PATHS_DATABASE_PATH` | Path to the SQLite database | No\*\* |
 
-_\*With `DECISION_ROUTE=openrouter`, set `OPENROUTER_API_KEY` instead. `DECISION_MODEL` picks the decision model (default: Gemini Decision 1 under the route's id); `DECISION_PROXY` routes the calls through a proxy._
+_\*With `GRADER_PROVIDER=openrouter`, set `OPENROUTER_API_KEY` instead. `GRADER_MODEL` picks the decision model (default: Gemini Decision 1 under the provider's id); `GEMINI_PROXY` or `OPENROUTER_PROXY` sends that provider's calls through a proxy._
 
-_\*\*Defaults to `data/content/english_practice.db`. The old unprefixed
-`DATABASE_PATH` is still accepted._
+_\*\*Defaults to `data/content/english_practice.db`._
 
 Optional tuning: `BOT_SESSION_IDLE_TTL_MINUTES` (when an idle session is dropped),
-`DECISION_REQUEST_TIMEOUT` and `DECISION_MAX_RETRIES`.
+`GRADER_REQUEST_TIMEOUT` and `GRADER_MAX_RETRIES`.
+
+Every variable is `<GROUP>_<FIELD>`: the group is the settings section, such as
+`TELEGRAM`, `GRADER`, `GEMINI` or `LOGGING`. Older names such as `DECISION_ROUTE`,
+`APP__ENVIRONMENT` or `DATABASE_PATH` are no longer read. `english-practice check`
+lists every one still set, with the name that replaced it.
 
 Variables exported into the container's environment take precedence over the
 `.env` file, so `docker-compose.yml` can override anything the file sets.

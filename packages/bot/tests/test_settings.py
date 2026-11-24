@@ -3,13 +3,13 @@
 from pathlib import Path
 
 import pytest
-from practice_core.decisions import DecisionRoute
-from practice_runtime.settings import LangSmithSettings, PathSettings
+from practice_core.providers import Provider
+from practice_runtime.settings import GeminiSettings, LangSmithSettings, PathSettings
 from pydantic import SecretStr
 
 from practice_bot.settings import (
     BotSettings,
-    DecisionSettings,
+    GraderSettings,
     Settings,
     TelegramSettings,
     get_settings,
@@ -22,7 +22,7 @@ def _runnable(tmp_path: Path) -> Settings:
     database.touch()
     return Settings(
         telegram=TelegramSettings(bot_token=SecretStr("token"), admin_user_id=1),
-        decision=DecisionSettings(google_api_key=SecretStr("key")),
+        gemini=GeminiSettings(api_key=SecretStr("key")),
         paths=PathSettings(database_path=database),
     )
 
@@ -53,14 +53,24 @@ class TestMissingRequired:
         assert any("database not found" in p for p in problems)
         assert any("practice-content populate" in p for p in problems)
 
-    def test_reports_the_missing_key_of_the_chosen_route(self, tmp_path: Path) -> None:
+    def test_reports_the_missing_key_of_the_chosen_provider(
+        self, tmp_path: Path
+    ) -> None:
         settings = _runnable(tmp_path)
-        settings.decision.route = DecisionRoute.OPENROUTER
+        settings.grader.provider = Provider.OPENROUTER
 
-        assert any(
-            "OPENROUTER_API_KEY is not set (DECISION_ROUTE=openrouter)" in p
-            for p in settings.missing_required()
-        )
+        assert settings.missing_required() == [
+            "OPENROUTER_API_KEY is not set (GRADER_PROVIDER=openrouter)"
+        ]
+
+    def test_reports_an_old_variable_by_its_new_name(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("DECISION_MODEL", "gemini-decision-1")
+
+        assert _runnable(tmp_path).missing_required() == [
+            "DECISION_MODEL is no longer read: rename it to GRADER_MODEL"
+        ]
 
     def test_needs_no_chat_model_key(self, tmp_path: Path) -> None:
         """Grading is the bot's only model call, and it is a decision."""
@@ -96,71 +106,60 @@ class TestTelegramSettings:
         assert TelegramSettings().admin_user_id == 42
 
 
-class TestDecisionSettings:
-    def test_defaults_to_gemini_decision_through_google(self) -> None:
+class TestGraderSettings:
+    def test_defaults_to_gemini_decision_through_gemini(self) -> None:
         """Google's free tier covers practice; OpenRouter has none."""
-        settings = DecisionSettings()
+        settings = GraderSettings()
 
-        assert settings.route is DecisionRoute.GOOGLE
+        assert settings.provider is Provider.GEMINI
         assert settings.active_model == "gemini-decision-1"
-        assert settings.key_variable == "GEMINI_API_KEY"
 
-    def test_the_openrouter_route_names_its_own_model(self) -> None:
-        settings = DecisionSettings(route=DecisionRoute.OPENROUTER)
+    def test_openrouter_names_its_own_model(self) -> None:
+        settings = GraderSettings(provider=Provider.OPENROUTER)
 
         assert settings.active_model == "google/gemini-decision-1"
-        assert settings.key_variable == "OPENROUTER_API_KEY"
 
     @pytest.mark.parametrize("model", [None, "", "  "])
-    def test_a_blank_model_means_the_route_default(self, model: str | None) -> None:
-        assert DecisionSettings(model=model).active_model == "gemini-decision-1"
+    def test_a_blank_model_means_the_default(self, model: str | None) -> None:
+        assert GraderSettings(model=model).active_model == "gemini-decision-1"
 
-    def test_the_key_follows_the_route(self) -> None:
-        """An old .env holds both keys; the route decides which one is used."""
-        settings = DecisionSettings(
-            openrouter_api_key=SecretStr("or"), google_api_key=SecretStr("g")
-        )
-
-        assert settings.api_key == "g"
-        settings.route = DecisionRoute.OPENROUTER
-        assert settings.api_key == "or"
-
-    def test_reads_the_providers_own_variables(
-        self, monkeypatch: pytest.MonkeyPatch
+    def test_the_key_comes_from_the_providers_own_group(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
+        """One key per provider, shared with the pipeline: no grader copy."""
         monkeypatch.setenv("OPENROUTER_API_KEY", "or")
-        monkeypatch.setenv("GEMINI_API_KEY", "g")
-        monkeypatch.setenv("GEMINI_PROXY", "http://proxy:8080")
+        monkeypatch.setenv("OPENROUTER_PROXY", "http://proxy:8080")
+        monkeypatch.setenv("GRADER_PROVIDER", "openrouter")
 
-        settings = DecisionSettings()
+        settings = Settings()
+        credentials = settings.credentials(settings.grader.provider)
 
-        assert settings.api_key == "g"
-        assert settings.openrouter_api_key is not None
-        assert settings.openrouter_api_key.get_secret_value() == "or"
-        assert settings.proxy == "http://proxy:8080"
+        assert credentials.key == "or"
+        assert credentials.proxy == "http://proxy:8080"
 
     def test_reads_its_prefixed_variables(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setenv("DECISION_ROUTE", "google")
-        monkeypatch.setenv("DECISION_GOOGLE_API_KEY", "dg")
-        monkeypatch.setenv("DECISION_MODEL", "gemini-decision-2")
-        monkeypatch.setenv("DECISION_PROXY", "socks5://localhost:9050")
+        monkeypatch.setenv("GRADER_PROVIDER", "openrouter")
+        monkeypatch.setenv("GRADER_MODEL", "jev/jev-decision-1")
+        monkeypatch.setenv("GRADER_REQUEST_TIMEOUT", "12")
+        monkeypatch.setenv("GRADER_MAX_RETRIES", "5")
 
-        settings = DecisionSettings()
+        settings = GraderSettings()
 
-        assert settings.route is DecisionRoute.GOOGLE
-        assert settings.api_key == "dg"
-        assert settings.active_model == "gemini-decision-2"
-        assert settings.proxy == "socks5://localhost:9050"
+        assert settings.provider is Provider.OPENROUTER
+        assert settings.active_model == "jev/jev-decision-1"
+        assert settings.request_timeout == 12
+        assert settings.max_retries == 5
 
-    def test_an_unknown_route_is_refused(self) -> None:
-        with pytest.raises(ValueError, match="route"):
-            DecisionSettings.model_validate({"route": "openai"})
+    @pytest.mark.parametrize("provider", ["openai", "google"])
+    def test_an_unknown_provider_is_refused(self, provider: str) -> None:
+        with pytest.raises(ValueError, match="provider"):
+            GraderSettings.model_validate({"provider": provider})
 
     def test_a_timeout_must_be_positive(self) -> None:
         with pytest.raises(ValueError, match="request_timeout"):
-            DecisionSettings(request_timeout=0)
+            GraderSettings(request_timeout=0)
 
 
 class TestBotSettings:

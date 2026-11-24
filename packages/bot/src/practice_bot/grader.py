@@ -1,4 +1,4 @@
-"""Grading an answer through a decision model, on OpenRouter or Google AI Studio."""
+"""Grading an answer through a decision model, on Google AI Studio or OpenRouter."""
 
 import asyncio
 from collections.abc import Awaitable, Callable, Sequence
@@ -11,9 +11,10 @@ from practice_core.grading import EvaluateAnswerInput, EvaluateAnswerOutput
 from practice_core.models import Question, QuestionAnswer
 from practice_runtime.errors import AgentError, ConfigurationError
 from practice_runtime.logging import get_logger
+from practice_runtime.settings import ProviderSettings
 from practice_runtime.tracing import traced
 
-from practice_bot.settings import DecisionSettings
+from practice_bot.settings import GraderSettings
 
 __all__ = ["DecisionGrader"]
 
@@ -42,24 +43,25 @@ class DecisionGrader:
 
     def __init__(
         self,
-        settings: DecisionSettings,
+        settings: GraderSettings,
+        credentials: ProviderSettings,
         *,
         transport: httpx.AsyncBaseTransport | None = None,
         sleep: Callable[[float], Awaitable[None]] | None = None,
     ) -> None:
         """Initialize the grader and its connection pool."""
-        api_key = settings.api_key
+        api_key = credentials.key
         if api_key is None:
-            raise ConfigurationError(f"{settings.key_variable} is not set")
+            raise ConfigurationError(f"{credentials.key_variable} is not set")
 
-        self.route = settings.route
+        self.provider = settings.provider
         self.model = settings.active_model
         self._max_retries = settings.max_retries
         self._sleep = sleep or asyncio.sleep
         self._client = httpx.AsyncClient(
-            headers=self.route.headers(api_key),
+            headers=self.provider.headers(api_key),
             timeout=settings.request_timeout,
-            proxy=settings.proxy,
+            proxy=credentials.proxy,
             transport=transport,
         )
 
@@ -82,7 +84,9 @@ class DecisionGrader:
             question, user_input=user_input, answers=answers, topic_name=topic_name
         )
         payload = await self._post(
-            decision_request(context, route=self.route, model=self.model, image=image)
+            decision_request(
+                context, provider=self.provider, model=self.model, image=image
+            )
         )
         try:
             return read_decision(payload, context)
@@ -95,9 +99,11 @@ class DecisionGrader:
         attempt = 0
         while True:
             try:
-                response = await self._client.post(self.route.url, json=body)
+                response = await self._client.post(
+                    self.provider.decision_url, json=body
+                )
             except httpx.HTTPError as exc:
-                failure = f"could not reach {self.route.label}: {exc}"
+                failure = f"could not reach {self.provider.label}: {exc}"
                 retriable = True
             else:
                 if response.is_success:
@@ -105,11 +111,12 @@ class DecisionGrader:
                         return response.json()
                     except ValueError as exc:
                         raise AgentError(
-                            f"{self.route.label} replied with something other than JSON"
+                            f"{self.provider.label} replied with something other "
+                            "than JSON"
                         ) from exc
                 detail = _error_detail(response)
                 failure = (
-                    f"{self.route.label} refused the request "
+                    f"{self.provider.label} refused the request "
                     f"(HTTP {response.status_code})" + (f": {detail}" if detail else "")
                 )
                 retriable = response.status_code in _RETRIABLE_STATUSES

@@ -14,7 +14,8 @@ they draw a screen — deliberately does not.
 | `sqlite.py` | `SqliteStore`: running a statement against a SQLite file, off the event loop. Held by the library above, and by the bot's own table of authorized users. |
 | `schema.py` + `schema/content.sql` | The content tables. The pipeline builds a database from this, the bundler re-encodes one, and both front ends' tests build a scratch copy. |
 | `content.py` | `ContentLibrary`: the async queries, including `draw`, which hands back a question ready to be asked — exercise, picture and the book's answers together. |
-| `decisions.py` | The two routes a decision request can take — Google AI Studio (default) and OpenRouter — and the body, in each one's format, of the call that grades one answer — one yes/no question for the verdict, one per accepted answer for `answer_idx` — and how its probabilities are read back into a verdict. Neither front end can grade differently. |
+| `providers.py` | `Provider`: Gemini (Google AI Studio, the default) or OpenRouter — each one's key page, decision endpoint, Gemini Decision id and auth header. The bot's `GRADER_PROVIDER` and `LLM_PROVIDER` take its values. |
+| `decisions.py` | The body, in each provider's format, of the call that grades one answer — one yes/no question for the verdict, one per accepted answer for `answer_idx` — and how its probabilities are read back into a verdict. Neither front end can grade differently. |
 | `prompts.py` + `prompts/decision.j2` | The text that sits beside the exercise image in that request. |
 | `grading.py` | The grading call's input and output. The checks that keep a verdict usable live on the output model itself. |
 | `feedback.py` | The plain-text half of showing an answer, shared so both front ends say the same thing. |

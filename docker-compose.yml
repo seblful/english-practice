@@ -11,7 +11,7 @@ services:
         required: false
     environment:
       # Selects .env.production and feeds Settings.app.environment.
-      - APP__ENVIRONMENT=production
+      - APP_ENVIRONMENT=production
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs

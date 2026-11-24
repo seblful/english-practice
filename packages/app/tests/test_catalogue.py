@@ -1,6 +1,6 @@
 """Tests for the decision-model catalogue and how a listing is read."""
 
-from practice_core.decisions import DecisionRoute
+from practice_core.providers import Provider
 
 from practice_app.catalogue import (
     ModelInfo,
@@ -9,8 +9,8 @@ from practice_app.catalogue import (
     parse_models,
 )
 
-GOOGLE = DecisionRoute.GOOGLE
-OPENROUTER = DecisionRoute.OPENROUTER
+GEMINI = Provider.GEMINI
+OPENROUTER = Provider.OPENROUTER
 
 
 class TestModelInfo:
@@ -73,7 +73,7 @@ class TestIsDecisionModel:
         assert is_decision_model("gemini-judge", [None, 7, {"decision": 1}]) is False
 
 
-class TestGoogleListing:
+class TestGeminiListing:
     def test_only_decision_models_are_kept(self) -> None:
         payload = {
             "models": [
@@ -94,7 +94,7 @@ class TestGoogleListing:
             ]
         }
 
-        models = parse_models(GOOGLE, payload)
+        models = parse_models(GEMINI, payload)
 
         assert [model.id for model in models] == ["gemini-decision-1", "gemini-judge"]
         assert models[0].description == "Listed."
@@ -103,13 +103,13 @@ class TestGoogleListing:
 
     def test_the_default_is_offered_when_the_listing_leaves_it_out(self) -> None:
         """Google does not document that decision models are listed at all."""
-        assert parse_models(GOOGLE, {"models": []}) == [default_model_info(GOOGLE)]
-        assert default_model_info(GOOGLE).id == "gemini-decision-1"
+        assert parse_models(GEMINI, {"models": []}) == [default_model_info(GEMINI)]
+        assert default_model_info(GEMINI).id == "gemini-decision-1"
 
     def test_the_default_comes_first(self) -> None:
         payload = {"models": [{"name": "models/gemini-decision-0"}]}
 
-        assert [model.id for model in parse_models(GOOGLE, payload)] == [
+        assert [model.id for model in parse_models(GEMINI, payload)] == [
             "gemini-decision-1",
             "gemini-decision-0",
         ]
@@ -119,7 +119,7 @@ class TestGoogleListing:
             "models": [{"name": "models/gemini-decision-1", "displayName": "Listed"}]
         }
 
-        models = parse_models(GOOGLE, payload)
+        models = parse_models(GEMINI, payload)
 
         assert len(models) == 1
         assert models[0].name == "Listed"
@@ -134,14 +134,14 @@ class TestGoogleListing:
             ]
         }
 
-        assert [model.id for model in parse_models(GOOGLE, payload)] == [
+        assert [model.id for model in parse_models(GEMINI, payload)] == [
             "gemini-decision-1",
             "gemini-decision-2",
         ]
 
     def test_a_display_name_falls_back_to_the_id(self) -> None:
         models = parse_models(
-            GOOGLE, {"models": [{"name": "models/gemini-decision-2"}]}
+            GEMINI, {"models": [{"name": "models/gemini-decision-2"}]}
         )
 
         assert models[1].name == "gemini-decision-2"
@@ -160,7 +160,7 @@ class TestGoogleListing:
             ]
         }
 
-        models = parse_models(GOOGLE, payload)
+        models = parse_models(GEMINI, payload)
 
         assert [model.id for model in models] == [
             "gemini-decision-1",
@@ -170,8 +170,8 @@ class TestGoogleListing:
 
     def test_a_reply_that_is_not_a_listing_still_offers_the_default(self) -> None:
         """A rewriting proxy can answer with anything."""
-        assert parse_models(GOOGLE, "a string") == [default_model_info(GOOGLE)]
-        assert parse_models(GOOGLE, {"models": "none"}) == [default_model_info(GOOGLE)]
+        assert parse_models(GEMINI, "a string") == [default_model_info(GEMINI)]
+        assert parse_models(GEMINI, {"models": "none"}) == [default_model_info(GEMINI)]
 
 
 def _openrouter(

@@ -9,7 +9,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, Final
 
-from practice_core.decisions import DEFAULT_ROUTE, DecisionRoute
+from practice_core.providers import DEFAULT_PROVIDER, Provider
 
 from practice_app.catalogue import is_decision_model
 
@@ -17,14 +17,15 @@ __all__ = [
     "MAX_PORT",
     "AppConfig",
     "ConfigStore",
+    "ProviderConfig",
     "ProxyConfig",
-    "RouteConfig",
     "ThemeChoice",
 ]
 
 SETTINGS_FILENAME = "settings.json"
-#: 1 kept a chat provider each; 2 one Google key; 3 a key and model per route.
-SETTINGS_VERSION: Final = 3
+#: 1 kept a chat provider each; 2 one Google key; 3 a key and model per route;
+#: 4 names those routes after the providers, Google as "gemini".
+SETTINGS_VERSION: Final = 4
 
 DEFAULT_TIMEOUT = 90.0
 
@@ -116,61 +117,65 @@ class ProxyConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class RouteConfig:
-    """What one route needs: a key, and the decision model to ask."""
+class ProviderConfig:
+    """What one provider needs: a key, and the decision model to ask."""
 
     api_key: str = ""
     model: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        """Return the JSON form of this route's settings."""
+        """Return the JSON form of this provider's settings."""
         return {"api_key": self.api_key, "model": self.model}
 
     @classmethod
-    def from_dict(cls, data: Any, *, route: DecisionRoute) -> "RouteConfig":
-        """Build a route's settings from stored JSON, defaulting its model."""
+    def from_dict(cls, data: Any, *, provider: Provider) -> "ProviderConfig":
+        """Build a provider's settings from stored JSON, defaulting its model."""
         data = data if isinstance(data, dict) else {}
         return cls(
             # A key pasted with a stray newline builds an illegal header value.
             api_key=_as_str(data.get("api_key")),
-            model=_as_str(data.get("model")) or route.default_model,
+            model=_as_str(data.get("model")) or provider.decision_model,
         )
 
 
-def _default_routes() -> dict[DecisionRoute, RouteConfig]:
-    """Return every route with no key and its own default model."""
-    return {route: RouteConfig(model=route.default_model) for route in DecisionRoute}
+def _default_providers() -> dict[Provider, ProviderConfig]:
+    """Return every provider with no key and its own default model."""
+    return {
+        provider: ProviderConfig(model=provider.decision_model) for provider in Provider
+    }
 
 
 @dataclass(slots=True)
 class AppConfig:
     """Everything the user can change, in one object."""
 
-    route: DecisionRoute = DEFAULT_ROUTE
-    routes: dict[DecisionRoute, RouteConfig] = field(default_factory=_default_routes)
+    provider: Provider = DEFAULT_PROVIDER
+    providers: dict[Provider, ProviderConfig] = field(
+        default_factory=_default_providers
+    )
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
     show_rules: bool = True
     theme: ThemeChoice = ThemeChoice.SYSTEM
     request_timeout: float = DEFAULT_TIMEOUT
 
     @property
-    def active(self) -> RouteConfig:
-        """Return the selected route's settings."""
-        return self.routes.get(self.route) or RouteConfig(
-            model=self.route.default_model
+    def active(self) -> ProviderConfig:
+        """Return the selected provider's settings."""
+        return self.providers.get(self.provider) or ProviderConfig(
+            model=self.provider.decision_model
         )
 
     def with_active(self, **changes: Any) -> "AppConfig":
-        """Return this config with the selected route's fields changed."""
-        routes = dict(self.routes)
-        routes[self.route] = replace(self.active, **changes)
-        return replace(self, routes=routes)
+        """Return this config with the selected provider's fields changed."""
+        providers = dict(self.providers)
+        providers[self.provider] = replace(self.active, **changes)
+        return replace(self, providers=providers)
 
     def missing(self) -> list[str]:
         """Return one message per reason grading cannot run yet."""
         problems: list[str] = []
         if not self.active.api_key:
-            problems.append(f"{self.route.label} API key is not set")
+            problems.append(f"{self.provider.label} API key is not set")
         if not self.active.model:
             problems.append("No model selected")
         if self.proxy.enabled and not self.proxy.is_complete:
@@ -181,9 +186,10 @@ class AppConfig:
         """Return the JSON form of every setting."""
         return {
             "version": SETTINGS_VERSION,
-            "route": self.route.value,
-            "routes": {
-                route.value: config.to_dict() for route, config in self.routes.items()
+            "provider": self.provider.value,
+            "providers": {
+                provider.value: config.to_dict()
+                for provider, config in self.providers.items()
             },
             "proxy": self.proxy.to_dict(),
             "show_rules": self.show_rules,
@@ -196,25 +202,25 @@ class AppConfig:
         """Build a config from stored JSON, migrating an older file first."""
         if not isinstance(data, dict):
             return cls()
-        migrate = _MIGRATIONS.get(data.get("version"))
-        if migrate is not None:
+        # Each step ends on the next version, so an old file walks the chain.
+        while (migrate := _MIGRATIONS.get(data.get("version"))) is not None:
             data = migrate(data)
 
-        stored = data.get("routes")
+        stored = data.get("providers")
         stored = stored if isinstance(stored, dict) else {}
         try:
-            route = DecisionRoute(_as_str(data.get("route")).lower())
+            provider = Provider(_as_str(data.get("provider")).lower())
         except ValueError:
-            route = DEFAULT_ROUTE
+            provider = DEFAULT_PROVIDER
         try:
             theme = ThemeChoice(_as_str(data.get("theme")).lower())
         except ValueError:
             theme = ThemeChoice.SYSTEM
         return cls(
-            route=route,
-            routes={
-                known: RouteConfig.from_dict(stored.get(known.value), route=known)
-                for known in DecisionRoute
+            provider=provider,
+            providers={
+                known: ProviderConfig.from_dict(stored.get(known.value), provider=known)
+                for known in Provider
             },
             proxy=ProxyConfig.from_dict(data.get("proxy")),
             show_rules=bool(data.get("show_rules", True)),
@@ -223,38 +229,42 @@ class AppConfig:
         )
 
 
-def _route_settings(api_key: Any, model: Any, route: DecisionRoute) -> dict[str, Any]:
-    """Return one route's stored settings, keeping the model only if it decides.
+def _provider_settings(api_key: Any, model: Any, provider: Provider) -> dict[str, Any]:
+    """Return one provider's stored settings, keeping the model only if it decides.
 
     A chat model cannot answer a decision, so it gives way to the default.
     """
     stored = _as_str(model)
     return {
         "api_key": api_key,
-        "model": stored if is_decision_model(stored) else route.default_model,
+        "model": stored if is_decision_model(stored) else provider.decision_model,
     }
 
 
-def _with_routes(
-    data: dict[str, Any], openrouter: dict[str, Any], google: dict[str, Any]
+def _with_providers(
+    data: dict[str, Any], openrouter: dict[str, Any], gemini: dict[str, Any]
 ) -> dict[str, Any]:
-    """Return a migrated file, on the default route unless only the other has a key."""
+    """Return a version-3 file, on the default provider unless only the other has a key.
+
+    Version 3 is the last that says "route"; the step after it renames.
+    """
     keyed = {
-        route
-        for route, settings in (
-            (DecisionRoute.OPENROUTER, openrouter),
-            (DecisionRoute.GOOGLE, google),
+        provider
+        for provider, settings in (
+            (Provider.OPENROUTER, openrouter),
+            (Provider.GEMINI, gemini),
         )
         if _as_str(settings["api_key"])
     }
-    # Don't strand a working user on a route with no key.
-    route = DEFAULT_ROUTE if DEFAULT_ROUTE in keyed or not keyed else keyed.pop()
+    # Don't strand a working user on a provider with no key.
+    chosen = DEFAULT_PROVIDER if DEFAULT_PROVIDER in keyed or not keyed else keyed.pop()
     return {
         **data,
-        "route": route.value,
+        "version": 3,
+        "route": _V3_ROUTES[chosen],
         "routes": {
-            DecisionRoute.OPENROUTER.value: openrouter,
-            DecisionRoute.GOOGLE.value: google,
+            _V3_ROUTES[Provider.OPENROUTER]: openrouter,
+            _V3_ROUTES[Provider.GEMINI]: gemini,
         },
     }
 
@@ -262,7 +272,7 @@ def _with_routes(
 def _from_version_1(data: dict[str, Any]) -> dict[str, Any]:
     """Return a version-1 file, which kept a key and chat model per provider.
 
-    OpenRouter's key carries over to OpenRouter and Gemini's to Google; the
+    OpenRouter's key carries over to OpenRouter and Gemini's to Gemini; the
     OpenAI key has nowhere to go.
     """
     providers = data.get("providers")
@@ -273,31 +283,53 @@ def _from_version_1(data: dict[str, Any]) -> dict[str, Any]:
         return stored if isinstance(stored, dict) else {}
 
     openrouter, gemini = provider("openrouter"), provider("gemini")
-    return _with_routes(
+    return _with_providers(
         data,
-        _route_settings(
-            openrouter.get("api_key"),
-            openrouter.get("model"),
-            DecisionRoute.OPENROUTER,
+        _provider_settings(
+            openrouter.get("api_key"), openrouter.get("model"), Provider.OPENROUTER
         ),
-        _route_settings(
-            gemini.get("api_key"), gemini.get("model"), DecisionRoute.GOOGLE
-        ),
+        _provider_settings(gemini.get("api_key"), gemini.get("model"), Provider.GEMINI),
     )
 
 
 def _from_version_2(data: dict[str, Any]) -> dict[str, Any]:
     """Return a version-2 file, which kept one Google key and model at the top."""
-    return _with_routes(
+    return _with_providers(
         data,
-        _route_settings("", "", DecisionRoute.OPENROUTER),
-        _route_settings(data.get("api_key"), data.get("model"), DecisionRoute.GOOGLE),
+        _provider_settings("", "", Provider.OPENROUTER),
+        _provider_settings(data.get("api_key"), data.get("model"), Provider.GEMINI),
     )
+
+
+#: What version 3 stored for each provider: its Google side was "google".
+_V3_ROUTES: Final = {Provider.OPENROUTER: "openrouter", Provider.GEMINI: "google"}
+
+
+def _from_version_3(data: dict[str, Any]) -> dict[str, Any]:
+    """Return a version-3 file, whose routes were "openrouter" and "google"."""
+    by_route = {route: provider.value for provider, route in _V3_ROUTES.items()}
+    stored = data.get("routes")
+    stored = stored if isinstance(stored, dict) else {}
+    chosen = _as_str(data.get("route")).lower()
+    migrated = {
+        key: value for key, value in data.items() if key not in {"route", "routes"}
+    }
+    return {
+        **migrated,
+        "version": 4,
+        "provider": by_route.get(chosen, chosen),
+        "providers": {
+            by_route[route]: settings
+            for route, settings in stored.items()
+            if route in by_route
+        },
+    }
 
 
 _MIGRATIONS: Final[dict[object, Callable[[dict[str, Any]], dict[str, Any]]]] = {
     1: _from_version_1,
     2: _from_version_2,
+    3: _from_version_3,
 }
 
 

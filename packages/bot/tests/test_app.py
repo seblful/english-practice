@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from practice_runtime.errors import ConfigurationError
-from practice_runtime.settings import LangSmithSettings, PathSettings
+from practice_runtime.settings import GeminiSettings, LangSmithSettings, PathSettings
 from pydantic import SecretStr
 from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
 
@@ -22,7 +22,7 @@ from practice_bot.app import (
 from practice_bot.context import BotContext, BotDependencies, install_dependencies
 from practice_bot.grader import DecisionGrader
 from practice_bot.handlers import build_handlers
-from practice_bot.settings import DecisionSettings, Settings, TelegramSettings
+from practice_bot.settings import Settings, TelegramSettings
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def runnable_settings(tmp_path: Path) -> Settings:
     database.touch()
     return Settings(
         telegram=TelegramSettings(bot_token=SecretStr("123:abc"), admin_user_id=7),
-        decision=DecisionSettings(google_api_key=SecretStr("key")),
+        gemini=GeminiSettings(api_key=SecretStr("key")),
         paths=PathSettings(database_path=database),
     )
 
@@ -101,7 +101,7 @@ class TestBuildDependencies:
     async def test_wires_settings_into_the_dependencies(
         self, runnable_settings: Settings
     ) -> None:
-        runnable_settings.decision.model = "microsoft/microsoft-decision-1.1"
+        runnable_settings.grader.model = "microsoft/microsoft-decision-1.1"
 
         dependencies = build_dependencies(runnable_settings)
         await dependencies.grader.aclose()

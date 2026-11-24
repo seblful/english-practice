@@ -5,9 +5,7 @@ import base64
 import pytest
 
 from practice_core.decisions import (
-    DEFAULT_ROUTE,
     VERDICT_KEY,
-    DecisionRoute,
     decision_request,
     match_key,
     read_decision,
@@ -17,12 +15,13 @@ from practice_core.grading import EvaluateAnswerInput, EvaluateAnswerOutput
 from practice_core.images import data_uri
 from practice_core.models import QuestionAnswer
 from practice_core.prompts import render_decision_input
+from practice_core.providers import Provider
 
 PNG = bytes.fromhex("89504e470d0a1a0a") + b"body"
 WEBP = b"RIFF" + bytes.fromhex("24000000") + b"WEBP"
 
-GOOGLE = DecisionRoute.GOOGLE
-OPENROUTER = DecisionRoute.OPENROUTER
+GEMINI = Provider.GEMINI
+OPENROUTER = Provider.OPENROUTER
 
 
 @pytest.fixture
@@ -61,53 +60,11 @@ def _reply(**answers: float) -> dict[str, object]:
     }
 
 
-class TestDecisionRoute:
-    def test_google_is_the_default(self) -> None:
-        """Its free tier covers practice; OpenRouter has none."""
-        assert DEFAULT_ROUTE is DecisionRoute.GOOGLE
-
-    @pytest.mark.parametrize(
-        ("route", "url", "model"),
-        [
-            (
-                OPENROUTER,
-                "https://openrouter.ai/api/alpha/decisions",
-                "google/gemini-decision-1",
-            ),
-            (
-                GOOGLE,
-                "https://generativelanguage.googleapis.com/v1beta/decisions",
-                "gemini-decision-1",
-            ),
-        ],
-    )
-    def test_each_route_knows_its_endpoint_and_model(
-        self, route: DecisionRoute, url: str, model: str
-    ) -> None:
-        assert route.url == url
-        assert route.default_model == model
-        assert route.label
-        assert route.key_url.startswith("https://")
-
-    def test_openrouter_takes_a_bearer_token(self) -> None:
-        assert OPENROUTER.headers(" sk-or \n") == {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer sk-or",
-        }
-
-    def test_google_takes_its_own_header(self) -> None:
-        assert GOOGLE.headers("g-key")["x-goog-api-key"] == "g-key"
-
-    @pytest.mark.parametrize("route", list(DecisionRoute))
-    def test_no_key_sends_no_auth(self, route: DecisionRoute) -> None:
-        assert route.headers("  ") == {"Content-Type": "application/json"}
-
-
 class TestOpenRouterRequest:
     def test_the_image_is_a_data_url_before_the_text(
         self, closed: EvaluateAnswerInput
     ) -> None:
-        body = decision_request(closed, route=OPENROUTER, model="m", image=WEBP)
+        body = decision_request(closed, provider=OPENROUTER, model="m", image=WEBP)
 
         assert body["state"] == [
             {"type": "image_url", "image_url": {"url": data_uri(WEBP)}},
@@ -117,14 +74,14 @@ class TestOpenRouterRequest:
 
     def test_text_alone_is_a_plain_string(self, closed: EvaluateAnswerInput) -> None:
         """OpenRouter documents plain strings, not {"type": "text"} parts."""
-        body = decision_request(closed, route=OPENROUTER, model="m")
+        body = decision_request(closed, provider=OPENROUTER, model="m")
 
         assert body["state"] == [render_decision_input(closed)]
 
     def test_the_verdict_criteria_use_its_key_names(
         self, closed: EvaluateAnswerInput
     ) -> None:
-        verdict = decision_request(closed, route=OPENROUTER, model="m")["questions"][
+        verdict = decision_request(closed, provider=OPENROUTER, model="m")["questions"][
             VERDICT_KEY
         ]
 
@@ -134,22 +91,24 @@ class TestOpenRouterRequest:
         self, closed: EvaluateAnswerInput
     ) -> None:
         """Only the wire format differs, so the verdict cannot."""
-        google = decision_request(closed, route=GOOGLE, model="m")["questions"]
-        openrouter = decision_request(closed, route=OPENROUTER, model="m")["questions"]
+        gemini = decision_request(closed, provider=GEMINI, model="m")["questions"]
+        openrouter = decision_request(closed, provider=OPENROUTER, model="m")[
+            "questions"
+        ]
 
-        assert list(google) == list(openrouter)
-        for key in google:
-            assert google[key]["instructions"] == openrouter[key]["instructions"]
+        assert list(gemini) == list(openrouter)
+        for key in gemini:
+            assert gemini[key]["instructions"] == openrouter[key]["instructions"]
 
 
 class TestDecisionRequest:
     def test_names_the_model(self, closed: EvaluateAnswerInput) -> None:
-        body = decision_request(closed, route=GOOGLE, model=GOOGLE.default_model)
+        body = decision_request(closed, provider=GEMINI, model=GEMINI.decision_model)
 
         assert body["model"] == "gemini-decision-1"
 
     def test_the_image_comes_first_inline(self, closed: EvaluateAnswerInput) -> None:
-        body = decision_request(closed, route=GOOGLE, model="m", image=PNG)
+        body = decision_request(closed, provider=GEMINI, model="m", image=PNG)
 
         assert body["input"][0] == {
             "type": "image",
@@ -161,12 +120,12 @@ class TestDecisionRequest:
         self, closed: EvaluateAnswerInput
     ) -> None:
         """The APK's bundle holds WebP, and the API rejects octet-stream."""
-        body = decision_request(closed, route=GOOGLE, model="m", image=WEBP)
+        body = decision_request(closed, provider=GEMINI, model="m", image=WEBP)
 
         assert body["input"][0]["mime_type"] == "image/webp"
 
     def test_the_attempt_follows_as_text(self, closed: EvaluateAnswerInput) -> None:
-        body = decision_request(closed, route=GOOGLE, model="m", image=PNG)
+        body = decision_request(closed, provider=GEMINI, model="m", image=PNG)
 
         assert body["input"][1] == {
             "type": "text",
@@ -178,14 +137,14 @@ class TestDecisionRequest:
         self, closed: EvaluateAnswerInput, image: bytes | None
     ) -> None:
         """An empty blob is a missing crop, not a picture."""
-        body = decision_request(closed, route=GOOGLE, model="m", image=image)
+        body = decision_request(closed, provider=GEMINI, model="m", image=image)
 
         assert [block["type"] for block in body["input"]] == ["text"]
 
     def test_a_closed_question_asks_one_match_per_answer(
         self, closed: EvaluateAnswerInput
     ) -> None:
-        questions = decision_request(closed, route=GOOGLE, model="m")["questions"]
+        questions = decision_request(closed, provider=GEMINI, model="m")["questions"]
 
         assert list(questions) == [VERDICT_KEY, "matches_0", "matches_1"]
         assert all(question["type"] == "noul" for question in questions.values())
@@ -193,9 +152,9 @@ class TestDecisionRequest:
     def test_a_match_question_quotes_its_answer_without_markup(
         self, closed: EvaluateAnswerInput
     ) -> None:
-        instructions = decision_request(closed, route=GOOGLE, model="m")["questions"][
-            "matches_1"
-        ]["instructions"]
+        instructions = decision_request(closed, provider=GEMINI, model="m")[
+            "questions"
+        ]["matches_1"]["instructions"]
 
         assert '"\'s doing"' in instructions
         assert '"He \'s doing his homework."' in instructions
@@ -204,7 +163,7 @@ class TestDecisionRequest:
     def test_the_closed_verdict_carries_the_equivalence_rules(
         self, closed: EvaluateAnswerInput
     ) -> None:
-        verdict = decision_request(closed, route=GOOGLE, model="m")["questions"][
+        verdict = decision_request(closed, provider=GEMINI, model="m")["questions"][
             VERDICT_KEY
         ]
 
@@ -214,7 +173,9 @@ class TestDecisionRequest:
     def test_an_open_question_asks_only_for_the_verdict(
         self, open_ended: EvaluateAnswerInput
     ) -> None:
-        questions = decision_request(open_ended, route=GOOGLE, model="m")["questions"]
+        questions = decision_request(open_ended, provider=GEMINI, model="m")[
+            "questions"
+        ]
 
         assert list(questions) == [VERDICT_KEY]
         assert "open-ended" in questions[VERDICT_KEY]["instructions"]
@@ -225,7 +186,7 @@ class TestDecisionRequest:
         """Matching against an empty list would make the verdict a coin toss."""
         empty = closed.model_copy(update={"answers": []})
 
-        questions = decision_request(empty, route=GOOGLE, model="m")["questions"]
+        questions = decision_request(empty, provider=GEMINI, model="m")["questions"]
 
         assert list(questions) == [VERDICT_KEY]
         assert "open-ended" in questions[VERDICT_KEY]["instructions"]
@@ -234,7 +195,7 @@ class TestDecisionRequest:
         self, closed: EvaluateAnswerInput
     ) -> None:
         """Otherwise a typo the verdict forgives would hide which answer matched."""
-        questions = decision_request(closed, route=GOOGLE, model="m")["questions"]
+        questions = decision_request(closed, provider=GEMINI, model="m")["questions"]
 
         assert "spelling mistake" in questions["matches_0"]["instructions"]
 
@@ -242,7 +203,7 @@ class TestDecisionRequest:
         self, closed: EvaluateAnswerInput
     ) -> None:
         """Keys must be 1-64 characters of [A-Za-z0-9_-]."""
-        for key in decision_request(closed, route=GOOGLE, model="m")["questions"]:
+        for key in decision_request(closed, provider=GEMINI, model="m")["questions"]:
             assert 0 < len(key) <= 64
             assert key.replace("_", "").replace("-", "").isalnum()
 

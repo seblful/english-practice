@@ -50,7 +50,7 @@ def staged(settings: Settings) -> Callable[[str], None]:
 def settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Settings:
     """Point the CLI at a temporary layout instead of the real ``data/``."""
     settings = Settings(paths=extraction_paths(tmp_path))
-    settings.logging.log_file = tmp_path / "logs" / "app.log"
+    settings.logging.file = tmp_path / "logs" / "app.log"
     monkeypatch.setattr(cli, "get_settings", lambda: settings)
     return settings
 
@@ -58,7 +58,7 @@ def settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Settings:
 @pytest.fixture(autouse=True)
 def _no_client(monkeypatch: pytest.MonkeyPatch) -> None:
     """Never build a real provider client: the stages here are mocked."""
-    monkeypatch.setattr(cli, "get_llm", lambda _config: MagicMock())
+    monkeypatch.setattr(cli, "get_llm", lambda _config, _credentials: MagicMock())
 
 
 def _invoke(*args: str) -> None:
@@ -83,7 +83,7 @@ class TestCheck:
         result = runner.invoke(cli.app, ["check"])
 
         assert result.exit_code == 1
-        assert "OCR_API_KEY" in result.output
+        assert "MISTRAL_API_KEY" in result.output
         assert "source book" in result.output
 
     def test_succeeds_when_nothing_is_missing(
@@ -236,7 +236,7 @@ class TestLlmStages:
     ) -> None:
         staged("extract-answers")
 
-        def explode(_config: object) -> None:
+        def explode(_config: object, _credentials: object) -> None:
             raise ConfigurationError("GEMINI_API_KEY is not set")
 
         monkeypatch.setattr(cli, "get_llm", explode)

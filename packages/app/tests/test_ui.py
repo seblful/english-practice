@@ -8,8 +8,8 @@ import flet as ft
 import httpx
 import pytest
 from practice_core.content import ContentLibrary
-from practice_core.decisions import DecisionRoute
 from practice_core.models import Topic
+from practice_core.providers import Provider
 
 from practice_app.catalogue import ModelInfo
 from practice_app.config import AppConfig, ConfigStore, ProxyConfig, ThemeChoice
@@ -1565,7 +1565,7 @@ class TestSettingsScreen:
 
         choosers = _all(screen, ft.SegmentedButton)
 
-        # The route, the theme and the proxy protocol.
+        # The provider, the theme and the proxy protocol.
         assert len(choosers) == 3
         for chooser in choosers:
             for segment in chooser.segments:
@@ -1620,7 +1620,7 @@ class TestSettingsScreen:
     async def test_a_known_model_shows_its_badges(
         self, page: FakePage, services: Services, catalogue: list[ModelInfo]
     ) -> None:
-        services._catalogues[DecisionRoute.OPENROUTER] = catalogue
+        services._catalogues[Provider.OPENROUTER] = catalogue
         screen = SettingsScreen(page, services)
 
         body = rendered(screen.controls[1])
@@ -1633,7 +1633,7 @@ class TestSettingsScreen:
     ) -> None:
         """Every exercise is a picture, so this is the misconfiguration to name."""
         screen = SettingsScreen(page, services)
-        services._catalogues[DecisionRoute.OPENROUTER] = catalogue
+        services._catalogues[Provider.OPENROUTER] = catalogue
         await screen._choose_model(catalogue[2])
 
         assert "does not accept images" in rendered(screen)
@@ -1750,7 +1750,7 @@ class TestSettingsScreen:
     async def test_the_key_page_can_be_opened(
         self, page: FakePage, services: Services, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Open the selected route's key page through Flet's URL service."""
+        """Open the selected provider's key page through Flet's URL service."""
         screen = SettingsScreen(page, services)
         launched: list[str] = []
 
@@ -1763,7 +1763,7 @@ class TestSettingsScreen:
 
         assert launched == ["https://openrouter.ai/keys"]
 
-        services.stage(replace(services.config, route=DecisionRoute.GOOGLE))
+        services.stage(replace(services.config, provider=Provider.GEMINI))
         screen.render()
         await _find(screen.controls[0], ft.TextButton).on_click()
 
@@ -1831,7 +1831,7 @@ class TestSettingsScreen:
     async def test_a_fetched_catalogue_is_not_fetched_again(
         self, page: FakePage, services: Services, catalogue: list[ModelInfo]
     ) -> None:
-        services._catalogues[DecisionRoute.OPENROUTER] = catalogue
+        services._catalogues[Provider.OPENROUTER] = catalogue
         services._transport = httpx.MockTransport(
             lambda _: pytest.fail("should not have been called")
         )
@@ -1927,7 +1927,7 @@ class TestSettingsScreen:
 
         assert page.popped == 0
 
-    async def test_the_route_chooser_offers_both_routes(
+    async def test_the_provider_chooser_offers_both_providers(
         self, page: FakePage, services: Services
     ) -> None:
         screen = SettingsScreen(page, services)
@@ -1935,15 +1935,15 @@ class TestSettingsScreen:
         chooser = _find(screen.controls[0], ft.SegmentedButton)
 
         assert [segment.value for segment in chooser.segments] == [
+            "gemini",
             "openrouter",
-            "google",
         ]
         assert rendered([segment.label for segment in chooser.segments]) == (
-            "OpenRouter\nGoogle AI Studio"
+            "Google AI Studio\nOpenRouter"
         )
         assert chooser.selected == ["openrouter"]
 
-    async def test_switching_route_keeps_each_routes_key_and_model(
+    async def test_switching_provider_keeps_each_providers_key_and_model(
         self, page: FakePage, services: Services
     ) -> None:
         screen = SettingsScreen(page, services)
@@ -1951,37 +1951,35 @@ class TestSettingsScreen:
         screen._stage_api_key(_event(ft.TextField(value="typed-for-openrouter")))
         await screen._commit_api_key()
 
-        await screen._on_route(_event(_segmented("google")))
+        await screen._on_provider(_event(_segmented("gemini")))
 
         stored = services.config_store.load()
-        assert stored.route is DecisionRoute.GOOGLE
+        assert stored.provider is Provider.GEMINI
         assert stored.active.api_key == "google-key"
-        assert stored.routes[DecisionRoute.OPENROUTER].api_key == (
-            "typed-for-openrouter"
-        )
+        assert stored.providers[Provider.OPENROUTER].api_key == ("typed-for-openrouter")
         assert screen._check_result is None
         key_field = _find(screen.controls[0], ft.TextField)
         assert key_field.label == "Google AI Studio API key"
         assert key_field.value == "google-key"
         assert "Off - calls go straight to Google AI Studio" in rendered(screen)
 
-        await screen._on_route(_event(_segmented("openrouter")))
+        await screen._on_provider(_event(_segmented("openrouter")))
 
         assert _find(screen.controls[0], ft.TextField).value == ("typed-for-openrouter")
 
-    async def test_a_model_is_chosen_for_the_selected_route_only(
+    async def test_a_model_is_chosen_for_the_selected_provider_only(
         self, page: FakePage, services: Services, catalogue: list[ModelInfo]
     ) -> None:
-        services.stage(replace(services.config, route=DecisionRoute.GOOGLE))
+        services.stage(replace(services.config, provider=Provider.GEMINI))
         screen = SettingsScreen(page, services)
 
         await screen._choose_model(catalogue[1])
 
         stored = services.config_store.load()
-        assert stored.routes[DecisionRoute.GOOGLE].model == "gemini-decision-lite"
-        assert stored.routes[DecisionRoute.OPENROUTER].model == "gemini-decision-test"
+        assert stored.providers[Provider.GEMINI].model == "gemini-decision-lite"
+        assert stored.providers[Provider.OPENROUTER].model == "gemini-decision-test"
 
-    async def test_the_picker_is_titled_and_filled_by_the_route(
+    async def test_the_picker_is_titled_and_filled_by_the_provider(
         self,
         page: FakePage,
         config_store: ConfigStore,
@@ -1993,7 +1991,7 @@ class TestSettingsScreen:
             config_store=config_store,
             content=content,
             stats=stats,
-            config=replace(config, route=DecisionRoute.GOOGLE),
+            config=replace(config, provider=Provider.GEMINI),
             transport=httpx.MockTransport(
                 lambda _: httpx.Response(
                     200, json={"models": [{"name": "models/gemini-decision-2"}]}

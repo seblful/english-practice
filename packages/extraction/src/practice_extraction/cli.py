@@ -61,7 +61,8 @@ app = typer.Typer(help="english-practice content pipeline", no_args_is_help=True
 def _chat_model() -> BaseChatModel:
     """Build the one chat-model client an extraction run uses."""
     try:
-        return get_llm(get_settings().llm)
+        settings = get_settings()
+        return get_llm(settings.llm, settings.llm_credentials)
     except ConfigurationError as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
@@ -221,7 +222,7 @@ def separate_page_images(settings: Settings) -> None:
 def ocr_grammar_images(settings: Settings) -> None:
     """Run OCR on grammar page images; save .md to data/grammar. Skips existing."""
     extractor = ImageOcrExtractor(
-        api_key=secret_value(settings.ocr.api_key),
+        api_key=secret_value(settings.mistral.api_key),
         model=settings.ocr.model,
     )
     settings.paths.grammar_md_dir.mkdir(parents=True, exist_ok=True)

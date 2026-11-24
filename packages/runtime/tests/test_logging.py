@@ -29,7 +29,7 @@ def _reset_logging() -> Iterator[None]:
 
 def _config(tmp_path: Path, **overrides: object) -> LoggingSettings:
     """Logging settings writing into a scratch directory."""
-    fields: dict[str, object] = {"log_file": tmp_path / "logs" / "app.log"}
+    fields: dict[str, object] = {"file": tmp_path / "logs" / "app.log"}
     fields.update(overrides)
     return LoggingSettings.model_validate(fields)
 

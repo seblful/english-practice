@@ -79,7 +79,7 @@ Three tabs:
 | :-- | :----------- |
 | **Practice** | Between lessons: the day's streak and goal, the last topic again, and every topic with your tally on it. Inside one: ten questions, a progress bar, and a way out that asks first — including Android's Back. Tap the image to pinch-zoom it full screen. Answer, or reveal the answer without grading — a reveal spends the question but never counts as correct. |
 | **Progress** | Accuracy, the current and best run of correct answers, today's tally, a day streak, the last seven days, and a per-topic breakdown. Resettable. |
-| **Settings** | One column of panels, in the order they matter: the grading route and its key, the decision model, practice and theme — then the proxy and the request timeout, folded away behind headings that say what they are set to. |
+| **Settings** | One column of panels, in the order they matter: the grading provider and its key, the decision model, practice and theme — then the proxy and the request timeout, folded away behind headings that say what they are set to. |
 
 Everything the app shares with the bot — the models, the queries, the grading
 request, the content schema — comes from `practice-core`. Everything else here
@@ -90,19 +90,19 @@ is the phone.
 Everything is set in the app; there is no env file on a phone.
 
 **Grading service.** Answers are graded by a *decision model*, which answers
-yes/no questions with calibrated probabilities instead of text. Two routes reach
+yes/no questions with calibrated probabilities instead of text. Two providers reach
 one, each with its own key and model, so switching between them costs nothing:
 
-| Route | Key from | Default model |
+| Provider | Key from | Default model |
 | :---- | :------- | :------------ |
 | **Google AI Studio** (default; has a free tier) | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | `gemini-decision-1` |
 | **OpenRouter** | [openrouter.ai/keys](https://openrouter.ai/keys) | `google/gemini-decision-1` |
 
-Keys are stored in the app's private storage and sent only to the route they
+Keys are stored in the app's private storage and sent only to the provider they
 belong to. *Test connection* asks the selected model one trivial question to
 prove the key and model work.
 
-**Model.** Tap the model row to list the route's decision models; Gemini
+**Model.** Tap the model row to list the provider's decision models; Gemini
 Decision 1 is always offered, even when the listing leaves it out. OpenRouter's
 catalogue is public and filtered to models that output decisions; an entry
 whose input modalities include `image` is badged `vision`. Google lists no
@@ -118,10 +118,12 @@ known not to take images.
 
 **Upgrading.** Settings from an earlier release are migrated on load. From the
 chat-provider release, the OpenRouter and Gemini keys move to the OpenRouter
-and Google routes (the OpenAI key is dropped), and a chat model gives way to
-the route's default. From the Google-only release, the key and model move to
-the Google route. Either way the app starts on Google, unless OpenRouter is
-the only route with a key.
+and Google providers (the OpenAI key is dropped), and a chat model gives way to
+the provider's default. From the Google-only release, the key and model move to
+the Google provider. Either way the app starts on Google, unless OpenRouter is
+the only provider with a key. From the release that called them routes, the
+keys and models carry over unchanged and Google's is renamed `gemini` in the
+file.
 
 **Proxy.** Optional, HTTP/HTTPS/SOCKS5, with optional username and password.
 Credentials are percent-encoded, so an `@` in a password does not silently
@@ -206,8 +208,8 @@ main.py                    builds the dependencies, hands them to the shell
   │     └── page.py        the slice of ft.Page the screens depend on
   ├── practice_app/session.py    the lesson in progress, and its outcomes
   ├── practice_app/services.py   the one object every screen is handed
-  ├── practice_app/decisions.py  the decision client over httpx, per route
-  ├── practice_app/catalogue.py  each route's decision models, from its listing
+  ├── practice_app/decisions.py  the decision client over httpx, per provider
+  ├── practice_app/catalogue.py  each provider's decision models, from its listing
   ├── practice_app/config.py     settings, the JSON file, its migration
   ├── practice_app/stats.py      one row per graded answer, in SQLite
   ├── practice_app/storage.py    where files live; unpacking the bundled book

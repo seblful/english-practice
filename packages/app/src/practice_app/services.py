@@ -2,7 +2,7 @@
 
 import httpx
 from practice_core.content import ContentLibrary
-from practice_core.decisions import DecisionRoute  # noqa: TC002
+from practice_core.providers import Provider  # noqa: TC002
 
 from practice_app.catalogue import ModelInfo
 from practice_app.config import AppConfig, ConfigStore
@@ -35,7 +35,7 @@ class Services:
         # Closing a pool is a coroutine and staging is not, so they wait for an await.
         self._retired: list[DecisionClient] = []
         # A catalogue costs a round trip, so a fetched one is kept for the run.
-        self._catalogues: dict[DecisionRoute, list[ModelInfo]] = {}
+        self._catalogues: dict[Provider, list[ModelInfo]] = {}
 
     # --- Decision model access ---
 
@@ -54,18 +54,18 @@ class Services:
         return Grader(self.client)
 
     async def models(self, *, refresh: bool = False) -> list[ModelInfo]:
-        """Return the current route's catalogue, fetching it if needed."""
-        route = self.config.route
-        if refresh or route not in self._catalogues:
-            self._catalogues[route] = await self.client.list_models()
-        return self._catalogues[route]
+        """Return the current provider's catalogue, fetching it if needed."""
+        provider = self.config.provider
+        if refresh or provider not in self._catalogues:
+            self._catalogues[provider] = await self.client.list_models()
+        return self._catalogues[provider]
 
     def cached_models(self) -> list[ModelInfo]:
-        """Return the current route's catalogue if one was already fetched."""
-        return self._catalogues.get(self.config.route, [])
+        """Return the current provider's catalogue if one was already fetched."""
+        return self._catalogues.get(self.config.provider, [])
 
     def model_info(self, model_id: str) -> ModelInfo | None:
-        """Return what is known about one decision model of the current route."""
+        """Return what is known about one decision model of the current provider."""
         return next(
             (model for model in self.cached_models() if model.id == model_id),
             None,

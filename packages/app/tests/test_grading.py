@@ -4,10 +4,11 @@ import json
 
 import httpx
 import pytest
-from practice_core.decisions import DecisionRoute, decision_request
+from practice_core.decisions import decision_request
 from practice_core.errors import GradingError
 from practice_core.grading import EvaluateAnswerInput
 from practice_core.models import Question, QuestionAnswer
+from practice_core.providers import Provider
 
 from practice_app.config import AppConfig
 from practice_app.decisions import DecisionClient
@@ -91,7 +92,7 @@ class TestGrade:
                 topic_name="Present Tenses",
                 rule="Use present continuous",
             ),
-            route=DecisionRoute.OPENROUTER,
+            provider=Provider.OPENROUTER,
             model="gemini-decision-test",
             image=WEBP_BYTES,
         )

@@ -2,14 +2,21 @@
 
 from functools import lru_cache
 
-from practice_runtime.settings import LLMAppSettings, load_settings, secret_value
-from pydantic import AliasChoices, Field, SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from practice_runtime.settings import (
+    LLMAppSettings,
+    env_var,
+    group_config,
+    load_settings,
+    secret_value,
+)
+from pydantic import Field, SecretStr
+from pydantic_settings import BaseSettings
 
 __all__ = [
     "DEFAULT_OCR_MODEL",
     "BookSettings",
     "ImageSettings",
+    "MistralSettings",
     "OcrSettings",
     "Settings",
     "get_settings",
@@ -22,7 +29,7 @@ DEFAULT_OCR_MODEL = "mistral-ocr-latest"
 class BookSettings(BaseSettings):
     """Source book location."""
 
-    model_config = SettingsConfigDict(env_prefix="BOOK_", case_sensitive=False)
+    model_config = group_config("book")
 
     filename: str = "murphy.pdf"
 
@@ -30,23 +37,24 @@ class BookSettings(BaseSettings):
 class ImageSettings(BaseSettings):
     """Page rendering options for the extraction pipeline."""
 
-    model_config = SettingsConfigDict(env_prefix="IMAGES_", case_sensitive=False)
+    model_config = group_config("images")
 
     pages_dpi: int = 300
 
 
+class MistralSettings(BaseSettings):
+    """Mistral's credentials: the OCR stage is its only caller."""
+
+    model_config = group_config("mistral")
+
+    api_key: SecretStr | None = None
+
+
 class OcrSettings(BaseSettings):
-    """Mistral OCR settings for the extraction pipeline."""
+    """Which Mistral OCR model reads the grammar pages."""
 
-    # API_KEY is accepted as a legacy alias: this group was unprefixed before.
-    model_config = SettingsConfigDict(
-        env_prefix="OCR_", case_sensitive=False, populate_by_name=True
-    )
+    model_config = group_config("ocr")
 
-    api_key: SecretStr | None = Field(
-        default=None,
-        validation_alias=AliasChoices("OCR_API_KEY", "MISTRAL_API_KEY", "API_KEY"),
-    )
     model: str = DEFAULT_OCR_MODEL
 
 
@@ -56,13 +64,17 @@ class Settings(LLMAppSettings):
     book: BookSettings = Field(default_factory=BookSettings)
     images: ImageSettings = Field(default_factory=ImageSettings)
     ocr: OcrSettings = Field(default_factory=OcrSettings)
+    mistral: MistralSettings = Field(default_factory=MistralSettings)
 
     def missing_required(self) -> list[str]:
         """Return human-readable reasons a full pipeline run cannot finish."""
         problems = super().missing_required()
 
-        if secret_value(self.ocr.api_key) is None:
-            problems.append("OCR_API_KEY is not set (needed by ocr-grammar-images)")
+        if secret_value(self.mistral.api_key) is None:
+            problems.append(
+                f"{env_var(self.mistral, 'api_key')} is not set "
+                "(needed by ocr-grammar-images)"
+            )
 
         source = self.paths.source_dir / self.book.filename
         if not source.exists():

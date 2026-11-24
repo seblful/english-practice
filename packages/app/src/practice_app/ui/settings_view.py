@@ -1,12 +1,12 @@
-"""The settings screen: route, key, decision model, proxy, and the rest."""
+"""The settings screen: provider, key, decision model, proxy, and the rest."""
 
 from collections.abc import Callable
 from dataclasses import replace
 
 import flet as ft
-from practice_core.decisions import DecisionRoute
 from practice_core.errors import PracticeError
 from practice_core.models import ContentCounts  # noqa: TC002
+from practice_core.providers import Provider
 
 from practice_app import __version__
 from practice_app.catalogue import ModelInfo
@@ -48,7 +48,7 @@ _MAX_TIMEOUT = 600.0
 
 # The panels, named so a saved setting updates one rather than the screen.
 _PANEL_KEYS = (
-    "settings.route",
+    "settings.provider",
     "settings.model",
     "settings.practice",
     "settings.proxy",
@@ -130,7 +130,7 @@ class SettingsScreen(Screen):
     def render(self) -> None:
         """Rebuild the screen from the current settings."""
         panels = (
-            self._route_panel(),
+            self._provider_panel(),
             self._model_panel(),
             self._practice_panel(),
             self._proxy_panel(),
@@ -142,11 +142,11 @@ class SettingsScreen(Screen):
             for panel, key in zip(panels, _PANEL_KEYS, strict=True)
         ]
 
-    def _route_panel(self) -> ft.Control:
-        """Return the route choice, its API key field and the connection test."""
-        route = self._config.route
+    def _provider_panel(self) -> ft.Control:
+        """Return the provider choice, its API key field and the connection test."""
+        provider = self._config.provider
         key_field = text_field(
-            label=f"{route.label} API key",
+            label=f"{provider.label} API key",
             value=self._config.active.api_key,
             password=True,
             can_reveal_password=True,
@@ -161,13 +161,13 @@ class SettingsScreen(Screen):
 
         return panel(
             segmented(
-                [(known.value, known.label) for known in DecisionRoute],
-                selected=route.value,
-                on_change=self._on_route,
+                [(known.value, known.label) for known in Provider],
+                selected=provider.value,
+                on_change=self._on_provider,
             ),
             key_field,
             self._check_row(),
-            hint(f"Kept on this device only, and sent to {route.label} alone."),
+            hint(f"Kept on this device only, and sent to {provider.label} alone."),
             title="Grading service",
             icon=ft.Icons.CLOUD_ROUNDED,
         )
@@ -337,7 +337,7 @@ class SettingsScreen(Screen):
         """Return the line under the proxy heading, so the fold says its state."""
         proxy = self._config.proxy
         if not proxy.enabled:
-            return f"Off - calls go straight to {self._config.route.label}"
+            return f"Off - calls go straight to {self._config.provider.label}"
         if not proxy.is_complete:
             return "On, but it has no host and port yet"
         return f"{proxy.scheme}://{proxy.host}:{proxy.port}"
@@ -494,8 +494,8 @@ class SettingsScreen(Screen):
     # --- Staged edits ---
 
     async def _open_key_page(self) -> None:
-        """Open the selected route's key page in a browser."""
-        await self._url_launcher.launch_url(self._config.route.key_url)
+        """Open the selected provider's key page in a browser."""
+        await self._url_launcher.launch_url(self._config.provider.key_url)
 
     def _stage(self, config: AppConfig) -> None:
         """Hold an edit until the field that made it loses focus."""
@@ -552,13 +552,13 @@ class SettingsScreen(Screen):
 
     # --- Immediate edits ---
 
-    async def _on_route(self, event: ft.Event[ft.SegmentedButton]) -> None:
-        """Switch route, keeping each route's own key and model."""
+    async def _on_provider(self, event: ft.Event[ft.SegmentedButton]) -> None:
+        """Switch provider, keeping each provider's own key and model."""
         chosen = next(iter(event.control.selected), None)
         if chosen is None:  # pragma: no cover - empty selection is disallowed
             return
         self._check_result = None
-        await self._apply(replace(self._config, route=DecisionRoute(chosen)))
+        await self._apply(replace(self._config, provider=Provider(chosen)))
 
     def _on_proxy_fold(self, event: ft.Event[ft.ExpansionTile]) -> None:
         """Remember whether the proxy fold is open."""
@@ -621,7 +621,7 @@ class SettingsScreen(Screen):
         """Show the model picker over the current catalogue."""
         self._page.show_dialog(
             ModelPicker(
-                title=f"{self._config.route.label} decision models",
+                title=f"{self._config.provider.label} decision models",
                 models=self._services.cached_models(),
                 selected=self._config.active.model,
                 on_select=self._schedule_choose_model,

@@ -11,12 +11,12 @@ from typing import Any
 import httpx
 import pytest
 from practice_core.content import ContentLibrary
-from practice_core.decisions import DecisionRoute
 from practice_core.models import Question, QuestionAnswer
+from practice_core.providers import Provider
 from practice_core.schema import create_content_schema
 
 from practice_app.catalogue import ModelInfo
-from practice_app.config import AppConfig, ConfigStore, RouteConfig
+from practice_app.config import AppConfig, ConfigStore, ProviderConfig
 from practice_app.services import Services
 from practice_app.stats import StatsStore
 
@@ -182,12 +182,12 @@ def config_store(tmp_path: Path) -> ConfigStore:
 def config() -> AppConfig:
     """Settings that are ready to grade, on OpenRouter, with Google set up too."""
     return AppConfig(
-        route=DecisionRoute.OPENROUTER,
-        routes={
-            DecisionRoute.OPENROUTER: RouteConfig(
+        provider=Provider.OPENROUTER,
+        providers={
+            Provider.OPENROUTER: ProviderConfig(
                 api_key="test-key", model="gemini-decision-test"
             ),
-            DecisionRoute.GOOGLE: RouteConfig(
+            Provider.GEMINI: ProviderConfig(
                 api_key="google-key", model="gemini-decision-test"
             ),
         },

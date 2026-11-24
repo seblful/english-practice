@@ -33,7 +33,7 @@ def setup_logging(
     file_level: int = getattr(logging, config.file_level.upper())
     console_level: int = getattr(logging, config.console_level.upper())
 
-    file_path = Path(config.log_file).resolve()
+    file_path = Path(config.file).resolve()
     file_path.parent.mkdir(parents=True, exist_ok=True)
 
     file_handler = RotatingFileHandler(

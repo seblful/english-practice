@@ -70,22 +70,22 @@ uv run english-practice bot      # run until Ctrl+C
 ```
 
 `uv run scripts/bot.py` does the same. `english-practice info` prints the
-version, environment, decision model and route, and database path.
+version, environment, decision model and provider, and database path.
 
 ### Configuration
 
 Settings come from the environment; `.env` and `.env.<environment>` only seed
 it. Precedence, highest first: real environment variables, `.env.<environment>`,
 `.env` — so a deployment that exports `TELEGRAM_BOT_TOKEN` is never overridden
-by a stale checked-out file. Set `APP__ENVIRONMENT` (default `development`) to
+by a stale checked-out file. Set `APP_ENVIRONMENT` (default `development`) to
 choose which `.env.<environment>` is loaded; a missing file is ignored.
 
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
 TELEGRAM_ADMIN_USER_ID=your_telegram_user_id   # required; approves new users
-DECISION_ROUTE=google                          # google (default; has a free tier) | openrouter
-GEMINI_API_KEY=your_key                        # or OPENROUTER_API_KEY for the openrouter route
-DECISION_MODEL=gemini-decision-1               # optional; any decision model that takes images
+GRADER_PROVIDER=gemini                         # gemini (default; has a free tier) | openrouter
+GEMINI_API_KEY=your_key                        # or OPENROUTER_API_KEY for openrouter
+GRADER_MODEL=gemini-decision-1                 # optional; any decision model that takes images
 LANGSMITH_API_KEY=your_key                     # optional, for tracing
 LANGSMITH_TRACING=false
 PATHS_DATABASE_PATH=data/content/english_practice.db
@@ -94,15 +94,18 @@ PATHS_DATABASE_PATH=data/content/english_practice.db
 `english-practice check` reports every missing setting at once, and the bot
 refuses to start rather than failing on the first user who says hello.
 
-Unset, `DECISION_MODEL` is Gemini Decision 1 under the route's own id
-(`google/gemini-decision-1` or `gemini-decision-1`).
+Unset, `GRADER_MODEL` is Gemini Decision 1 under the provider's own id
+(`gemini-decision-1` or `google/gemini-decision-1`).
 
-Other groups: `BOT_*` (session TTL), `DECISION_REQUEST_TIMEOUT`,
-`DECISION_MAX_RETRIES`, `DECISION_PROXY`, `LOGGING__*`. API keys are held as `SecretStr`, so they do
-not appear in logs or reprs.
+Other groups: `BOT_*` (session TTL), `GRADER_REQUEST_TIMEOUT`,
+`GRADER_MAX_RETRIES`, `GEMINI_PROXY` / `OPENROUTER_PROXY`, `LOGGING_*`. API keys
+are held as `SecretStr`, so they do not appear in logs or reprs.
 
-> Note: settings groups are prefixed (`PATHS_`, `DECISION_`, `TELEGRAM_`, `BOT_`).
-> `DATABASE_PATH` is still accepted as a legacy alias. `.env` files cannot
+> Note: every variable is `<GROUP>_<FIELD>` (`TELEGRAM_BOT_TOKEN`,
+> `GRADER_PROVIDER`, `PATHS_DATABASE_PATH`). A provider's key and proxy live in
+> its own group and are shared with the pipeline. Names from older releases
+> (`DECISION_*`, `APP__*`, `DATABASE_PATH`) are refused by `check`, which names
+> their replacements. `.env` files cannot
 > carry inline comments — `KEY=value  # comment` makes the comment part of the
 > value.
 

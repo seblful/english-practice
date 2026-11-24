@@ -5,14 +5,16 @@ from collections.abc import Callable
 
 import httpx
 import pytest
-from practice_core.decisions import DecisionRoute, decision_request
+from practice_core.decisions import decision_request
 from practice_core.grading import EvaluateAnswerInput, EvaluateAnswerOutput
 from practice_core.models import Question, QuestionAnswer
+from practice_core.providers import Provider
 from practice_runtime.errors import AgentError, ConfigurationError
+from practice_runtime.settings import GeminiSettings, OpenRouterSettings
 from pydantic import SecretStr
 
 from practice_bot.grader import DecisionGrader
-from practice_bot.settings import DecisionSettings
+from practice_bot.settings import GraderSettings
 
 PNG = bytes.fromhex("89504e470d0a1a0a") + b"body"
 
@@ -60,14 +62,15 @@ def _grader(
     async def sleep(delay: float) -> None:
         sleeps.append(delay)
 
-    config = DecisionSettings.model_validate(
-        {
-            "openrouter_api_key": SecretStr("or-key"),
-            "google_api_key": SecretStr("g-key"),
-            **settings,
-        }
+    config = GraderSettings.model_validate(settings)
+    credentials = (
+        OpenRouterSettings(api_key=SecretStr("or-key"))
+        if config.provider is Provider.OPENROUTER
+        else GeminiSettings(api_key=SecretStr("g-key"))
     )
-    return DecisionGrader(config, transport=httpx.MockTransport(recorder), sleep=sleep)
+    return DecisionGrader(
+        config, credentials, transport=httpx.MockTransport(recorder), sleep=sleep
+    )
 
 
 async def _grade(
@@ -88,23 +91,23 @@ async def _grade(
 
 class TestTheRequest:
     @pytest.mark.parametrize(
-        ("route", "header", "value"),
+        ("provider", "header", "value"),
         [
-            (DecisionRoute.OPENROUTER, "authorization", "Bearer or-key"),
-            (DecisionRoute.GOOGLE, "x-goog-api-key", "g-key"),
+            (Provider.OPENROUTER, "authorization", "Bearer or-key"),
+            (Provider.GEMINI, "x-goog-api-key", "g-key"),
         ],
     )
-    async def test_posts_the_shared_body_with_the_route_key(
+    async def test_posts_the_shared_body_with_the_providers_key(
         self,
         question: Question,
         answers: list[QuestionAnswer],
         sleeps: list[float],
-        route: DecisionRoute,
+        provider: Provider,
         header: str,
         value: str,
     ) -> None:
         recorder = Recorder(_verdict(is_correct=0.9))
-        grader = _grader(recorder, sleeps, route=route)
+        grader = _grader(recorder, sleeps, provider=provider)
 
         await _grade(grader, question, answers)
 
@@ -116,12 +119,12 @@ class TestTheRequest:
                 answers=answers,
                 topic_name="Present Tenses",
             ),
-            route=route,
-            model=route.default_model,
+            provider=provider,
+            model=provider.decision_model,
             image=PNG,
         )
         assert sent.method == "POST"
-        assert str(sent.url) == route.url
+        assert str(sent.url) == provider.decision_url
         assert sent.headers[header] == value
         assert json.loads(sent.content) == expected
 
@@ -140,7 +143,7 @@ class TestTheRequest:
 
     def test_a_grader_without_a_key_cannot_be_built(self) -> None:
         with pytest.raises(ConfigurationError, match="GEMINI_API_KEY"):
-            DecisionGrader(DecisionSettings())
+            DecisionGrader(GraderSettings(), GeminiSettings())
 
 
 class TestTheVerdict:

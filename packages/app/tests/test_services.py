@@ -5,8 +5,8 @@ from dataclasses import replace
 import httpx
 import pytest
 from practice_core.content import ContentLibrary
-from practice_core.decisions import DecisionRoute
 from practice_core.errors import ConfigurationError
+from practice_core.providers import Provider
 
 from practice_app.config import AppConfig, ConfigStore, ProxyConfig
 from practice_app.services import Services
@@ -186,7 +186,7 @@ class TestCatalogue:
         assert services.model_info("google/gemini-decision-1") is not None
         assert services.model_info("gemini-decision-absent") is None
 
-    async def test_each_route_keeps_its_own_catalogue(
+    async def test_each_provider_keeps_its_own_catalogue(
         self,
         config_store: ConfigStore,
         content: ContentLibrary,
@@ -203,26 +203,26 @@ class TestCatalogue:
         )
 
         await services.models()
-        await services.update_config(replace(config, route=DecisionRoute.GOOGLE))
+        await services.update_config(replace(config, provider=Provider.GEMINI))
         assert services.cached_models() == []
-        google = await services.models()
+        gemini = await services.models()
         await services.update_config(config)
 
-        assert [model.id for model in google] == [
+        assert [model.id for model in gemini] == [
             "gemini-decision-1",
             "gemini-decision-google",
         ]
         assert services.model_info("gemini-decision-test") is not None
         assert len(fetches) == 2
 
-    async def test_google_without_a_key_refuses_to_fetch(
+    async def test_gemini_without_a_key_refuses_to_fetch(
         self, config_store: ConfigStore, content: ContentLibrary, stats: StatsStore
     ) -> None:
         services = Services(
             config_store=config_store,
             content=content,
             stats=stats,
-            config=AppConfig(route=DecisionRoute.GOOGLE),
+            config=AppConfig(provider=Provider.GEMINI),
         )
 
         with pytest.raises(ConfigurationError, match="API key"):

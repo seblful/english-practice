@@ -10,7 +10,7 @@ import pytest
 from practice_core import content
 from practice_core.content import ContentLibrary
 from practice_core.grading import EvaluateAnswerOutput
-from practice_runtime.settings import PathSettings
+from practice_runtime.settings import GeminiSettings, PathSettings
 from pydantic import SecretStr
 from telegram import CallbackQuery, Chat, Message, MessageEntity, Update, User
 from telegram.ext import ExtBot
@@ -19,7 +19,7 @@ from practice_bot.app import BotApplication, build_application
 from practice_bot.context import BotContext, BotDependencies
 from practice_bot.grader import DecisionGrader
 from practice_bot.repositories.database import AuthRepository
-from practice_bot.settings import DecisionSettings, Settings, TelegramSettings
+from practice_bot.settings import Settings, TelegramSettings
 from practice_bot.states import SessionStore
 
 pytestmark = pytest.mark.integration
@@ -52,7 +52,7 @@ def application(
     """The real application, wired to the seeded database."""
     settings = Settings(
         telegram=TelegramSettings(bot_token=SecretStr("123:abc"), admin_user_id=1),
-        decision=DecisionSettings(google_api_key=SecretStr("key")),
+        gemini=GeminiSettings(api_key=SecretStr("key")),
         paths=PathSettings(database_path=seeded_db_path),
     )
     dependencies = BotDependencies(

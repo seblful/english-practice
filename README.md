@@ -114,7 +114,7 @@ which stage would produce them:
 uv run practice-content check                  # what a full run is missing
 uv run practice-content cut-pdf units
 uv run practice-content separate-page-images
-uv run practice-content ocr-grammar-images     # needs OCR_API_KEY (Mistral)
+uv run practice-content ocr-grammar-images     # needs MISTRAL_API_KEY
 uv run practice-content organize-exercises
 uv run practice-content extract-answers        # LLM
 uv run practice-content extract-rules          # LLM

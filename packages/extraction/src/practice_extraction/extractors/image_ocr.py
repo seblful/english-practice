@@ -26,7 +26,7 @@ class ImageOcrExtractor:
         """Return the Mistral client, creating it on first use."""
         if not self._api_key:
             raise ValueError(
-                "an OCR API key is required; set OCR_API_KEY or pass api_key"
+                "an OCR API key is required; set MISTRAL_API_KEY or pass api_key"
             )
         if self._client is None:
             self._client = Mistral(api_key=self._api_key)

@@ -1,42 +1,90 @@
 """The settings both programs read."""
 
 import os
+from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal, assert_never
+from types import MappingProxyType
+from typing import Final, Literal
 
 from dotenv import dotenv_values
-from pydantic import AliasChoices, BaseModel, Field, SecretStr, model_validator
+from practice_core.providers import DEFAULT_PROVIDER, Provider
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 __all__ = [
     "BASE_DIR",
     "LAYOUT",
+    "RENAMED",
     "AppSettings",
     "BaseAppSettings",
     "GeminiSettings",
     "LLMAppSettings",
-    "LLMProvider",
     "LLMSettings",
     "LangSmithSettings",
     "LogLevel",
     "LoggingSettings",
     "OpenRouterSettings",
     "PathSettings",
+    "ProviderSettings",
+    "env_var",
+    "group_config",
     "load_env",
     "load_settings",
     "project_root",
+    "renamed_variables",
     "secret_value",
     "settings_env_vars",
 ]
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-LLMProvider = Literal["gemini", "openrouter"]
 
+# Read before any settings exist, so not fields; APP_ like the group they join.
 # Chosen by an OS variable; a missing .env.<environment> is ignored.
-_ENVIRONMENT_VAR = "APP__ENVIRONMENT"
+_ENVIRONMENT_VAR = "APP_ENVIRONMENT"
 _DEFAULT_ENVIRONMENT = "development"
-_ROOT_VAR = "APP__PROJECT_ROOT"
+_ROOT_VAR = "APP_PROJECT_ROOT"
+
+#: Variables older versions read, and what replaced each; "" when nothing did.
+RENAMED: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "APP__ENVIRONMENT": "APP_ENVIRONMENT",
+        "APP__APP_NAME": "APP_NAME",
+        "APP__PROJECT_ROOT": "APP_PROJECT_ROOT",
+        "LOGGING__FILE_LEVEL": "LOGGING_FILE_LEVEL",
+        "LOGGING__CONSOLE_LEVEL": "LOGGING_CONSOLE_LEVEL",
+        "LOGGING__LOG_FILE": "LOGGING_FILE",
+        "DATABASE_PATH": "PATHS_DATABASE_PATH",
+        "GEMINI_MODEL": "LLM_MODEL",
+        "GEMINI_TEMPERATURE": "LLM_TEMPERATURE",
+        "GEMINI_MAX_TOKENS": "LLM_MAX_TOKENS",
+        "GEMINI_TOP_P": "LLM_TOP_P",
+        "OPENROUTER_MODEL": "LLM_MODEL",
+        "OPENROUTER_TEMPERATURE": "LLM_TEMPERATURE",
+        "OPENROUTER_MAX_TOKENS": "LLM_MAX_TOKENS",
+        "OPENROUTER_BASE_URL": "",
+        "DECISION_ROUTE": "GRADER_PROVIDER",
+        "DECISION_MODEL": "GRADER_MODEL",
+        "DECISION_REQUEST_TIMEOUT": "GRADER_REQUEST_TIMEOUT",
+        "DECISION_MAX_RETRIES": "GRADER_MAX_RETRIES",
+        "DECISION_PROXY": "GEMINI_PROXY or OPENROUTER_PROXY",
+        "DECISION_GOOGLE_API_KEY": "GEMINI_API_KEY",
+        "DECISION_OPENROUTER_API_KEY": "OPENROUTER_API_KEY",
+        "OCR_API_KEY": "MISTRAL_API_KEY",
+        "DASHSCOPE_API_KEY": "",
+        "DASHSCOPE_MODEL": "",
+    }
+)
+
+
+def group_config(name: str) -> SettingsConfigDict:
+    """Return the config of the settings group read from ``<NAME>_*`` variables.
+
+    An empty variable, as a copied .env.example leaves it, means unset.
+    """
+    return SettingsConfigDict(
+        env_prefix=f"{name.upper()}_", case_sensitive=False, env_ignore_empty=True
+    )
 
 
 @lru_cache(maxsize=1)
@@ -111,10 +159,12 @@ def load_env(
     return applied
 
 
-class AppSettings(BaseModel):
+class AppSettings(BaseSettings):
     """Application identity and environment."""
 
-    app_name: str = Field(default="english-practice", description="Application name")
+    model_config = group_config("app")
+
+    name: str = Field(default="english-practice", description="Application name")
     environment: str = Field(
         default=_DEFAULT_ENVIRONMENT, description="Environment name"
     )
@@ -125,21 +175,20 @@ class AppSettings(BaseModel):
         return self.environment == "production"
 
 
-class LoggingSettings(BaseModel):
+class LoggingSettings(BaseSettings):
     """Logging destinations and verbosity."""
+
+    model_config = group_config("logging")
 
     file_level: LogLevel = Field(default="INFO", description="File log level")
     console_level: LogLevel = Field(default="INFO", description="Console log level")
-    log_file: Path = Field(default=Path("logs/app.log"), description="Log file path")
+    file: Path = Field(default=Path("logs/app.log"), description="Log file path")
 
 
 class PathSettings(BaseSettings):
     """Filesystem layout for source material, generated content, and the database."""
 
-    # populate_by_name lets callers pass `database_path=` an alias would shadow.
-    model_config = SettingsConfigDict(
-        env_prefix="PATHS_", case_sensitive=False, populate_by_name=True
-    )
+    model_config = group_config("paths")
 
     data_dir: Path = BASE_DIR / "data"
     source_dir: Path = _DERIVED
@@ -152,12 +201,7 @@ class PathSettings(BaseSettings):
     exercises_dir: Path = _DERIVED
     metadata_dir: Path = _DERIVED
 
-    # DATABASE_PATH is accepted as a legacy alias: the group was unprefixed.
-    database_path: Path = Field(
-        default=_DERIVED,
-        validation_alias=AliasChoices("PATHS_DATABASE_PATH", "DATABASE_PATH"),
-        description="SQLite database file",
-    )
+    database_path: Path = Field(default=_DERIVED, description="SQLite database file")
 
     @model_validator(mode="after")
     def _derive_unset_paths(self) -> "PathSettings":
@@ -177,63 +221,76 @@ class PathSettings(BaseSettings):
                 path.mkdir(parents=True, exist_ok=True)
 
 
-class GeminiSettings(BaseSettings):
-    """Google Gemini API settings."""
+class ProviderSettings(BaseSettings):
+    """A model provider's credentials, shared by everything that calls it."""
 
-    model_config = SettingsConfigDict(env_prefix="GEMINI_", case_sensitive=False)
-
-    api_key: SecretStr | None = None
-    model: str = "gemini-2.5-flash-lite"
-    temperature: float = 0.7
-    max_tokens: int = 2048
-    top_p: float = 0.95
-    proxy: str | None = None
-
-
-class OpenRouterSettings(BaseSettings):
-    """OpenRouter API settings."""
-
-    model_config = SettingsConfigDict(env_prefix="OPENROUTER_", case_sensitive=False)
+    # An empty variable, as a copied .env.example leaves it, means unset.
+    model_config = SettingsConfigDict(case_sensitive=False, env_ignore_empty=True)
 
     api_key: SecretStr | None = None
-    model: str = "google/gemma-4-26b-a4b-it"
-    base_url: str = "https://openrouter.ai/api/v1"
-    temperature: float = 0.7
-    max_tokens: int = 2048
+    proxy: str | None = Field(
+        default=None, description="HTTP or SOCKS proxy for this provider's calls"
+    )
+
+    @property
+    def key(self) -> str | None:
+        """Return the API key, or None when it is unset or blank."""
+        return secret_value(self.api_key)
+
+    @property
+    def key_variable(self) -> str:
+        """Return the variable this provider's key is read from."""
+        return env_var(self, "api_key")
+
+
+class GeminiSettings(ProviderSettings):
+    """Google AI Studio: Gemini chat models and Gemini Decision."""
+
+    model_config = group_config("gemini")
+
+
+class OpenRouterSettings(ProviderSettings):
+    """OpenRouter: many vendors' models behind one key."""
+
+    model_config = group_config("openrouter")
+
+
+#: The chat model each provider runs when LLM_MODEL is unset.
+_CHAT_MODELS: Final = {
+    Provider.GEMINI: "gemini-2.5-flash-lite",
+    Provider.OPENROUTER: "google/gemma-4-26b-a4b-it",
+}
 
 
 class LLMSettings(BaseSettings):
-    """Which LLM provider to use, and each provider's configuration."""
+    """The chat model the content pipeline calls, and how it is sampled."""
 
-    model_config = SettingsConfigDict(env_prefix="LLM_", case_sensitive=False)
+    model_config = group_config("llm")
 
-    provider: LLMProvider = "gemini"
+    provider: Provider = DEFAULT_PROVIDER
+    model: str | None = Field(
+        default=None, description="The provider's default chat model when unset"
+    )
+    temperature: float = 0.7
+    max_tokens: int = 2048
+    top_p: float = 0.95
     request_timeout: float = Field(
         default=60.0, gt=0, description="Per-request timeout in seconds"
     )
     max_retries: int = Field(
         default=2, ge=0, description="Retries for transient provider failures"
     )
-    gemini: GeminiSettings = Field(default_factory=GeminiSettings)
-    openrouter: OpenRouterSettings = Field(default_factory=OpenRouterSettings)
 
     @property
-    def active_api_key(self) -> str | None:
-        """Return the API key of the selected provider, if configured."""
-        match self.provider:
-            case "gemini":
-                provider_settings = self.gemini
-            case "openrouter":
-                provider_settings = self.openrouter
-            case unreachable:  # pragma: no cover - the Literal is validated upstream
-                assert_never(unreachable)
-        return secret_value(provider_settings.api_key)
+    def active_model(self) -> str:
+        """Return the model to call: the one set, or the provider's default."""
+        return (self.model or "").strip() or _CHAT_MODELS[self.provider]
 
 
 class LangSmithSettings(BaseSettings):
     """LangSmith tracing settings."""
 
-    model_config = SettingsConfigDict(env_prefix="LANGSMITH_", case_sensitive=False)
+    model_config = group_config("langsmith")
 
     api_key: SecretStr | None = None
     project: str = "english-practice"
@@ -241,27 +298,46 @@ class LangSmithSettings(BaseSettings):
 
 
 class BaseAppSettings(BaseSettings):
-    """The groups every program in this repository reads."""
+    """The groups every program in this repository reads.
+
+    Every group is read from variables named ``<GROUP>_<FIELD>``: the
+    ``telegram.bot_token`` field is ``TELEGRAM_BOT_TOKEN``, and so on.
+    """
 
     app: AppSettings = Field(default_factory=AppSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     paths: PathSettings = Field(default_factory=PathSettings)
     langsmith: LangSmithSettings = Field(default_factory=LangSmithSettings)
+    gemini: GeminiSettings = Field(default_factory=GeminiSettings)
+    openrouter: OpenRouterSettings = Field(default_factory=OpenRouterSettings)
 
-    # "ignore" rather than "forbid": the env files carry the flat variables too.
+    # "ignore": the env files carry every program's variables.
     model_config = SettingsConfigDict(
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore",
-        env_nested_delimiter="__",
+        env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
+
+    def credentials(self, provider: Provider) -> ProviderSettings:
+        """Return the key and proxy configured for ``provider``."""
+        if provider is Provider.OPENROUTER:
+            return self.openrouter
+        return self.gemini
+
+    def missing_key(self, provider: Provider, chosen_by: str) -> str | None:
+        """Return why ``provider`` cannot be called, naming what chose it."""
+        credentials = self.credentials(provider)
+        if credentials.key is not None:
+            return None
+        return f"{credentials.key_variable} is not set ({chosen_by}={provider})"
 
     def missing_required(self) -> list[str]:
         """Return human-readable reasons this process cannot do its work."""
-        problems: list[str] = []
+        problems = renamed_variables()
 
         if self.langsmith.tracing and secret_value(self.langsmith.api_key) is None:
-            problems.append("LANGSMITH_API_KEY is required when tracing is enabled")
+            problems.append(
+                f"{env_var(self.langsmith, 'api_key')} is required when tracing "
+                "is enabled"
+            )
 
         return problems
 
@@ -271,49 +347,58 @@ class LLMAppSettings(BaseAppSettings):
 
     llm: LLMSettings = Field(default_factory=LLMSettings)
 
+    @property
+    def llm_credentials(self) -> ProviderSettings:
+        """Return the credentials of the chat model's provider."""
+        return self.credentials(self.llm.provider)
+
     def missing_required(self) -> list[str]:
         """Return the shared problems, plus a missing provider key."""
         problems = super().missing_required()
 
-        if self.llm.active_api_key is None:
-            problems.insert(
-                0,
-                f"{self.llm.provider.upper()}_API_KEY is not set "
-                f"(LLM_PROVIDER={self.llm.provider})",
-            )
+        missing = self.missing_key(self.llm.provider, env_var(self.llm, "provider"))
+        if missing is not None:
+            problems.append(missing)
 
         return problems
 
 
-def settings_env_vars(model: type[BaseModel]) -> tuple[str, ...]:
-    """Return the variables currently in the environment that ``model`` reads."""
-    prefixes: list[str] = []
-    aliases: list[str] = []
+def env_var(group: BaseSettings | type[BaseSettings], field: str) -> str:
+    """Return the variable that sets ``field`` of a settings group."""
+    prefix = str(group.model_config.get("env_prefix", ""))
+    return f"{prefix}{field}".upper()
 
-    def walk(group: type[BaseModel]) -> None:
-        for field_name, field in group.model_fields.items():
-            alias = field.validation_alias
-            if isinstance(alias, AliasChoices):
-                aliases.extend(str(choice).upper() for choice in alias.choices)
 
-            nested = field.annotation
-            if not isinstance(nested, type) or not issubclass(nested, BaseModel):
-                continue
-            if issubclass(nested, BaseSettings):
-                prefixes.append(nested.model_config.get("env_prefix", "").upper())
-            else:
-                # Plain models are populated through the nested delimiter.
-                prefixes.append(f"{field_name.upper()}__")
-            # The provider groups hang off LLMSettings, not off the root.
-            walk(nested)
+def renamed_variables() -> list[str]:
+    """Explain each variable set in the environment that is no longer read."""
+    problems: list[str] = []
+    present = {name.upper() for name in os.environ}
+    for old, new in RENAMED.items():
+        if old not in present:
+            continue
+        if new:
+            problems.append(f"{old} is no longer read: rename it to {new}")
+        else:
+            problems.append(f"{old} is no longer read: remove it")
+    return problems
 
-    walk(model)
+
+def settings_env_vars(model: type[BaseSettings]) -> tuple[str, ...]:
+    """Return the variables currently in the environment that ``model`` reads.
+
+    Renamed ones count too: they are about this model, if only to be refused.
+    """
+    prefixes = tuple(
+        env_var(nested, "")
+        for field in model.model_fields.values()
+        if isinstance(nested := field.annotation, type)
+        and issubclass(nested, BaseSettings)
+    )
     matched = tuple(prefix for prefix in prefixes if prefix)
-    exact = frozenset(aliases)
     return tuple(
         name
         for name in os.environ
-        if name.upper().startswith(matched) or name.upper() in exact
+        if name.upper().startswith(matched) or name.upper() in RENAMED
     )
 
 

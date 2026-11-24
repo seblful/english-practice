@@ -2,7 +2,6 @@
 
 import base64
 from collections.abc import Mapping
-from enum import StrEnum
 from typing import Any, Final
 
 from practice_core.errors import GradingError
@@ -13,77 +12,15 @@ from practice_core.grading import (
 )
 from practice_core.images import data_uri, image_media_type
 from practice_core.prompts import render_decision_input
+from practice_core.providers import Provider
 
 __all__ = [
-    "DEFAULT_ROUTE",
     "VERDICT_KEY",
-    "DecisionRoute",
     "decision_request",
     "match_key",
     "read_decision",
 ]
 
-
-class DecisionRoute(StrEnum):
-    """Where a decision request is sent: the same model, two request formats."""
-
-    OPENROUTER = "openrouter"
-    GOOGLE = "google"
-
-    @property
-    def label(self) -> str:
-        """Return the service's name as its own docs write it."""
-        return _LABELS[self]
-
-    @property
-    def url(self) -> str:
-        """Return the endpoint that answers decision requests."""
-        return _URLS[self]
-
-    @property
-    def default_model(self) -> str:
-        """Return Gemini Decision 1 under the id this route knows it by."""
-        return _DEFAULT_MODELS[self]
-
-    @property
-    def key_url(self) -> str:
-        """Return the page where a user creates an API key."""
-        return _KEY_URLS[self]
-
-    def headers(self, api_key: str) -> dict[str, str]:
-        """Return the auth and content headers for a request with this key."""
-        headers = {"Content-Type": "application/json"}
-        # A key pasted with a stray newline builds an illegal header value.
-        key = api_key.strip()
-        if key:
-            if self is DecisionRoute.OPENROUTER:
-                headers["Authorization"] = f"Bearer {key}"
-            else:
-                headers["x-goog-api-key"] = key
-        return headers
-
-
-_LABELS: Final = {
-    DecisionRoute.OPENROUTER: "OpenRouter",
-    DecisionRoute.GOOGLE: "Google AI Studio",
-}
-_URLS: Final = {
-    DecisionRoute.OPENROUTER: "https://openrouter.ai/api/alpha/decisions",
-    DecisionRoute.GOOGLE: "https://generativelanguage.googleapis.com/v1beta/decisions",
-}
-# Gemini Decision 1 reads text, images, audio, video and PDF on both routes.
-_DEFAULT_MODELS: Final = {
-    DecisionRoute.OPENROUTER: "google/gemini-decision-1",
-    DecisionRoute.GOOGLE: "gemini-decision-1",
-}
-_KEY_URLS: Final = {
-    DecisionRoute.OPENROUTER: "https://openrouter.ai/keys",
-    DecisionRoute.GOOGLE: "https://aistudio.google.com/apikey",
-}
-
-#: The route a fresh install, or a bot with no DECISION_ROUTE, grades through.
-# Google first: its free tier covers practice, and OpenRouter has none.
-DEFAULT_ROUTE: Final = DecisionRoute.GOOGLE
 
 VERDICT_KEY: Final = "is_correct"
 _MATCH_PREFIX: Final = "matches_"
@@ -124,10 +61,10 @@ _OPEN_VERDICT: Final = (
 _ACCEPTABLE: Final = "The student's answer is acceptable."
 _UNACCEPTABLE: Final = "The student's answer is wrong or answers something else."
 
-# The same two descriptions, under the key names each route documents.
+# The same two descriptions, under the key names each provider documents.
 _VERDICT_CRITERIA: Final = {
-    DecisionRoute.OPENROUTER: {"true": _ACCEPTABLE, "false": _UNACCEPTABLE},
-    DecisionRoute.GOOGLE: {
+    Provider.OPENROUTER: {"true": _ACCEPTABLE, "false": _UNACCEPTABLE},
+    Provider.GEMINI: {
         "true_description": _ACCEPTABLE,
         "false_description": _UNACCEPTABLE,
     },
@@ -152,7 +89,7 @@ def _free_form(context: EvaluateAnswerInput) -> bool:
 
 
 def _questions(
-    context: EvaluateAnswerInput, route: DecisionRoute
+    context: EvaluateAnswerInput, provider: Provider
 ) -> dict[str, dict[str, Any]]:
     """Return the verdict question, plus one match question per accepted answer."""
     free_form = _free_form(context)
@@ -160,7 +97,7 @@ def _questions(
         VERDICT_KEY: {
             "type": "noul",
             "instructions": _OPEN_VERDICT if free_form else _CLOSED_VERDICT,
-            "criteria": _VERDICT_CRITERIA[route],
+            "criteria": _VERDICT_CRITERIA[provider],
         }
     }
     if free_form:
@@ -181,15 +118,15 @@ def _questions(
 def decision_request(
     context: EvaluateAnswerInput,
     *,
-    route: DecisionRoute,
+    provider: Provider,
     model: str,
     image: bytes | None = None,
 ) -> dict[str, Any]:
-    """Return the body of a decision request that grades one answer on a route."""
+    """Return the body of a decision request that grades one answer."""
     text = render_decision_input(context)
-    questions = _questions(context, route)
+    questions = _questions(context, provider)
 
-    if route is DecisionRoute.OPENROUTER:
+    if provider is Provider.OPENROUTER:
         # OpenRouter's `state` takes text as plain strings, images as data URLs.
         state: list[Any] = []
         if image:
@@ -235,7 +172,7 @@ def _block_reason(feedback: object) -> str:
 def read_decision(
     payload: object, context: EvaluateAnswerInput
 ) -> EvaluateAnswerOutput:
-    """Read a verdict out of either route's reply to :func:`decision_request`."""
+    """Read a verdict out of either provider's reply to :func:`decision_request`."""
     if not isinstance(payload, Mapping):
         raise GradingError(NO_VERDICT_MESSAGE)
 

@@ -1,7 +1,6 @@
 """Shared fixtures for the runtime tests."""
 
 import logging
-from pathlib import Path
 
 import pytest
 import structlog
@@ -29,11 +28,3 @@ def _quiet_logging() -> None:
         wrapper_class=structlog.make_filtering_bound_logger(logging.CRITICAL),
         logger_factory=structlog.ReturnLoggerFactory(),
     )
-
-
-@pytest.fixture
-def tmp_env_file(tmp_path: Path) -> Path:
-    """Create a temporary .env file."""
-    env_file = tmp_path / ".env"
-    env_file.write_text("APP__ENVIRONMENT=test\n", encoding="utf-8")
-    return env_file

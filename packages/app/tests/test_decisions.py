@@ -1,4 +1,4 @@
-"""Tests for the decision-model client, on both routes."""
+"""Tests for the decision-model client, on both providers."""
 
 import base64
 import json
@@ -7,10 +7,11 @@ from typing import Any
 
 import httpx
 import pytest
-from practice_core.decisions import DecisionRoute, decision_request
+from practice_core.decisions import decision_request
 from practice_core.errors import GradingError
 from practice_core.grading import EvaluateAnswerInput
 from practice_core.models import QuestionAnswer
+from practice_core.providers import Provider
 
 from practice_app.config import AppConfig, ProxyConfig
 from practice_app.decisions import (
@@ -24,7 +25,7 @@ from practice_app.errors import ConfigurationError, ProviderError
 from tests.conftest import WEBP_BYTES, decision
 
 OPENROUTER_DECISIONS = "https://openrouter.ai/api/alpha/decisions"
-GOOGLE_DECISIONS = "https://generativelanguage.googleapis.com/v1beta/decisions"
+GEMINI_DECISIONS = "https://generativelanguage.googleapis.com/v1beta/decisions"
 
 
 async def _noop(_: float) -> None:
@@ -32,9 +33,9 @@ async def _noop(_: float) -> None:
 
 
 @pytest.fixture
-def google(config: AppConfig) -> AppConfig:
-    """The same settings, routed through Google AI Studio."""
-    return replace(config, route=DecisionRoute.GOOGLE)
+def gemini(config: AppConfig) -> AppConfig:
+    """The same settings, on Google AI Studio."""
+    return replace(config, provider=Provider.GEMINI)
 
 
 @pytest.fixture
@@ -69,7 +70,7 @@ def _failing(status: int, body: Any = None) -> httpx.MockTransport:
 
 class TestRequestsAsData:
     def test_openrouter_lists_only_decision_models_with_a_bearer_key(self) -> None:
-        call = models_call(DecisionRoute.OPENROUTER, "key")
+        call = models_call(Provider.OPENROUTER, "key")
 
         assert call.method == "GET"
         assert call.url == "https://openrouter.ai/api/v1/models"
@@ -78,40 +79,40 @@ class TestRequestsAsData:
 
     def test_openrouter_lists_without_a_key(self) -> None:
         """Its catalogue is public, so no key means no auth header at all."""
-        call = models_call(DecisionRoute.OPENROUTER, "")
+        call = models_call(Provider.OPENROUTER, "")
 
         assert "Authorization" not in call.headers
 
-    def test_google_lists_every_page_with_the_key_in_a_header(self) -> None:
+    def test_gemini_lists_every_page_with_the_key_in_a_header(self) -> None:
         """A URL ends up in far more logs than a header does."""
-        call = models_call(DecisionRoute.GOOGLE, "key")
+        call = models_call(Provider.GEMINI, "key")
 
-        assert call.url == MODELS_URLS[DecisionRoute.GOOGLE]
+        assert call.url == MODELS_URLS[Provider.GEMINI]
         assert call.params == {"pageSize": "1000"}
         assert call.headers["x-goog-api-key"] == "key"
         assert "key" not in call.url
 
     def test_a_padded_key_is_sent_stripped(self) -> None:
         """A key pasted with a stray newline is still a legal header value."""
-        call = models_call(DecisionRoute.GOOGLE, "  key\n")
+        call = models_call(Provider.GEMINI, "  key\n")
 
         assert call.headers["x-goog-api-key"] == "key"
 
     @pytest.mark.parametrize(
-        ("route", "url", "auth"),
+        ("provider", "url", "auth"),
         [
             (
-                DecisionRoute.OPENROUTER,
+                Provider.OPENROUTER,
                 OPENROUTER_DECISIONS,
                 ("Authorization", "Bearer key"),
             ),
-            (DecisionRoute.GOOGLE, GOOGLE_DECISIONS, ("x-goog-api-key", "key")),
+            (Provider.GEMINI, GEMINI_DECISIONS, ("x-goog-api-key", "key")),
         ],
     )
-    def test_a_decision_is_posted_as_json_to_the_routes_endpoint(
-        self, route: DecisionRoute, url: str, auth: tuple[str, str]
+    def test_a_decision_is_posted_as_json_to_the_providers_endpoint(
+        self, provider: Provider, url: str, auth: tuple[str, str]
     ) -> None:
-        call = decision_call(route, "key", {"model": "m"})
+        call = decision_call(provider, "key", {"model": "m"})
 
         assert call.method == "POST"
         assert call.url == url
@@ -119,7 +120,7 @@ class TestRequestsAsData:
         assert call.body == {"model": "m"}
 
     def test_the_openrouter_check_puts_its_text_in_the_state(self) -> None:
-        call = check_call(DecisionRoute.OPENROUTER, "key", "google/gemini-decision-1")
+        call = check_call(Provider.OPENROUTER, "key", "google/gemini-decision-1")
 
         assert call.url == OPENROUTER_DECISIONS
         assert call.body == {
@@ -130,10 +131,10 @@ class TestRequestsAsData:
             },
         }
 
-    def test_the_google_check_puts_its_text_in_a_block(self) -> None:
-        call = check_call(DecisionRoute.GOOGLE, "key", "gemini-decision-1")
+    def test_the_gemini_check_puts_its_text_in_a_block(self) -> None:
+        call = check_call(Provider.GEMINI, "key", "gemini-decision-1")
 
-        assert call.url == GOOGLE_DECISIONS
+        assert call.url == GEMINI_DECISIONS
         assert call.body == {
             "model": "gemini-decision-1",
             "input": [{"type": "text", "text": "Connection check."}],
@@ -161,7 +162,7 @@ class TestGrade:
         assert request.headers["content-type"] == "application/json"
         assert json.loads(request.content) == decision_request(
             context,
-            route=DecisionRoute.OPENROUTER,
+            provider=Provider.OPENROUTER,
             model="gemini-decision-test",
             image=WEBP_BYTES,
         )
@@ -180,33 +181,33 @@ class TestGrade:
         assert image["image_url"]["url"].startswith("data:image/webp;base64,")
         assert isinstance(text, str)
 
-    async def test_the_exact_google_request_is_sent(
-        self, google: AppConfig, context: EvaluateAnswerInput
+    async def test_the_exact_gemini_request_is_sent(
+        self, gemini: AppConfig, context: EvaluateAnswerInput
     ) -> None:
         sent: list[httpx.Request] = []
         transport = _recording(decision(is_correct=True), sent)
 
-        async with DecisionClient(google, transport=transport) as client:
+        async with DecisionClient(gemini, transport=transport) as client:
             await client.grade(context, WEBP_BYTES)
 
         request = sent[0]
-        assert str(request.url) == GOOGLE_DECISIONS
+        assert str(request.url) == GEMINI_DECISIONS
         assert request.headers["x-goog-api-key"] == "google-key"
         assert "authorization" not in request.headers
         assert json.loads(request.content) == decision_request(
             context,
-            route=DecisionRoute.GOOGLE,
+            provider=Provider.GEMINI,
             model="gemini-decision-test",
             image=WEBP_BYTES,
         )
 
-    async def test_google_gets_the_image_inlined(
-        self, google: AppConfig, context: EvaluateAnswerInput
+    async def test_gemini_gets_the_image_inlined(
+        self, gemini: AppConfig, context: EvaluateAnswerInput
     ) -> None:
         sent: list[httpx.Request] = []
         transport = _recording(decision(is_correct=True), sent)
 
-        async with DecisionClient(google, transport=transport) as client:
+        async with DecisionClient(gemini, transport=transport) as client:
             await client.grade(context, WEBP_BYTES)
 
         image = json.loads(sent[0].content)["input"][0]
@@ -247,14 +248,14 @@ class TestGrade:
             with pytest.raises(GradingError, match="declined to judge"):
                 await client.grade(context)
 
-    async def test_a_blocked_google_prompt_is_an_error(
-        self, google: AppConfig, context: EvaluateAnswerInput
+    async def test_a_blocked_gemini_prompt_is_an_error(
+        self, gemini: AppConfig, context: EvaluateAnswerInput
     ) -> None:
         transport = _recording(
             {"answers": {}, "prompt_feedback": {"block_reason": "SAFETY"}}, []
         )
 
-        async with DecisionClient(google, transport=transport) as client:
+        async with DecisionClient(gemini, transport=transport) as client:
             with pytest.raises(GradingError, match="SAFETY"):
                 await client.grade(context)
 
@@ -322,9 +323,9 @@ class TestErrors:
             "OpenRouter refused the request (HTTP 400) (Unsupported image type: webp)."
         )
 
-    async def test_google_names_itself(self, google: AppConfig) -> None:
+    async def test_gemini_names_itself(self, gemini: AppConfig) -> None:
         body = {"error": {"code": 400, "message": "API key not valid"}}
-        async with DecisionClient(google, transport=_failing(401, body)) as client:
+        async with DecisionClient(gemini, transport=_failing(401, body)) as client:
             with pytest.raises(ProviderError) as raised:
                 await client.check()
 
@@ -334,11 +335,11 @@ class TestErrors:
         )
 
     async def test_a_safety_refusal_with_a_string_code_is_named(
-        self, google: AppConfig, context: EvaluateAnswerInput
+        self, gemini: AppConfig, context: EvaluateAnswerInput
     ) -> None:
         """Google's Decisions API names this code, unlike the rest of Gemini."""
         body = {"error": {"code": "safety", "message": "Input was blocked."}}
-        async with DecisionClient(google, transport=_failing(400, body)) as client:
+        async with DecisionClient(gemini, transport=_failing(400, body)) as client:
             with pytest.raises(ProviderError) as raised:
                 await client.grade(context)
 
@@ -348,10 +349,10 @@ class TestErrors:
         )
 
     async def test_another_string_code_is_reported_with_its_message(
-        self, google: AppConfig
+        self, gemini: AppConfig
     ) -> None:
         body = {"error": {"code": "invalid_question", "message": "Bad key."}}
-        async with DecisionClient(google, transport=_failing(400, body)) as client:
+        async with DecisionClient(gemini, transport=_failing(400, body)) as client:
             with pytest.raises(ProviderError, match=r"invalid_question: Bad key\."):
                 await client.check()
 
@@ -460,13 +461,13 @@ class TestErrors:
                 await client.check()
 
     async def test_a_reply_that_is_not_json_blames_the_middle(
-        self, google: AppConfig
+        self, gemini: AppConfig
     ) -> None:
         """A captive portal answers 200 with HTML."""
         transport = httpx.MockTransport(
             lambda _: httpx.Response(200, text="<html>login</html>")
         )
-        async with DecisionClient(google, transport=transport) as client:
+        async with DecisionClient(gemini, transport=transport) as client:
             with pytest.raises(ProviderError, match="Google AI Studio replied"):
                 await client.check()
 
@@ -513,7 +514,7 @@ class TestListModels:
         assert "authorization" not in sent[0].headers
         assert [model.id for model in models] == ["google/gemini-decision-1"]
 
-    async def test_google_is_asked_for_every_model(self, google: AppConfig) -> None:
+    async def test_gemini_is_asked_for_every_model(self, gemini: AppConfig) -> None:
         sent: list[httpx.Request] = []
         payload = {
             "models": [
@@ -522,7 +523,7 @@ class TestListModels:
             ]
         }
         async with DecisionClient(
-            google, transport=_recording(payload, sent)
+            gemini, transport=_recording(payload, sent)
         ) as client:
             models = await client.list_models()
 
@@ -533,14 +534,14 @@ class TestListModels:
             "gemini-decision-2",
         ]
 
-    async def test_google_without_a_key_refuses_before_the_network(
-        self, google: AppConfig
+    async def test_gemini_without_a_key_refuses_before_the_network(
+        self, gemini: AppConfig
     ) -> None:
         transport = httpx.MockTransport(
             lambda _: pytest.fail("should not have been called")
         )
         async with DecisionClient(
-            google.with_active(api_key=""), transport=transport
+            gemini.with_active(api_key=""), transport=transport
         ) as client:
             with pytest.raises(ConfigurationError, match="Google AI Studio API key"):
                 await client.list_models()
@@ -558,20 +559,20 @@ class TestCheck:
 
         assert message == "OpenRouter answered as gemini-decision-test."
         assert json.loads(sent[0].content) == (
-            check_call(DecisionRoute.OPENROUTER, "k", "gemini-decision-test").body
+            check_call(Provider.OPENROUTER, "k", "gemini-decision-test").body
         )
 
-    async def test_a_working_google_setup_names_the_model(
-        self, google: AppConfig
+    async def test_a_working_gemini_setup_names_the_model(
+        self, gemini: AppConfig
     ) -> None:
         sent: list[httpx.Request] = []
         transport = _recording({"answers": {"ok": {"noul": 0.99}}}, sent)
 
-        async with DecisionClient(google, transport=transport) as client:
+        async with DecisionClient(gemini, transport=transport) as client:
             message = await client.check()
 
         assert message == "Google AI Studio answered as gemini-decision-test."
-        assert str(sent[0].url) == GOOGLE_DECISIONS
+        assert str(sent[0].url) == GEMINI_DECISIONS
 
     async def test_an_unconfigured_app_refuses_before_the_network(
         self, config: AppConfig

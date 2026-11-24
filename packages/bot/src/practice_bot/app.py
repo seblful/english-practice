@@ -51,7 +51,9 @@ def build_dependencies(settings: Settings) -> BotDependencies:
     return BotDependencies(
         content=ContentLibrary(settings.paths.database_path),
         users=AuthRepository(settings.paths.database_path),
-        grader=DecisionGrader(settings.decision),
+        grader=DecisionGrader(
+            settings.grader, settings.credentials(settings.grader.provider)
+        ),
         sessions=SessionStore(
             idle_ttl=timedelta(minutes=settings.bot.session_idle_ttl_minutes)
         ),
@@ -123,8 +125,8 @@ def run(settings: Settings | None = None) -> None:
     logger.info(
         "bot_starting",
         environment=settings.app.environment,
-        route=settings.decision.route,
-        grader=settings.decision.active_model,
+        provider=settings.grader.provider,
+        grader=settings.grader.active_model,
         access_control=settings.telegram.admin_user_id is not None,
     )
     application.run_polling(
