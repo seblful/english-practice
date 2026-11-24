@@ -42,7 +42,7 @@ repos:
         exclude: ^(data/content/metadata/(answers_full|rules)\.json|data/manual-review/audit\.json)$
       - id: check-merge-conflict
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.13.8
+    rev: 0.13.9
     hooks:
       - id: uv-lock
       - id: uv-lock
