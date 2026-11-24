@@ -60,6 +60,7 @@ class TestGrading:
         assert call.kwargs["user_input"] == "is doing"
         assert tuple(call.kwargs["answers"]) == tuple(answers)
         assert call.kwargs["topic_name"] == "Present Tenses"
+        assert call.kwargs["unit_title"] == with_exercise.exercise.unit.title
 
     async def test_grades_against_the_image_held_in_the_session(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise

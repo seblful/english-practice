@@ -24,6 +24,7 @@ class Grader:
         user_input: str,
         answers: Sequence[QuestionAnswer],
         topic_name: str,
+        unit_title: str | None,
         image: bytes | None = None,
     ) -> EvaluateAnswerOutput:
         """Grade one answer."""
@@ -32,5 +33,6 @@ class Grader:
             user_input=user_input,
             answers=answers,
             topic_name=topic_name,
+            unit_title=unit_title,
         )
         return await self._client.grade(context, image)

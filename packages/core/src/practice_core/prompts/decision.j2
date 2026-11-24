@@ -1,19 +1,22 @@
-The picture is a page from Raymond Murphy's English Grammar in Use. A student answered one numbered question of the exercise on it.
+The picture is one exercise from Raymond Murphy's English Grammar in Use. A student answered one numbered question of it.
 
+{% if unit_title %}
+Unit: {{ unit_title }}
+{% endif %}
 Topic: {{ topic_name }}
 Question: {{ question_number }}
-Question type: {% if is_open_ended or not answers %}open-ended - any answer that uses the target grammar correctly is accepted{% else %}closed - the book lists the accepted answers{% endif %}
+Question type: {% if free_form %}open-ended - any answer that uses the target grammar correctly is accepted{% else %}closed - the book lists the accepted answers{% endif %}
 
 {% if rule %}
 Grammar rule:
 {{ rule }}
 
 {% endif %}
-{% if not is_open_ended and answers %}
-Accepted answers, each as the missing words (short) and as the whole sentence (full):
+{% if not free_form %}
+Accepted answers, each as the words the student writes (short) and as the whole sentence (full). In a full sentence, square brackets mark the gaps the student fills; everything else is printed in the exercise.
 {% for a in answers %}
-{{ loop.index0 }}. short: "{{ a.short_answer | replace("**", "") }}" | full: "{{ a.full_answer | replace("**", "") }}"
+{{ loop.index0 }}. short: "{{ a.short }}" | full: "{{ a.full }}"
 {% endfor %}
 
 {% endif %}
-Student's answer: "{{ user_input }}"
+Student's answer: {{ student_answer }}

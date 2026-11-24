@@ -77,11 +77,16 @@ class DecisionGrader:
         user_input: str,
         answers: Sequence[QuestionAnswer],
         topic_name: str,
+        unit_title: str | None,
         image: bytes | None = None,
     ) -> EvaluateAnswerOutput:
         """Grade the student's answer."""
         context = EvaluateAnswerInput.for_question(
-            question, user_input=user_input, answers=answers, topic_name=topic_name
+            question,
+            user_input=user_input,
+            answers=answers,
+            topic_name=topic_name,
+            unit_title=unit_title,
         )
         payload = await self._post(
             decision_request(

@@ -11,7 +11,7 @@ from practice_core.grading import (
     EvaluateAnswerOutput,
 )
 from practice_core.images import data_uri, image_media_type
-from practice_core.prompts import render_decision_input
+from practice_core.prompts import book_text, render_decision_input
 from practice_core.providers import Provider
 
 __all__ = [
@@ -35,6 +35,16 @@ _EQUIVALENCE: Final = (
     "capitalization, trailing punctuation and extra spaces."
 )
 
+# How the book writes an answer, which a literal match would get wrong.
+_FORMS: Final = (
+    "An ellipsis (…) in a short answer separates the words for different gaps: "
+    "the student must fill every gap, and may separate them with commas, dots or "
+    "spaces, or write the whole sentence. A single letter as the short answer is "
+    "a choice from a list in the exercise, so the letter or the text of that "
+    "option both match. A dash (—) means the gap takes no word, so a dash, "
+    '"nothing", or the sentence with no word there all match.'
+)
+
 _TYPOS: Final = (
     "A minor spelling mistake in a word unrelated to the target grammar is still "
     "correct."
@@ -42,7 +52,10 @@ _TYPOS: Final = (
 
 _CLOSED_VERDICT: Final = (
     "Is the student's answer correct? It is correct when it matches at least one "
-    "accepted answer, in its short or its full form. "
+    "accepted answer: its short form, its full sentence, or the bracketed gaps of "
+    "that sentence. "
+    + _FORMS
+    + " "
     + _EQUIVALENCE
     + " "
     + _TYPOS
@@ -78,11 +91,6 @@ def match_key(index: int) -> str:
     return f"{_MATCH_PREFIX}{index}"
 
 
-def _plain(text: str) -> str:
-    """Drop the book's bold markers, which mean nothing to the model."""
-    return text.replace("**", "")
-
-
 def _free_form(context: EvaluateAnswerInput) -> bool:
     """Whether there is no list to match: open-ended, or the book records none."""
     return context.is_open_ended or not context.answers
@@ -108,8 +116,8 @@ def _questions(
             "type": "noul",
             "instructions": (
                 f"Does the student's answer match accepted answer {index}: short "
-                f'"{_plain(answer.short_answer)}" or full '
-                f'"{_plain(answer.full_answer)}"? {_EQUIVALENCE} {_TYPOS}'
+                f'"{book_text(answer.short_answer)}" or full '
+                f'"{book_text(answer.full_answer)}"? {_FORMS} {_EQUIVALENCE} {_TYPOS}'
             ),
         }
     return questions
@@ -193,14 +201,17 @@ def read_decision(
 
     is_correct = verdict > _YES
     # A match is only shown as what the student got right, so a wrong answer has none.
-    matched = (
-        []
+    chances = (
+        {}
         if _free_form(context) or not is_correct
-        else [
-            index
+        else {
+            index: chance
             for index in range(len(context.answers))
             if (chance := _probability(answers.get(match_key(index)))) is not None
-            and chance > _YES
-        ]
+        }
     )
+    matched = [index for index, chance in chances.items() if chance > _YES]
+    if not matched and chances:
+        # The verdict is yes, so the likeliest answer beats the first one shown.
+        matched = [max(chances, key=chances.__getitem__)]
     return EvaluateAnswerOutput(is_correct=is_correct, answer_idx=matched)

@@ -149,7 +149,7 @@ class TestDecisionRequest:
         assert list(questions) == [VERDICT_KEY, "matches_0", "matches_1"]
         assert all(question["type"] == "noul" for question in questions.values())
 
-    def test_a_match_question_quotes_its_answer_without_markup(
+    def test_a_match_question_quotes_its_answer_with_the_gap_marked(
         self, closed: EvaluateAnswerInput
     ) -> None:
         instructions = decision_request(closed, provider=GEMINI, model="m")[
@@ -157,7 +157,7 @@ class TestDecisionRequest:
         ]["matches_1"]["instructions"]
 
         assert '"\'s doing"' in instructions
-        assert '"He \'s doing his homework."' in instructions
+        assert '"He [\'s doing] his homework."' in instructions
         assert "**" not in instructions
 
     def test_the_closed_verdict_carries_the_equivalence_rules(
@@ -168,6 +168,7 @@ class TestDecisionRequest:
         ]
 
         assert "Contractions" in verdict["instructions"]
+        assert "bracketed gaps" in verdict["instructions"]
         assert set(verdict["criteria"]) == {"true_description", "false_description"}
 
     def test_an_open_question_asks_only_for_the_verdict(
@@ -190,6 +191,19 @@ class TestDecisionRequest:
 
         assert list(questions) == [VERDICT_KEY]
         assert "open-ended" in questions[VERDICT_KEY]["instructions"]
+
+    @pytest.mark.parametrize("key", [VERDICT_KEY, "matches_0"])
+    def test_the_book_notation_is_explained(
+        self, closed: EvaluateAnswerInput, key: str
+    ) -> None:
+        """Without it a multi-gap, letter or no-word answer reads as a mismatch."""
+        instructions = decision_request(closed, provider=GEMINI, model="m")[
+            "questions"
+        ][key]["instructions"]
+
+        assert "ellipsis" in instructions
+        assert "single letter" in instructions
+        assert "no word" in instructions
 
     def test_match_questions_forgive_unrelated_typos(
         self, closed: EvaluateAnswerInput
@@ -245,6 +259,19 @@ class TestReadDecision:
         reply = _reply(is_correct=0.88, matches_0=0.99)
 
         assert read_decision(reply, open_ended) == EvaluateAnswerOutput(is_correct=True)
+
+    def test_a_right_answer_with_no_sure_match_shows_the_likeliest(
+        self, closed: EvaluateAnswerInput
+    ) -> None:
+        """Falling back to the first answer could show one the student did not use."""
+        reply = _reply(is_correct=0.9, matches_0=0.2, matches_1=0.4)
+
+        assert read_decision(reply, closed).answer_idx == [1]
+
+    def test_a_right_answer_with_no_match_answers_shows_none(
+        self, closed: EvaluateAnswerInput
+    ) -> None:
+        assert read_decision(_reply(is_correct=0.9), closed).answer_idx == []
 
     def test_a_missing_match_answer_is_no_match(
         self, closed: EvaluateAnswerInput

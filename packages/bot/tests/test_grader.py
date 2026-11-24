@@ -83,6 +83,7 @@ async def _grade(
             user_input="he is doing",
             answers=answers,
             topic_name="Present Tenses",
+            unit_title="Present Continuous",
             image=PNG,
         )
     finally:
@@ -118,6 +119,7 @@ class TestTheRequest:
                 user_input="he is doing",
                 answers=answers,
                 topic_name="Present Tenses",
+                unit_title="Present Continuous",
             ),
             provider=provider,
             model=provider.decision_model,

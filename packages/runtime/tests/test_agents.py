@@ -8,6 +8,7 @@ import pytest
 from langchain_core.messages import HumanMessage
 from practice_core.grading import EvaluateAnswerInput
 from practice_core.models import QuestionAnswer
+from practice_core.prompts import DecisionPrompt
 from pydantic import BaseModel
 
 from practice_runtime.agents import BaseAgent
@@ -21,14 +22,16 @@ def _parts(msg: HumanMessage) -> list[dict]:
     return [part for part in msg.content if isinstance(part, dict)]
 
 
-def _context() -> EvaluateAnswerInput:
+def _context() -> DecisionPrompt:
     """A context the shared grading template fits."""
-    return EvaluateAnswerInput(
-        question_number="3",
-        user_input="is doing",
-        answers=[QuestionAnswer(short_answer="is doing", full_answer="He is.")],
-        is_open_ended=False,
-        topic_name="Present Tenses",
+    return DecisionPrompt.from_context(
+        EvaluateAnswerInput(
+            question_number="3",
+            user_input="is doing",
+            answers=[QuestionAnswer(short_answer="is doing", full_answer="He is.")],
+            is_open_ended=False,
+            topic_name="Present Tenses",
+        )
     )
 
 

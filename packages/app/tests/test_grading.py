@@ -41,6 +41,7 @@ class TestGrade:
             user_input="'s doing",
             answers=answers,
             topic_name="Present Tenses",
+            unit_title="Present Continuous",
             image=WEBP_BYTES,
         )
 
@@ -60,6 +61,7 @@ class TestGrade:
             user_input="do",
             answers=answers,
             topic_name="Present Tenses",
+            unit_title="Present Continuous",
         )
 
         assert verdict.is_correct is False
@@ -80,6 +82,7 @@ class TestGrade:
             user_input="is doing",
             answers=answers,
             topic_name="Present Tenses",
+            unit_title="Present Continuous",
             image=WEBP_BYTES,
         )
 
@@ -89,6 +92,7 @@ class TestGrade:
                 user_input="is doing",
                 answers=answers,
                 is_open_ended=False,
+                unit_title="Present Continuous",
                 topic_name="Present Tenses",
                 rule="Use present continuous",
             ),
@@ -109,6 +113,7 @@ class TestGrade:
             user_input="I am reading a book.",
             answers=[],
             topic_name="Present Tenses",
+            unit_title=None,
         )
 
         assert list(json.loads(sent[0].content)["questions"]) == ["is_correct"]
@@ -128,4 +133,5 @@ class TestGrade:
                 user_input="is doing",
                 answers=answers,
                 topic_name="Present Tenses",
+                unit_title="Present Continuous",
             )

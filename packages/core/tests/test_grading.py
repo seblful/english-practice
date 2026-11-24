@@ -63,6 +63,7 @@ class TestEvaluateAnswerInputForQuestion:
             user_input="is doing",
             answers=answers,
             topic_name="Present Tenses",
+            unit_title="Present Continuous",
         )
 
         assert context == EvaluateAnswerInput(
@@ -70,6 +71,7 @@ class TestEvaluateAnswerInputForQuestion:
             user_input="is doing",
             answers=answers,
             is_open_ended=question.is_open_ended,
+            unit_title="Present Continuous",
             topic_name="Present Tenses",
             rule=question.rule,
         )
@@ -79,7 +81,11 @@ class TestEvaluateAnswerInputForQuestion:
         open_ended = Question(id=9, question_id="3", is_open_ended=True)
 
         context = EvaluateAnswerInput.for_question(
-            open_ended, user_input="anything", answers=[], topic_name="Any"
+            open_ended,
+            user_input="anything",
+            answers=[],
+            topic_name="Any",
+            unit_title=None,
         )
 
         assert context.is_open_ended is True

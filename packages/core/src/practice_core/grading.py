@@ -29,6 +29,9 @@ class EvaluateAnswerInput(BaseModel):
     is_open_ended: bool = Field(
         default=False, description="Whether free-form answers are accepted"
     )
+    unit_title: str | None = Field(
+        default=None, description="Unit title, naming the grammar it practises"
+    )
     topic_name: str = Field(description="Topic, for context")
     rule: str | None = Field(default=None, description="Grammar rule, when known")
 
@@ -40,6 +43,7 @@ class EvaluateAnswerInput(BaseModel):
         user_input: str,
         answers: Sequence[QuestionAnswer],
         topic_name: str,
+        unit_title: str | None,
     ) -> Self:
         """Build the prompt context for an attempt at one question."""
         return cls(
@@ -47,6 +51,7 @@ class EvaluateAnswerInput(BaseModel):
             user_input=user_input,
             answers=list(answers),
             is_open_ended=question.is_open_ended,
+            unit_title=unit_title,
             topic_name=topic_name,
             rule=question.rule,
         )

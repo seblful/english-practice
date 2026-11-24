@@ -56,6 +56,7 @@ async def _grade(
             user_input=who.text,
             answers=active.answers,
             topic_name=active.topic_name,
+            unit_title=active.exercise.unit.title,
             image=active.image,
         )
     except AgentError as exc:
