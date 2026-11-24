@@ -1,7 +1,7 @@
 # practice-core
 
 The domain every front end shares: the content models, the SQL that creates the
-content tables, the queries that draw an exercise, the grading prompt, and how a
+content tables, the queries that draw an exercise, the grading request, and how a
 verdict is read back.
 
 Everything that decides *what* a correct answer is lives here. What differs
@@ -14,8 +14,9 @@ they draw a screen — deliberately does not.
 | `sqlite.py` | `SqliteStore`: running a statement against a SQLite file, off the event loop. Held by the library above, and by the bot's own table of authorized users. |
 | `schema.py` + `schema/content.sql` | The content tables. The pipeline builds a database from this, the bundler re-encodes one, and both front ends' tests build a scratch copy. |
 | `content.py` | `ContentLibrary`: the async queries, including `draw`, which hands back a question ready to be asked — exercise, picture and the book's answers together. |
-| `prompts.py` + `prompts/evaluate.j2` | The grading prompt. The one prompt that must not be written twice. |
-| `grading.py` | The grading call's input and output. The checks that keep a reply usable live on the output model itself, so neither front end can skip them. |
+| `decisions.py` | The two routes a decision request can take — Google AI Studio (default) and OpenRouter — and the body, in each one's format, of the call that grades one answer — one yes/no question for the verdict, one per accepted answer for `answer_idx` — and how its probabilities are read back into a verdict. Neither front end can grade differently. |
+| `prompts.py` + `prompts/decision.j2` | The text that sits beside the exercise image in that request. |
+| `grading.py` | The grading call's input and output. The checks that keep a verdict usable live on the output model itself. |
 | `feedback.py` | The plain-text half of showing an answer, shared so both front ends say the same thing. |
 | `reveal.py` | *Which* of the book's answers to show, and whether its whole sentence adds anything — one decision, two renderers. |
 | `lesson.py` | A run of questions: what is on screen, where it came from, and what a revealed answer earns. |

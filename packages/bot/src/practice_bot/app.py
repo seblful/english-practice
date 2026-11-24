@@ -6,7 +6,6 @@ from typing import Any
 
 from practice_core.content import ContentLibrary
 from practice_runtime.errors import ConfigurationError
-from practice_runtime.llm import get_llm
 from practice_runtime.logging import get_logger
 from practice_runtime.settings import secret_value
 from telegram import MenuButtonCommands
@@ -20,9 +19,9 @@ from practice_bot.context import (
     install_dependencies,
     load_dependencies,
 )
+from practice_bot.grader import DecisionGrader
 from practice_bot.handlers import build_handlers, report_error
 from practice_bot.repositories.database import AuthRepository
-from practice_bot.services.agent_service import AgentService
 from practice_bot.settings import Settings, get_settings
 from practice_bot.states import SessionStore
 
@@ -52,10 +51,7 @@ def build_dependencies(settings: Settings) -> BotDependencies:
     return BotDependencies(
         content=ContentLibrary(settings.paths.database_path),
         users=AuthRepository(settings.paths.database_path),
-        agents=AgentService(
-            get_llm(settings.llm),
-            max_history_messages=settings.bot.max_history_messages,
-        ),
+        grader=DecisionGrader(settings.decision),
         sessions=SessionStore(
             idle_ttl=timedelta(minutes=settings.bot.session_idle_ttl_minutes)
         ),
@@ -68,6 +64,11 @@ async def _prepare(application: BotApplication) -> None:
     await load_dependencies(application.bot_data).users.ensure_schema()
     await application.bot.set_my_commands(commands.menu())
     await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+
+
+async def _shutdown(application: BotApplication) -> None:
+    """Close the grader's connection pool."""
+    await load_dependencies(application.bot_data).grader.aclose()
 
 
 def build_application(
@@ -101,6 +102,7 @@ def build_application(
         .pool_timeout(telegram.pool_timeout)
         .concurrent_updates(telegram.concurrent_updates)
         .post_init(_prepare)
+        .post_shutdown(_shutdown)
         .build()
     )
 
@@ -121,7 +123,8 @@ def run(settings: Settings | None = None) -> None:
     logger.info(
         "bot_starting",
         environment=settings.app.environment,
-        provider=settings.llm.provider,
+        route=settings.decision.route,
+        grader=settings.decision.active_model,
         access_control=settings.telegram.admin_user_id is not None,
     )
     application.run_polling(

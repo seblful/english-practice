@@ -13,6 +13,7 @@ from practice_runtime.settings import (
     DashscopeSettings,
     GeminiSettings,
     LangSmithSettings,
+    LLMAppSettings,
     LLMProvider,
     LLMSettings,
     OpenRouterSettings,
@@ -25,8 +26,8 @@ from practice_runtime.settings import (
 )
 
 
-def _configured(**overrides: object) -> BaseAppSettings:
-    """Settings with a provider key in place, which is all the base requires."""
+def _configured(**overrides: object) -> LLMAppSettings:
+    """Settings with a provider key in place, which is all they require."""
     fields: dict[str, object] = {
         "llm": LLMSettings(
             provider="dashscope",
@@ -34,7 +35,7 @@ def _configured(**overrides: object) -> BaseAppSettings:
         )
     }
     fields.update(overrides)
-    return BaseAppSettings.model_validate(fields)
+    return LLMAppSettings.model_validate(fields)
 
 
 def test_settings_load_from_env_file(tmp_env_file: Path) -> None:
@@ -189,6 +190,23 @@ class TestMissingRequired:
 
         assert settings.missing_required() == []
 
+    def test_a_program_without_a_chat_model_needs_no_provider_key(self) -> None:
+        """The bot grades through a decision model, so no LLM_PROVIDER key."""
+        settings = BaseAppSettings()
+
+        assert settings.missing_required() == []
+        assert "llm" not in BaseAppSettings.model_fields
+
+    def test_the_missing_key_is_reported_first(self) -> None:
+        settings = _configured()
+        settings.llm.dashscope.api_key = None
+        settings.langsmith = LangSmithSettings(tracing=True, api_key=None)
+
+        problems = settings.missing_required()
+
+        assert "DASHSCOPE_API_KEY" in problems[0]
+        assert "LANGSMITH_API_KEY" in problems[1]
+
 
 class TestAppSettings:
     def test_a_deployment_wants_machine_readable_logs(self) -> None:
@@ -229,7 +247,7 @@ class TestSettingsEnvVars:
     ) -> None:
         monkeypatch.setenv("GEMINI_PROXY", "socks5://localhost:9050")
 
-        assert "GEMINI_PROXY" in settings_env_vars(BaseAppSettings)
+        assert "GEMINI_PROXY" in settings_env_vars(LLMAppSettings)
 
     def test_finds_a_nested_plain_model_variable(
         self, monkeypatch: pytest.MonkeyPatch

@@ -56,7 +56,7 @@ __all__ = [
     "text_field",
 ]
 
-# Three segments on a 360dp phone give ~85dp each, and "OpenRouter" wrapped.
+# Three segments on a 360dp phone give ~85dp each, and a ten-letter label wrapped.
 SEGMENT_LABEL_SIZE = 13
 
 # Every column in the app is built with this: see the module docstring.

@@ -1,24 +1,19 @@
-"""Grading one answer: render the shared prompt, call the model, read the verdict."""
+"""Grading one answer: build the shared context, ask the decision model."""
 
 from collections.abc import Sequence
 
-from practice_core.grading import (
-    EvaluateAnswerInput,
-    EvaluateAnswerOutput,
-    parse_evaluation,
-)
+from practice_core.grading import EvaluateAnswerInput, EvaluateAnswerOutput
 from practice_core.models import Question, QuestionAnswer
-from practice_core.prompts import render_evaluate_prompt
 
-from practice_app.llm import LLMClient
+from practice_app.decisions import DecisionClient
 
 __all__ = ["Grader"]
 
 
 class Grader:
-    """Asks the configured model whether an answer is right."""
+    """Asks the configured decision model whether an answer is right."""
 
-    def __init__(self, client: LLMClient) -> None:
+    def __init__(self, client: DecisionClient) -> None:
         """Initialize the grader."""
         self._client = client
 
@@ -32,12 +27,10 @@ class Grader:
         image: bytes | None = None,
     ) -> EvaluateAnswerOutput:
         """Grade one answer."""
-        prompt = render_evaluate_prompt(
-            EvaluateAnswerInput.for_question(
-                question,
-                user_input=user_input,
-                answers=answers,
-                topic_name=topic_name,
-            )
+        context = EvaluateAnswerInput.for_question(
+            question,
+            user_input=user_input,
+            answers=answers,
+            topic_name=topic_name,
         )
-        return parse_evaluation(await self._client.complete(prompt, image))
+        return await self._client.grade(context, image)

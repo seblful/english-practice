@@ -140,15 +140,6 @@ class TestSendExercise:
         # The draw already read the blob; the handler must not read it again.
         mock_context.content.get_exercise_image.assert_not_called()
 
-    async def test_resets_the_assistant_transcript(
-        self, mock_update: Mock, mock_context: Mock
-    ) -> None:
-        await exercises.send_exercise(
-            _interaction(mock_update), mock_context, topic=None
-        )
-
-        mock_context.agents.start_exercise.assert_called_once_with(USER_ID, 1)
-
     async def test_random_draw_labels_the_units_real_topic(
         self, mock_update: Mock, mock_context: Mock
     ) -> None:

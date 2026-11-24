@@ -24,7 +24,7 @@ def test_info_command_succeeds() -> None:
 
     assert result.exit_code == 0
     assert "english-practice" in result.output
-    assert "LLM provider:" in result.output
+    assert "Grader: gemini-decision-1 via Google AI Studio" in result.output
 
 
 def test_check_command_reports_problems(monkeypatch: pytest.MonkeyPatch) -> None:

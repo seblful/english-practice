@@ -2,11 +2,12 @@
 
 import httpx
 from practice_core.content import ContentLibrary
+from practice_core.decisions import DecisionRoute  # noqa: TC002
 
+from practice_app.catalogue import ModelInfo
 from practice_app.config import AppConfig, ConfigStore
+from practice_app.decisions import DecisionClient
 from practice_app.grading import Grader
-from practice_app.llm import LLMClient
-from practice_app.providers import ModelInfo, Provider
 from practice_app.stats import StatsStore
 
 __all__ = ["Services"]
@@ -30,41 +31,41 @@ class Services:
         self.stats = stats
         self._config = config if config is not None else config_store.load()
         self._transport = transport
-        self._client: LLMClient | None = None
+        self._client: DecisionClient | None = None
         # Closing a pool is a coroutine and staging is not, so they wait for an await.
-        self._retired: list[LLMClient] = []
+        self._retired: list[DecisionClient] = []
         # A catalogue costs a round trip, so a fetched one is kept for the run.
-        self._catalogues: dict[Provider, list[ModelInfo]] = {}
+        self._catalogues: dict[DecisionRoute, list[ModelInfo]] = {}
 
-    # --- Provider access ---
+    # --- Decision model access ---
 
     @property
-    def client(self) -> LLMClient:
-        """Return a provider client built from the settings now in force."""
+    def client(self) -> DecisionClient:
+        """Return a Decisions API client built from the settings now in force."""
         if self._client is not None and self._client.config is not self._config:
             self._retire_client()
         if self._client is None:
-            self._client = LLMClient(self._config, transport=self._transport)
+            self._client = DecisionClient(self._config, transport=self._transport)
         return self._client
 
     @property
     def grader(self) -> Grader:
-        """Return a grader on the current provider client."""
+        """Return a grader on the current client."""
         return Grader(self.client)
 
     async def models(self, *, refresh: bool = False) -> list[ModelInfo]:
-        """Return the current provider's catalogue, fetching it if needed."""
-        provider = self.config.provider
-        if refresh or provider not in self._catalogues:
-            self._catalogues[provider] = await self.client.list_models()
-        return self._catalogues[provider]
+        """Return the current route's catalogue, fetching it if needed."""
+        route = self.config.route
+        if refresh or route not in self._catalogues:
+            self._catalogues[route] = await self.client.list_models()
+        return self._catalogues[route]
 
     def cached_models(self) -> list[ModelInfo]:
-        """Return the current provider's catalogue if one was already fetched."""
-        return self._catalogues.get(self.config.provider, [])
+        """Return the current route's catalogue if one was already fetched."""
+        return self._catalogues.get(self.config.route, [])
 
     def model_info(self, model_id: str) -> ModelInfo | None:
-        """Return what is known about one model of the current provider."""
+        """Return what is known about one decision model of the current route."""
         return next(
             (model for model in self.cached_models() if model.id == model_id),
             None,
@@ -89,7 +90,7 @@ class Services:
         await self._close_retired()
 
     async def aclose(self) -> None:
-        """Release every provider connection pool this object opened."""
+        """Release every connection pool this object opened."""
         self._retire_client()
         await self._close_retired()
 

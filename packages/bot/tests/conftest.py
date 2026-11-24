@@ -20,6 +20,7 @@ from practice_runtime.settings import settings_env_vars
 from telegram import CallbackQuery, Message, Update, User
 
 from practice_bot.context import BotContext, BotDependencies
+from practice_bot.grader import DecisionGrader
 from practice_bot.models.auth import PendingUser
 from practice_bot.repositories.database import (
     AUTH_SCHEMA,
@@ -27,7 +28,6 @@ from practice_bot.repositories.database import (
     SCHEMA_DIR,
     AuthRepository,
 )
-from practice_bot.services.agent_service import AgentService
 from practice_bot.settings import Settings
 from practice_bot.states import SessionStore
 
@@ -274,15 +274,11 @@ def mock_users() -> AsyncMock:
 
 
 @pytest.fixture
-def mock_agents() -> AsyncMock:
-    """An agent service that grades everything correct."""
-    agents = AsyncMock(spec=AgentService)
-    agents.grader = Mock()
-    agents.grader.evaluate = AsyncMock(
-        return_value=EvaluateAnswerOutput(is_correct=True, answer_idx=[0])
-    )
-    agents.assist.return_value = Mock(answer="Here is some **help**")
-    return agents
+def mock_grader() -> AsyncMock:
+    """A grader that marks everything correct."""
+    grader = AsyncMock(spec=DecisionGrader)
+    grader.evaluate.return_value = EvaluateAnswerOutput(is_correct=True, answer_idx=[0])
+    return grader
 
 
 @pytest.fixture
@@ -295,14 +291,14 @@ def sessions() -> SessionStore:
 def dependencies(
     mock_content: AsyncMock,
     mock_users: AsyncMock,
-    mock_agents: AsyncMock,
+    mock_grader: AsyncMock,
     sessions: SessionStore,
 ) -> BotDependencies:
     """Dependencies with access control switched off."""
     return BotDependencies(
         content=mock_content,
         users=mock_users,
-        agents=mock_agents,
+        grader=mock_grader,
         sessions=sessions,
         admin_user_id=None,
     )
@@ -316,7 +312,7 @@ def mock_context(dependencies: BotDependencies) -> Mock:
     context.dependencies = dependencies
     context.content = dependencies.content
     context.users = dependencies.users
-    context.agents = dependencies.agents
+    context.grader = dependencies.grader
     context.sessions = dependencies.sessions
     context.start_exercise = dependencies.start_exercise
     context.forget_user = dependencies.forget_user

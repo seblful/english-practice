@@ -7,7 +7,6 @@ from collections.abc import Sequence
 __all__ = [
     "Html",
     "access_request",
-    "assistant_answer",
     "escape",
     "evaluation",
     "full_answers",
@@ -82,11 +81,6 @@ def rule_block(unit_reference: str, rule: str) -> Html:
 def unit_info(unit_number: int, title: str) -> Html:
     """Name the unit an exercise comes from."""
     return Html(f"📌 Unit <b>{unit_number}</b>\n<b>{escape(title)}</b>")
-
-
-def assistant_answer(answer: str) -> Html:
-    """Present the assistant's reply to a follow-up question."""
-    return Html(f"💬 {rich(answer)}")
 
 
 def access_request(full_name: str, username: str | None, telegram_id: int) -> Html:

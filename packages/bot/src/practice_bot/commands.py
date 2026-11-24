@@ -45,7 +45,6 @@ def help_text(*, include_admin: bool = False) -> Html:
     return Html(
         "🤖 <b>How this works</b>\n"
         "Pick a topic, read the exercise image, and send me your answer. "
-        "I grade it, show the book's answer, and can explain the grammar if "
-        "you ask a follow-up question.\n\n"
+        "I grade it, then show the book's answer and the rule behind it.\n\n"
         "<b>Commands</b>\n" + "\n".join(lines)
     )

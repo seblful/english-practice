@@ -1,20 +1,17 @@
-"""The grading contract: what the model is asked, and how the answer is read."""
+"""The grading contract: what an attempt carries, and what a verdict holds."""
 
-import json
-from collections.abc import Mapping, Sequence
-from typing import Any, Self
+from collections.abc import Sequence
+from typing import Self
 
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, field_validator
 
-from practice_core.errors import GradingError
 from practice_core.models import Question, QuestionAnswer
 
 __all__ = [
+    "NO_VERDICT_MESSAGE",
     "EvaluateAnswerInput",
     "EvaluateAnswerOutput",
     "answers_to_show",
-    "extract_json",
-    "parse_evaluation",
 ]
 
 # Shown to the student, so it says what happened rather than naming a field.
@@ -91,15 +88,6 @@ class EvaluateAnswerOutput(BaseModel):
             if isinstance(index, int) and not isinstance(index, bool) and index >= 0
         ]
 
-    @classmethod
-    def from_payload(cls, payload: Mapping[str, Any]) -> Self:
-        """Build a verdict from a decoded reply."""
-        try:
-            return cls.model_validate(dict(payload))
-        except ValidationError as exc:
-            # ``is_correct`` is the only field that can fail; the rest are emptied.
-            raise GradingError(NO_VERDICT_MESSAGE) from exc
-
 
 def answers_to_show(
     answers: Sequence[QuestionAnswer], matched_indexes: Sequence[int]
@@ -109,31 +97,3 @@ def answers_to_show(
         answers[index] for index in matched_indexes if 0 <= index < len(answers)
     )
     return matched or tuple(answers[:1])
-
-
-def extract_json(text: str) -> dict[str, Any]:
-    """Return the JSON object a model replied with."""
-    candidate = text.strip()
-    if candidate.startswith("```"):
-        # Drop the opening fence with its optional language tag, then the close.
-        candidate = candidate.split("\n", 1)[1] if "\n" in candidate else ""
-        candidate = candidate.rsplit("```", 1)[0].strip()
-
-    start = candidate.find("{")
-    end = candidate.rfind("}")
-    if start != -1 and end > start:
-        candidate = candidate[start : end + 1]
-
-    try:
-        parsed = json.loads(candidate)
-    except json.JSONDecodeError as exc:
-        raise GradingError("The model's reply was not valid JSON.") from exc
-
-    if not isinstance(parsed, dict):
-        raise GradingError("The model replied with JSON, but not an object.")
-    return parsed
-
-
-def parse_evaluation(reply: str) -> EvaluateAnswerOutput:
-    """Read a verdict out of a model's raw reply."""
-    return EvaluateAnswerOutput.from_payload(extract_json(reply))

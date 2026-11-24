@@ -11,11 +11,12 @@ from typing import Any
 import httpx
 import pytest
 from practice_core.content import ContentLibrary
+from practice_core.decisions import DecisionRoute
 from practice_core.models import Question, QuestionAnswer
 from practice_core.schema import create_content_schema
 
-from practice_app.config import AppConfig, ConfigStore, ProviderConfig
-from practice_app.providers import ModelInfo, Provider, ThinkingLevel
+from practice_app.catalogue import ModelInfo
+from practice_app.config import AppConfig, ConfigStore, RouteConfig
 from practice_app.services import Services
 from practice_app.stats import StatsStore
 
@@ -179,21 +180,21 @@ def config_store(tmp_path: Path) -> ConfigStore:
 
 @pytest.fixture
 def config() -> AppConfig:
-    """Settings that are ready to grade, on OpenRouter."""
+    """Settings that are ready to grade, on OpenRouter, with Google set up too."""
     return AppConfig(
-        provider=Provider.OPENROUTER,
-        providers={
-            provider: ProviderConfig(
-                api_key="test-key",
-                model="vendor/model",
-                thinking=ThinkingLevel.OFF,
-            )
-            for provider in Provider
+        route=DecisionRoute.OPENROUTER,
+        routes={
+            DecisionRoute.OPENROUTER: RouteConfig(
+                api_key="test-key", model="gemini-decision-test"
+            ),
+            DecisionRoute.GOOGLE: RouteConfig(
+                api_key="google-key", model="gemini-decision-test"
+            ),
         },
     )
 
 
-# --- Provider calls ---
+# --- Decisions API calls ---
 
 
 def json_transport(
@@ -203,17 +204,31 @@ def json_transport(
     return httpx.MockTransport(handler)
 
 
+def decision(
+    is_correct: bool, matched: tuple[int, ...] = (), *, answers: int = 2
+) -> dict[str, Any]:
+    """Return a Decisions API reply: a verdict, and one match per accepted answer."""
+
+    def noul(yes: bool) -> dict[str, Any]:
+        chance = 0.97 if yes else 0.03
+        return {"type": "noul", "noul": chance, "confidence": 0.97}
+
+    replies = {"is_correct": noul(is_correct)}
+    replies.update(
+        {f"matches_{index}": noul(index in matched) for index in range(answers)}
+    )
+    return {"answers": replies, "usage": {"total_tokens": 42}}
+
+
 def reply_transport(
-    text: str, *, status: int = 200, record: list[httpx.Request] | None = None
+    payload: Any, *, status: int = 200, record: list[httpx.Request] | None = None
 ) -> httpx.MockTransport:
-    """Return a transport that answers every request with one chat reply."""
+    """Return a transport that answers every request with one JSON body."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         if record is not None:
             record.append(request)
-        return httpx.Response(
-            status, json={"choices": [{"message": {"content": text}}]}
-        )
+        return httpx.Response(status, json=payload)
 
     return httpx.MockTransport(handler)
 
@@ -231,7 +246,7 @@ def services(
         content=content,
         stats=stats,
         config=config,
-        transport=reply_transport('{"is_correct": true, "answer_idx": [0]}'),
+        transport=reply_transport(decision(is_correct=True, matched=(0,))),
     )
 
 
@@ -258,32 +273,25 @@ def answers() -> list[QuestionAnswer]:
 
 @pytest.fixture
 def catalogue() -> list[ModelInfo]:
-    """A small model catalogue covering every badge the picker shows."""
+    """A small decision-model catalogue covering every badge the picker shows."""
     return [
         ModelInfo(
-            id="vendor/model",
-            name="Vendor Model",
-            description="A vision model that reasons.",
+            id="gemini-decision-test",
+            name="Gemini Decision Test",
+            description="Reads the exercise picture.",
             context_length=1_048_576,
-            supports_thinking=True,
-            supports_images=True,
-            supports_json=True,
-            prompt_price=0.0000005,
-            completion_price=0.0000015,
         ),
         ModelInfo(
-            id="vendor/text-only",
-            name="Vendor Text",
-            description="Text in, text out.",
+            id="gemini-decision-lite",
+            name="Gemini Decision Lite",
+            description="Smaller and quicker.",
             context_length=8_192,
-            prompt_price=0.0,
-            completion_price=0.0,
         ),
         ModelInfo(
-            id="other/thinker",
-            name="Other Thinker",
-            description="Reasons, but takes no pictures.",
+            id="gemini-decision-text",
+            name="Gemini Decision Text",
+            description="Text only: takes no pictures.",
             context_length=200_000,
-            supports_thinking=True,
+            supports_images=False,
         ),
     ]

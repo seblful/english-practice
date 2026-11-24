@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from practice_runtime.settings import BaseAppSettings, load_settings, secret_value
+from practice_runtime.settings import LLMAppSettings, load_settings, secret_value
 from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -50,7 +50,7 @@ class OcrSettings(BaseSettings):
     model: str = DEFAULT_OCR_MODEL
 
 
-class Settings(BaseAppSettings):
+class Settings(LLMAppSettings):
     """Everything the pipeline needs to run."""
 
     book: BookSettings = Field(default_factory=BookSettings)

@@ -1,7 +1,7 @@
 # English Practice — Android app
 
 The bot's practice loop as a phone app. It draws an exercise from *English
-Grammar in Use* (Murphy), grades what you type with a vision LLM, then shows
+Grammar in Use* (Murphy), grades what you type with a decision model (Gemini Decision, through OpenRouter or Google AI Studio), then shows
 the book's answer and the rule behind it — and keeps a record of how you are
 doing.
 
@@ -79,44 +79,49 @@ Three tabs:
 | :-- | :----------- |
 | **Practice** | Between lessons: the day's streak and goal, the last topic again, and every topic with your tally on it. Inside one: ten questions, a progress bar, and a way out that asks first — including Android's Back. Tap the image to pinch-zoom it full screen. Answer, or reveal the answer without grading — a reveal spends the question but never counts as correct. |
 | **Progress** | Accuracy, the current and best run of correct answers, today's tally, a day streak, the last seven days, and a per-topic breakdown. Resettable. |
-| **Settings** | One column of panels, in the order they matter: provider and key, model, reasoning, practice and theme — then the proxy and the sampling controls, folded away behind headings that say what they are set to. |
+| **Settings** | One column of panels, in the order they matter: the grading route and its key, the decision model, practice and theme — then the proxy and the request timeout, folded away behind headings that say what they are set to. |
 
 Everything the app shares with the bot — the models, the queries, the grading
-prompt, the content schema — comes from `practice-core`. Everything else here
+request, the content schema — comes from `practice-core`. Everything else here
 is the phone.
 
 ## Configuration
 
 Everything is set in the app; there is no env file on a phone.
 
-**Provider.** OpenRouter, Google Gemini or OpenAI. Each keeps its own key,
-model and thinking level, so switching between them to compare graders costs
-nothing. Keys are stored in the app's private storage and are sent only to the
-provider they belong to.
+**Grading service.** Answers are graded by a *decision model*, which answers
+yes/no questions with calibrated probabilities instead of text. Two routes reach
+one, each with its own key and model, so switching between them costs nothing:
 
-**Model.** Tap the model row to fetch the provider's catalogue and search it.
-The list shows what each model can do — `vision`, `thinking`, context window,
-price per million tokens — and filters by those. OpenRouter reports its own
-capabilities, so those badges are exact; OpenAI publishes no capability data at
-all, so they are inferred from the model id.
+| Route | Key from | Default model |
+| :---- | :------- | :------------ |
+| **Google AI Studio** (default; has a free tier) | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | `gemini-decision-1` |
+| **OpenRouter** | [openrouter.ai/keys](https://openrouter.ai/keys) | `google/gemini-decision-1` |
 
-A fresh install starts on each provider's newest mid-tier vision model —
-`google/gemini-3.8-flash`, `gemini-3.8-flash`, `gpt-5.6-terra` — because every
-exercise is a picture and grading one sentence is too short a call to be worth
-a flagship's price. An install still carrying an *older* release's default is
-moved to the current one on load: that model was never a choice anyone made.
-A model you picked yourself is never touched.
+Keys are stored in the app's private storage and sent only to the route they
+belong to. *Test connection* asks the selected model one trivial question to
+prove the key and model work.
 
-> Every exercise is a picture, so pick a model that accepts images. The picker
-> filters to those by default, and the settings screen says so plainly when the
-> selected model cannot.
+**Model.** Tap the model row to list the route's decision models; Gemini
+Decision 1 is always offered, even when the listing leaves it out. OpenRouter's
+catalogue is public and filtered to models that output decisions; an entry
+whose input modalities include `image` is badged `vision`. Google lists no
+modalities, so its decision models are taken to accept images, as Google
+documents for Gemini Decision 1. The picker filters to `vision` models by
+default, and the settings screen says so plainly when the selected model is
+known not to take images.
 
-**Thinking level.** One scale — Off, Minimal, Low, Medium, High, and Auto on
-Gemini — translated per provider: `reasoning.effort` on OpenRouter,
-`reasoning_effort` on OpenAI, a `thinkingBudget` on Gemini. Only the levels the
-provider and the chosen model actually support are offered, and the reasoning
-allowance is added *on top of* the answer's token limit, so a model told to
-think hard never spends the whole budget thinking and returns nothing.
+> The bundled exercise images are WebP. Gemini Decision accepts WebP, but some
+> other OpenRouter decision models take only PNG or JPEG, and the app does not
+> convert. Such a model fails with OpenRouter's own message (an HTTP 400) —
+> pick another.
+
+**Upgrading.** Settings from an earlier release are migrated on load. From the
+chat-provider release, the OpenRouter and Gemini keys move to the OpenRouter
+and Google routes (the OpenAI key is dropped), and a chat model gives way to
+the route's default. From the Google-only release, the key and model move to
+the Google route. Either way the app starts on Google, unless OpenRouter is
+the only route with a key.
 
 **Proxy.** Optional, HTTP/HTTPS/SOCKS5, with optional username and password.
 Credentials are percent-encoded, so an `@` in a password does not silently
@@ -201,17 +206,18 @@ main.py                    builds the dependencies, hands them to the shell
   │     └── page.py        the slice of ft.Page the screens depend on
   ├── practice_app/session.py    the lesson in progress, and its outcomes
   ├── practice_app/services.py   the one object every screen is handed
-  ├── practice_app/llm.py        three provider adapters over httpx
-  ├── practice_app/providers.py  providers, thinking levels, their translation
-  ├── practice_app/config.py     settings, and the JSON file they live in
+  ├── practice_app/decisions.py  the decision client over httpx, per route
+  ├── practice_app/catalogue.py  each route's decision models, from its listing
+  ├── practice_app/config.py     settings, the JSON file, its migration
   ├── practice_app/stats.py      one row per graded answer, in SQLite
   ├── practice_app/storage.py    where files live; unpacking the bundled book
   └── practice_core        ← shared with the Telegram bot
         ├── models.py      units, exercises, questions, answers
         ├── schema.py      the tables those models are read from
         ├── content.py     the queries that draw an exercise
-        ├── prompts.py     the grading prompt
-        └── grading.py     the verdict, and how it is read back
+        ├── prompts.py     the text sent beside the exercise image
+        ├── decisions.py   the questions asked, and the verdict read back
+        └── grading.py     what an attempt carries, and what a verdict holds
 ```
 
 The rules that decide whether an answer is *correct* are not in this project.
@@ -224,9 +230,9 @@ Two deliberate absences:
 - **No LLM SDK, and no `practice-runtime`.** LangChain's dependency tree does
   not fit in an APK, so the bot's shared runtime — settings, logging, the chat
   client — is not a dependency of this package. The useful part of it here is
-  five HTTP calls, and `practice_app/llm.py` is those calls. Each adapter
-  returns its request as data, which is what lets a test assert exactly what a
-  given setting sends.
+  three HTTP calls, and `practice_app/decisions.py` is those calls. Each is
+  built as data first, which is what lets a test assert exactly what a given
+  setting sends.
 - **No message history.** There is nothing to store, and nothing to trim. The
   lesson is not stored either: which question is open is worth one tap to
   redraw, while the answers, which are worth keeping, go straight into
@@ -235,7 +241,7 @@ Two deliberate absences:
 ## Working on it
 
 ```bash
-uv run pytest        # 380 tests, 95% coverage gate
+uv run pytest        # 410 tests, 95% coverage gate
 uv run ty check
 uv run ruff check . && uv run ruff format .
 ```

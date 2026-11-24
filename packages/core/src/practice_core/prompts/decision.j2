@@ -1,0 +1,19 @@
+The picture is a page from Raymond Murphy's English Grammar in Use. A student answered one numbered question of the exercise on it.
+
+Topic: {{ topic_name }}
+Question: {{ question_number }}
+Question type: {% if is_open_ended or not answers %}open-ended - any answer that uses the target grammar correctly is accepted{% else %}closed - the book lists the accepted answers{% endif %}
+
+{% if rule %}
+Grammar rule:
+{{ rule }}
+
+{% endif %}
+{% if not is_open_ended and answers %}
+Accepted answers, each as the missing words (short) and as the whole sentence (full):
+{% for a in answers %}
+{{ loop.index0 }}. short: "{{ a.short_answer | replace("**", "") }}" | full: "{{ a.full_answer | replace("**", "") }}"
+{% endfor %}
+
+{% endif %}
+Student's answer: "{{ user_input }}"

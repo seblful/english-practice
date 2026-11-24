@@ -1,6 +1,6 @@
 [project]
 name = "practice-core"
-description = "Shared domain for English Practice: content models, exercise queries, the content schema, and the grading prompt."
+description = "Shared domain for English Practice: content models, exercise queries, the content schema, and the grading request."
 readme = "README.md"
 requires-python = ">=3.13"
 version = "0.1.0"

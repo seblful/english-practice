@@ -368,6 +368,7 @@ name = "english-practice-bot"
 version = "0.1.0"
 source = { editable = "packages/bot" }
 dependencies = [
+    { name = "httpx" },
     { name = "practice-core" },
     { name = "practice-runtime" },
     { name = "python-telegram-bot" },
@@ -385,6 +386,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "practice-core", editable = "packages/core" },
     { name = "practice-runtime", editable = "packages/runtime" },
     { name = "python-telegram-bot", specifier = ">=21.0" },

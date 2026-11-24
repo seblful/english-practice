@@ -1,9 +1,10 @@
 # English Practice — Telegram bot
 
 Practise English grammar in a chat. The bot sends an exercise from *English
-Grammar in Use* (Murphy), grades what you type with a vision LLM, shows the
-book's answer and the rule behind it, and answers follow-up questions about the
-exercise.
+Grammar in Use* (Murphy), grades what you type with a decision model — Gemini
+Decision 1 through Google AI Studio by default — and
+shows the book's answer and the rule behind it. A message sent after the verdict
+is not graded again: the bot points at the next exercise.
 
 ## How it works
 
@@ -15,12 +16,12 @@ handlers/*          one module per feature; access control is a decorator
       │
       ├── content     the book, from `practice-core`
       ├── users       who may use the bot, this package's own table
-      ├── agents      LLM calls: grade an answer, explain an exercise
+      ├── grader      the decision request that grades an answer
       ├── states      what each user is working on, in memory
       └── formatter   domain objects → Telegram HTML
 ```
 
-Layers only depend downwards. Handlers never construct a repository or an LLM
+Layers only depend downwards. Handlers never construct a repository or an HTTP
 client: `app.py` builds one of each at startup and hands them to every handler
 through the context (`context.py`), which is what makes the handlers testable
 without patching module globals.
@@ -35,26 +36,25 @@ tests re-asserted thirteen of them.
 | :----- | :------------- |
 | `cli.py` | The entry point: `info`, `check`, `bot` |
 | `app.py` | Builds the application, wires dependencies, starts polling |
-| `context.py` | `BotDependencies` and the `BotContext` handlers receive: the book, the users, the agents, the sessions |
+| `context.py` | `BotDependencies` and the `BotContext` handlers receive: the book, the users, the grader, the sessions |
 | `handlers/` | `access` (authorization + the handler decorator), `menu`, `exercises`, `answers`, `admin`, `errors` |
 | `callbacks.py` | Typed inline-button payloads, encode and parse in one place |
 | `states.py` | `SessionStore`: the active exercise per user, with idle eviction |
 | `formatter.py` | Message text, with HTML escaping. Returns `Html`, so a reply carries its own parse mode |
 | `keyboards.py` | Inline keyboards built from domain objects |
 | `repositories/database.py` | `AuthRepository`: who may use the bot, and the table that records it |
-| `services/agent_service.py` | Owns the chat-model client and the assistant transcripts |
-| `agents/` | One class per prompt: `evaluate`, `assistant` |
-| `models/` | `auth` (who may use the bot), `agents` (LLM I/O) |
-| `settings.py` | The shared groups, plus Telegram |
+| `grader.py` | `DecisionGrader`: posts the request `practice-core` builds to OpenRouter or Google AI Studio over httpx, retries transient failures, reads the verdict back |
+| `models/` | `auth` (who may use the bot) |
+| `settings.py` | The shared groups, plus Telegram and the decision model |
 
 ## What the bot does not own
 
 | Not here | Where | Why |
 | :------- | :---- | :-- |
 | Units, exercises, questions, answers | `practice-core` | The Android app reads the same book, so the models and the queries are shared. |
-| The grading prompt and the verdict | `practice-core` | Both front ends grade the same book; a rule written twice is a rule that will diverge. |
+| The decision request and the verdict | `practice-core` | Both front ends grade the same book; a rule written twice is a rule that will diverge. |
 | The content schema | `practice-core` | The only code that queries those tables ships it. |
-| Settings, logging, the chat-model client, `BaseAgent` | `practice-runtime` | The content pipeline needs all four too. |
+| Settings, logging, tracing | `practice-runtime` | The content pipeline needs them too. |
 | Building the database, and bundling it for the phone | `english-practice-extraction` | A build tool, not part of a running bot — which is why this package's container carries no OpenCV. |
 
 What *is* the bot's: Telegram, and its own idea of who may use it. The
@@ -70,7 +70,7 @@ uv run english-practice bot      # run until Ctrl+C
 ```
 
 `uv run scripts/bot.py` does the same. `english-practice info` prints the
-version, environment, provider and database path.
+version, environment, decision model and route, and database path.
 
 ### Configuration
 
@@ -83,8 +83,9 @@ choose which `.env.<environment>` is loaded; a missing file is ignored.
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
 TELEGRAM_ADMIN_USER_ID=your_telegram_user_id   # required; approves new users
-LLM__PROVIDER=dashscope                        # dashscope | gemini | openrouter
-DASHSCOPE_API_KEY=your_key                     # key for the chosen provider
+DECISION_ROUTE=google                          # google (default; has a free tier) | openrouter
+GEMINI_API_KEY=your_key                        # or OPENROUTER_API_KEY for the openrouter route
+DECISION_MODEL=gemini-decision-1               # optional; any decision model that takes images
 LANGSMITH_API_KEY=your_key                     # optional, for tracing
 LANGSMITH_TRACING=false
 PATHS_DATABASE_PATH=data/content/english_practice.db
@@ -93,11 +94,14 @@ PATHS_DATABASE_PATH=data/content/english_practice.db
 `english-practice check` reports every missing setting at once, and the bot
 refuses to start rather than failing on the first user who says hello.
 
-Other groups: `BOT_*` (history cap, session TTL), `LLM_REQUEST_TIMEOUT`,
-`LLM_MAX_RETRIES`, `LOGGING__*`. API keys are held as `SecretStr`, so they do
+Unset, `DECISION_MODEL` is Gemini Decision 1 under the route's own id
+(`google/gemini-decision-1` or `gemini-decision-1`).
+
+Other groups: `BOT_*` (session TTL), `DECISION_REQUEST_TIMEOUT`,
+`DECISION_MAX_RETRIES`, `DECISION_PROXY`, `LOGGING__*`. API keys are held as `SecretStr`, so they do
 not appear in logs or reprs.
 
-> Note: settings groups are prefixed (`PATHS_`, `LLM_`, `TELEGRAM_`, `BOT_`).
+> Note: settings groups are prefixed (`PATHS_`, `DECISION_`, `TELEGRAM_`, `BOT_`).
 > `DATABASE_PATH` is still accepted as a legacy alias. `.env` files cannot
 > carry inline comments — `KEY=value  # comment` makes the comment part of the
 > value.
@@ -128,6 +132,7 @@ uv run ruff check . && uv run ruff format .
 ```
 
 The tests mirror the layers: handler tests drive the real `SessionStore` with
-a mocked book and agent service, and the authorization tests run against a real
+a mocked book and grader, the grader's tests run against a scripted
+httpx transport, and the authorization tests run against a real
 SQLite file built from both schemas. The content queries are not re-tested
 here; `practice-core` owns them.

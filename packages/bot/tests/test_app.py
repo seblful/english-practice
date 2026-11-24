@@ -5,28 +5,24 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from langchain_core.language_models.chat_models import BaseChatModel
 from practice_runtime.errors import ConfigurationError
-from practice_runtime.settings import (
-    DashscopeSettings,
-    LangSmithSettings,
-    LLMSettings,
-    PathSettings,
-)
+from practice_runtime.settings import LangSmithSettings, PathSettings
 from pydantic import SecretStr
 from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
 
 from practice_bot import commands
 from practice_bot.app import (
     _prepare,
+    _shutdown,
     build_application,
     build_dependencies,
     configure_tracing,
     run,
 )
 from practice_bot.context import BotContext, BotDependencies, install_dependencies
+from practice_bot.grader import DecisionGrader
 from practice_bot.handlers import build_handlers
-from practice_bot.settings import Settings, TelegramSettings
+from practice_bot.settings import DecisionSettings, Settings, TelegramSettings
 
 
 @pytest.fixture
@@ -36,10 +32,7 @@ def runnable_settings(tmp_path: Path) -> Settings:
     database.touch()
     return Settings(
         telegram=TelegramSettings(bot_token=SecretStr("123:abc"), admin_user_id=7),
-        llm=LLMSettings(
-            provider="dashscope",
-            dashscope=DashscopeSettings(api_key=SecretStr("key")),
-        ),
+        decision=DecisionSettings(google_api_key=SecretStr("key")),
         paths=PathSettings(database_path=database),
     )
 
@@ -105,16 +98,16 @@ class TestBuildApplication:
 class TestBuildDependencies:
     """Tests for building the collaborators from settings."""
 
-    def test_wires_settings_into_the_dependencies(
-        self, runnable_settings: Settings, monkeypatch: pytest.MonkeyPatch
+    async def test_wires_settings_into_the_dependencies(
+        self, runnable_settings: Settings
     ) -> None:
-        monkeypatch.setattr(
-            "practice_bot.app.get_llm",
-            lambda _config: Mock(spec=BaseChatModel),
-        )
+        runnable_settings.decision.model = "microsoft/microsoft-decision-1.1"
 
         dependencies = build_dependencies(runnable_settings)
+        await dependencies.grader.aclose()
 
+        assert isinstance(dependencies.grader, DecisionGrader)
+        assert dependencies.grader.model == "microsoft/microsoft-decision-1.1"
         assert dependencies.admin_user_id == 7
         assert dependencies.users.db_path == runnable_settings.paths.database_path
         assert dependencies.content.db_path == runnable_settings.paths.database_path
@@ -181,6 +174,27 @@ class TestPrepare:
         await _prepare(application)
 
         mock_users.ensure_schema.assert_awaited_once()
+
+
+class TestShutdown:
+    """Tests for what happens once, after the last update."""
+
+    async def test_closes_the_grader(
+        self, stub_dependencies: BotDependencies, mock_grader: AsyncMock
+    ) -> None:
+        application = Mock(bot_data={})
+        install_dependencies(application.bot_data, stub_dependencies)
+
+        await _shutdown(application)
+
+        mock_grader.aclose.assert_awaited_once()
+
+    def test_is_registered_on_the_application(
+        self, runnable_settings: Settings, stub_dependencies: BotDependencies
+    ) -> None:
+        application = build_application(runnable_settings, stub_dependencies)
+
+        assert application.post_shutdown is _shutdown
 
 
 class TestRun:

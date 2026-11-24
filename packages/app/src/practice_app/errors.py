@@ -17,4 +17,4 @@ __all__ = [
 
 
 class ProviderError(PracticeError):
-    """A call to the LLM provider failed or returned something unusable."""
+    """A call to the grading service failed or returned something unusable."""

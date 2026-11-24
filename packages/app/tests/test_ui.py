@@ -8,15 +8,11 @@ import flet as ft
 import httpx
 import pytest
 from practice_core.content import ContentLibrary
+from practice_core.decisions import DecisionRoute
 from practice_core.models import Topic
 
+from practice_app.catalogue import ModelInfo
 from practice_app.config import AppConfig, ConfigStore, ProxyConfig, ThemeChoice
-from practice_app.providers import (
-    ModelInfo,
-    Provider,
-    ThinkingLevel,
-    supported_thinking_levels,
-)
 from practice_app.services import Services
 from practice_app.session import Lesson
 from practice_app.stats import Attempt, DayStat, StatsStore, StatsSummary, TopicStat
@@ -48,7 +44,7 @@ from practice_app.ui.screen import Screen
 from practice_app.ui.settings_view import SettingsScreen
 from practice_app.ui.stats_view import StatsScreen
 from practice_app.ui.theme import CORRECT, ON_CORRECT, build_theme, theme_mode
-from tests.conftest import FakePage, reply_transport
+from tests.conftest import FakePage, decision, reply_transport
 
 
 def texts(control: Any) -> list[str]:
@@ -233,7 +229,7 @@ def wrong_services(
         content=content,
         stats=stats,
         config=config,
-        transport=reply_transport('{"is_correct": false, "answer_idx": []}'),
+        transport=reply_transport(decision(is_correct=False)),
     )
 
 
@@ -1300,40 +1296,29 @@ class TestVisibleModels:
         assert visible_models(catalogue, "") == catalogue
 
     def test_the_search_narrows(self, catalogue: list[ModelInfo]) -> None:
-        assert [m.id for m in visible_models(catalogue, "vendor")] == [
-            "vendor/model",
-            "vendor/text-only",
+        assert [m.id for m in visible_models(catalogue, "lite")] == [
+            "gemini-decision-lite"
         ]
 
     def test_vision_only(self, catalogue: list[ModelInfo]) -> None:
         assert [m.id for m in visible_models(catalogue, "", vision_only=True)] == [
-            "vendor/model"
-        ]
-
-    def test_thinking_only(self, catalogue: list[ModelInfo]) -> None:
-        assert [m.id for m in visible_models(catalogue, "", thinking_only=True)] == [
-            "vendor/model",
-            "other/thinker",
-        ]
-
-    def test_free_only(self, catalogue: list[ModelInfo]) -> None:
-        assert [m.id for m in visible_models(catalogue, "", free_only=True)] == [
-            "vendor/text-only"
+            "gemini-decision-test",
+            "gemini-decision-lite",
         ]
 
     def test_filters_combine(self, catalogue: list[ModelInfo]) -> None:
-        assert visible_models(catalogue, "", vision_only=True, free_only=True) == []
+        assert visible_models(catalogue, "text", vision_only=True) == []
 
 
 class TestModelPicker:
     def _picker(
-        self, catalogue: list[ModelInfo], selected: str = "vendor/model"
+        self, catalogue: list[ModelInfo], selected: str = "gemini-decision-test"
     ) -> tuple[ModelPicker, list[ModelInfo], list[int]]:
         """Return a picker and the lists its callbacks append to."""
         picked: list[ModelInfo] = []
         refreshed: list[int] = []
         picker = ModelPicker(
-            provider_label="OpenRouter",
+            title="OpenRouter decision models",
             models=catalogue,
             selected=selected,
             on_select=picked.append,
@@ -1347,10 +1332,22 @@ class TestModelPicker:
         picker, _, _ = self._picker(catalogue)
 
         body = rendered(picker)
-        assert "Vendor Model" in body
+        assert "OpenRouter decision models" in body
+        assert "Gemini Decision Test" in body
         assert "vision" in body
-        assert "thinking" in body
         assert "1M context" in body
+
+    def test_only_the_vision_filter_is_offered(
+        self, catalogue: list[ModelInfo]
+    ) -> None:
+        """A decision model has no thinking level and no per-token price list."""
+        picker, _, _ = self._picker(catalogue)
+
+        chips = [chip.label for chip in _all(picker.content, ft.Chip)]
+        assert len(chips) == 1
+        assert "Vision" in rendered(chips)
+        assert "thinking" not in rendered(picker)
+        assert "free" not in rendered(picker)
 
     def test_the_vision_filter_starts_on_when_the_data_supports_it(
         self, catalogue: list[ModelInfo]
@@ -1358,16 +1355,17 @@ class TestModelPicker:
         picker, _, _ = self._picker(catalogue)
 
         assert picker._vision.selected is True
+        assert "Gemini Decision Text" not in rendered(picker)
 
     def test_searching_narrows_the_list(self, catalogue: list[ModelInfo]) -> None:
         picker, _, _ = self._picker(catalogue)
         picker._vision.selected = False
-        picker._search.value = "thinker"
+        picker._search.value = "text"
 
         picker._refilter()
 
-        assert "Other Thinker" in rendered(picker)
-        assert "Vendor Text" not in rendered(picker)
+        assert "Gemini Decision Text" in rendered(picker)
+        assert "Gemini Decision Lite" not in rendered(picker)
 
     def test_a_search_with_no_matches_says_so(self, catalogue: list[ModelInfo]) -> None:
         picker, _, _ = self._picker(catalogue)
@@ -1380,11 +1378,11 @@ class TestModelPicker:
     def test_a_long_catalogue_is_capped(self) -> None:
         """Building five hundred rows per keystroke is what feels broken."""
         many = [
-            ModelInfo(id=f"vendor/model-{index:03d}", name=f"Model {index}")
+            ModelInfo(id=f"gemini-decision-{index:03d}", name=f"Model {index}")
             for index in range(MAX_RESULTS + 20)
         ]
         picker = ModelPicker(
-            provider_label="OpenRouter",
+            title="OpenRouter decision models",
             models=many,
             selected="",
             on_select=lambda _: None,
@@ -1396,11 +1394,11 @@ class TestModelPicker:
 
     def test_one_hidden_match_is_counted_in_the_singular(self) -> None:
         many = [
-            ModelInfo(id=f"vendor/model-{index:03d}", name=f"Model {index}")
+            ModelInfo(id=f"gemini-decision-{index:03d}", name=f"Model {index}")
             for index in range(MAX_RESULTS + 1)
         ]
         picker = ModelPicker(
-            provider_label="OpenRouter",
+            title="OpenRouter decision models",
             models=many,
             selected="",
             on_select=lambda _: None,
@@ -1426,7 +1424,7 @@ class TestModelPicker:
     def test_the_count_reflects_the_filters(self, catalogue: list[ModelInfo]) -> None:
         picker, _, _ = self._picker(catalogue)
 
-        assert picker._count.value == "1/3"
+        assert picker._count.value == "2/3"
 
     def test_the_count_is_shown_inside_the_search_field(
         self, catalogue: list[ModelInfo]
@@ -1453,6 +1451,13 @@ class TestModelPicker:
 # --- Settings screen ---
 
 
+def _listing(*model_ids: str) -> httpx.MockTransport:
+    """Return a transport whose OpenRouter listing holds these decision models."""
+    return httpx.MockTransport(
+        lambda _: httpx.Response(200, json={"data": [{"id": id_} for id_ in model_ids]})
+    )
+
+
 class TestSettingsScreen:
     async def test_it_shows_every_section(
         self, page: FakePage, services: Services
@@ -1463,15 +1468,28 @@ class TestSettingsScreen:
 
         body = rendered(screen)
         for section in (
-            "PROVIDER",
+            "GRADING SERVICE",
             "MODEL",
-            "REASONING",
             "PRACTICE",
             "PROXY",
             "ADVANCED",
             "ABOUT",
         ):
             assert section in body
+
+    async def test_nothing_of_the_chat_providers_is_left(
+        self, page: FakePage, services: Services
+    ) -> None:
+        """No provider switch, no thinking level, no sampling controls."""
+        screen = SettingsScreen(page, services)
+
+        await screen.reload()
+
+        body = rendered(screen)
+        for gone in ("PROVIDER", "REASONING", "Temperature", "token limit"):
+            assert gone not in body
+        assert _find_or_none(screen, ft.Dropdown) is None
+        assert _find_or_none(screen, ft.Slider) is None
 
     async def test_the_folds_say_what_they_hold_while_shut(
         self, page: FakePage, services: Services
@@ -1482,20 +1500,20 @@ class TestSettingsScreen:
         await screen.reload()
 
         body = rendered(screen)
-        assert "Off - calls go straight to the provider" in body
-        assert "0.7 temp" in body
-        assert "2048 tokens" in body
+        assert "Off - calls go straight to OpenRouter" in body
+        assert "90s timeout" in body
 
     async def test_a_saved_setting_leaves_an_open_fold_open(
         self, page: FakePage, services: Services
     ) -> None:
-        """The slider lives inside the fold, so closing it mid-drag is a bug."""
+        """The timeout lives inside the fold, so closing it on save is a bug."""
         screen = SettingsScreen(page, services)
         screen._on_advanced_fold(
             _event(ft.ExpansionTile(title=ft.Text("Advanced")), data="true")
         )
 
-        await screen._on_temperature(_event(ft.Slider(value=0.4)))
+        screen._stage_timeout(_event(ft.TextField(value="30")))
+        await screen._commit()
 
         folds = [
             tile
@@ -1503,6 +1521,7 @@ class TestSettingsScreen:
             if "ADVANCED" in rendered(tile.title)
         ]
         assert [fold.expanded for fold in folds] == [True]
+        assert "30s timeout" in rendered(screen)
 
     async def test_turning_the_proxy_on_shows_its_fields(
         self, page: FakePage, services: Services
@@ -1536,25 +1555,22 @@ class TestSettingsScreen:
         ]
         assert [fold.expanded for fold in folds] == [False]
 
-    async def test_every_provider_segment_label_is_sized_to_fit(
+    async def test_every_segment_label_is_sized_to_fit(
         self, page: FakePage, services: Services
     ) -> None:
-        """At 360dp the default size wrapped "OpenRouter" mid-word."""
+        """At 360dp the default size wrapped a ten-letter label mid-word."""
+        services.stage(replace(services.config, proxy=ProxyConfig(enabled=True)))
         screen = SettingsScreen(page, services)
         await screen.reload()
 
-        values = {known.value for known in Provider}
-        chooser = next(
-            button
-            for button in _all(screen, ft.SegmentedButton)
-            if {segment.value for segment in button.segments} == values
-        )
+        choosers = _all(screen, ft.SegmentedButton)
 
-        labels = [segment.label for segment in chooser.segments]
-        assert len(labels) == len(Provider)
-        for label in labels:
-            assert isinstance(label, ft.Text)
-            assert label.size == SEGMENT_LABEL_SIZE
+        # The route, the theme and the proxy protocol.
+        assert len(choosers) == 3
+        for chooser in choosers:
+            for segment in chooser.segments:
+                assert isinstance(segment.label, ft.Text)
+                assert segment.label.size == SEGMENT_LABEL_SIZE
 
     async def test_the_about_section_counts_the_book(
         self, page: FakePage, services: Services
@@ -1565,31 +1581,23 @@ class TestSettingsScreen:
 
         assert "2 exercises and 2 questions" in rendered(screen)
 
-    def test_the_selected_provider_and_model_are_shown(
+    def test_the_key_field_and_selected_model_are_shown(
         self, page: FakePage, services: Services
     ) -> None:
         screen = SettingsScreen(page, services)
 
-        body = rendered(screen)
-        assert "OpenRouter" in body
-        assert "vendor/model" in body
-
-    async def test_switching_provider_keeps_the_other_keys(
-        self, page: FakePage, services: Services
-    ) -> None:
-        screen = SettingsScreen(page, services)
-
-        await screen._on_provider(_event(_segmented("gemini")))
-
-        assert services.config.provider is Provider.GEMINI
-        assert services.config.providers[Provider.OPENROUTER].api_key == "test-key"
+        key_field = _find(screen.controls[0], ft.TextField)
+        assert key_field.label == "OpenRouter API key"
+        assert key_field.value == "test-key"
+        assert key_field.password is True
+        assert "gemini-decision-test" in rendered(screen)
 
     async def test_the_api_key_is_staged_then_written_on_blur(
         self, page: FakePage, services: Services
     ) -> None:
         """A write per keystroke would rebuild the pool under the user's finger."""
         screen = SettingsScreen(page, services)
-        field = ft.TextField(value="new-key")
+        field = ft.TextField(value=" new-key\n")
 
         screen._stage_api_key(_event(field))
         assert services.config_store.load().active.api_key == ""
@@ -1597,124 +1605,35 @@ class TestSettingsScreen:
         await screen._commit_api_key()
         assert services.config_store.load().active.api_key == "new-key"
 
-    async def test_the_thinking_level_is_saved(
-        self, page: FakePage, services: Services
-    ) -> None:
-        services.stage(services.config.with_active(model_supports_thinking=True))
-        screen = SettingsScreen(page, services)
-
-        await screen._on_thinking("high")
-
-        assert services.config.active.thinking is ThinkingLevel.HIGH
-
-    async def test_choosing_a_level_schedules_the_save(
-        self, page: FakePage, services: Services
-    ) -> None:
-        """The list's callback cannot await, so the work is handed to the page."""
-        services.stage(services.config.with_active(model_supports_thinking=True))
-        screen = SettingsScreen(page, services)
-
-        screen._choose_thinking(_event(ft.Dropdown(value="medium")))
-        await page.drain()
-
-        assert services.config.active.thinking is ThinkingLevel.MEDIUM
-
-    def test_every_level_is_offered_on_the_list(
-        self, page: FakePage, services: Services
-    ) -> None:
-        """Six ordered levels are a list, not a block of wrapped chips."""
-        services.stage(services.config.with_active(model_supports_thinking=True))
-        screen = SettingsScreen(page, services)
-
-        levels = _find(screen.controls[2], ft.Dropdown)
-
-        assert [option.text for option in levels.options] == [
-            level.label for level in supported_thinking_levels(Provider.OPENROUTER)
-        ]
-        assert levels.value == ThinkingLevel.OFF.value
-        # Material sizes a dropdown to its longest entry, not to its panel.
-        assert levels.expand is True
-
-    def test_a_model_that_cannot_think_disables_the_control(
-        self, page: FakePage, services: Services
-    ) -> None:
-        screen = SettingsScreen(page, services)
-
-        assert "no thinking control" in rendered(screen)
-        assert _find(screen.controls[2], ft.Dropdown).disabled is True
-
-    async def test_choosing_a_model_carries_its_capabilities(
+    async def test_choosing_a_model_saves_it(
         self, page: FakePage, services: Services, catalogue: list[ModelInfo]
     ) -> None:
-        """The request builder needs both, and a restart must not re-fetch."""
         screen = SettingsScreen(page, services)
-
-        await screen._choose_model(catalogue[0])
-
-        active = services.config_store.load().active
-        assert active.model == "vendor/model"
-        assert active.model_supports_thinking is True
-        assert active.model_supports_json is True
-
-    async def test_the_catalogue_enables_thinking_for_a_stored_model(
-        self, page: FakePage, services: Services, catalogue: list[ModelInfo]
-    ) -> None:
-        """The stored flag is a cache, not the authority."""
-        services.stage(services.config.with_active(model_supports_thinking=False))
-        services._catalogues[Provider.OPENROUTER] = catalogue
-        screen = SettingsScreen(page, services)
-
-        assert not any(chip.disabled for chip in _all(screen.controls[2], ft.Chip))
-        assert "no thinking control" not in rendered(screen)
-
-    async def test_a_fetched_catalogue_corrects_the_stored_capabilities(
-        self, page: FakePage, services: Services, catalogue: list[ModelInfo]
-    ) -> None:
-        """The request is built from the stored flags, so they must agree."""
-        services.stage(
-            services.config.with_active(
-                model_supports_thinking=False, model_supports_json=False
-            )
-        )
-        services._catalogues[Provider.OPENROUTER] = catalogue
-        screen = SettingsScreen(page, services)
-
-        await screen._reconcile_capabilities()
-
-        active = services.config_store.load().active
-        assert active.model_supports_thinking is True
-        assert active.model_supports_json is True
-
-    async def test_reconciling_an_unlisted_model_changes_nothing(
-        self, page: FakePage, services: Services
-    ) -> None:
-        services.stage(services.config.with_active(model="vendor/not-in-catalogue"))
-        screen = SettingsScreen(page, services)
-
-        await screen._reconcile_capabilities()
-
-        assert services.config.active.model_supports_thinking is False
-
-    async def test_choosing_a_model_that_cannot_think_resets_the_level(
-        self, page: FakePage, services: Services, catalogue: list[ModelInfo]
-    ) -> None:
-        services.stage(
-            services.config.with_active(
-                model_supports_thinking=True, thinking=ThinkingLevel.HIGH
-            )
-        )
-        screen = SettingsScreen(page, services)
+        screen._check_result = ("Google Gemini answered.", True)
 
         await screen._choose_model(catalogue[1])
 
-        assert services.config.active.thinking is ThinkingLevel.OFF
+        assert services.config_store.load().active.model == "gemini-decision-lite"
+        # A passed check said nothing about the model just picked.
+        assert screen._check_result is None
+
+    async def test_a_known_model_shows_its_badges(
+        self, page: FakePage, services: Services, catalogue: list[ModelInfo]
+    ) -> None:
+        services._catalogues[DecisionRoute.OPENROUTER] = catalogue
+        screen = SettingsScreen(page, services)
+
+        body = rendered(screen.controls[1])
+        assert "vision" in body
+        assert "1M context" in body
+        assert "does not accept images" not in body
 
     async def test_a_model_without_vision_is_flagged(
         self, page: FakePage, services: Services, catalogue: list[ModelInfo]
     ) -> None:
-        """Every exercise is a picture, so this is the common misconfiguration."""
+        """Every exercise is a picture, so this is the misconfiguration to name."""
         screen = SettingsScreen(page, services)
-        services._catalogues[Provider.OPENROUTER] = catalogue
+        services._catalogues[DecisionRoute.OPENROUTER] = catalogue
         await screen._choose_model(catalogue[2])
 
         assert "does not accept images" in rendered(screen)
@@ -1740,6 +1659,7 @@ class TestSettingsScreen:
         await screen._on_proxy_enabled(_event(ft.Switch(value=True)))
 
         assert "Add a host and a port" in rendered(screen)
+        assert "On, but it has no host and port yet" in rendered(screen)
 
     async def test_the_proxy_fields_are_staged_and_committed(
         self, page: FakePage, services: Services
@@ -1755,6 +1675,7 @@ class TestSettingsScreen:
 
         stored = services.config_store.load().proxy
         assert stored.url == "http://alice:secret@proxy.example:8080"
+        assert "http://proxy.example:8080" in rendered(screen)
 
     async def test_a_nonsense_port_is_dropped(
         self, page: FakePage, services: Services
@@ -1789,47 +1710,26 @@ class TestSettingsScreen:
 
         assert services.config.proxy.scheme == "socks5"
 
-    async def test_the_advanced_numbers_are_clamped(
+    async def test_the_timeout_is_clamped(
         self, page: FakePage, services: Services
     ) -> None:
         screen = SettingsScreen(page, services)
 
-        screen._stage_max_tokens(_event(ft.TextField(value="99999999")))
         screen._stage_timeout(_event(ft.TextField(value="1")))
         await screen._commit()
+        assert services.config_store.load().request_timeout == 10.0
 
-        stored = services.config_store.load()
-        assert stored.max_tokens <= 32768
-        assert stored.request_timeout >= 10.0
+        screen._stage_timeout(_event(ft.TextField(value="99999")))
+        assert services.config.request_timeout == 600.0
 
-    async def test_unparsable_numbers_fall_back(
+    async def test_an_unparsable_timeout_falls_back(
         self, page: FakePage, services: Services
     ) -> None:
         screen = SettingsScreen(page, services)
 
-        screen._stage_max_tokens(_event(ft.TextField(value="")))
         screen._stage_timeout(_event(ft.TextField(value="")))
 
-        assert services.config.max_tokens == 2048
         assert services.config.request_timeout == 90.0
-
-    async def test_the_temperature_is_saved(
-        self, page: FakePage, services: Services
-    ) -> None:
-        screen = SettingsScreen(page, services)
-
-        await screen._on_temperature(_event(ft.Slider(value=0.25)))
-
-        assert services.config.temperature == 0.25
-
-    async def test_a_slider_without_a_value_changes_nothing(
-        self, page: FakePage, services: Services
-    ) -> None:
-        screen = SettingsScreen(page, services)
-
-        await screen._on_temperature(_event(ft.Slider(value=None)))
-
-        assert services.config.temperature == 0.7
 
     async def test_the_rule_toggle_is_saved(
         self, page: FakePage, services: Services
@@ -1850,7 +1750,7 @@ class TestSettingsScreen:
     async def test_the_key_page_can_be_opened(
         self, page: FakePage, services: Services, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Open the key page through Flet's URL service and await the launch."""
+        """Open the selected route's key page through Flet's URL service."""
         screen = SettingsScreen(page, services)
         launched: list[str] = []
 
@@ -1861,18 +1761,24 @@ class TestSettingsScreen:
 
         await _find(screen.controls[0], ft.TextButton).on_click()
 
-        assert launched == [Provider.OPENROUTER.console_url]
+        assert launched == ["https://openrouter.ai/keys"]
+
+        services.stage(replace(services.config, route=DecisionRoute.GOOGLE))
+        screen.render()
+        await _find(screen.controls[0], ft.TextButton).on_click()
+
+        assert launched[-1] == "https://aistudio.google.com/apikey"
 
     async def test_a_successful_connection_test_is_reported(
         self, page: FakePage, services: Services
     ) -> None:
         services._client = None
-        services._transport = reply_transport('{"ok": true}')
+        services._transport = reply_transport({"answers": {"ok": {"noul": 0.99}}})
         screen = SettingsScreen(page, services)
 
         await screen._on_check()
 
-        assert "answered as vendor/model" in rendered(screen)
+        assert "OpenRouter answered as gemini-decision-test." in rendered(screen)
 
     async def test_a_failed_connection_test_is_reported(
         self,
@@ -1908,15 +1814,42 @@ class TestSettingsScreen:
             content=content,
             stats=stats,
             config=config,
-            transport=httpx.MockTransport(
-                lambda _: httpx.Response(200, json={"data": [{"id": "vendor/model"}]})
-            ),
+            transport=_listing("gemini-decision-test"),
         )
         screen = SettingsScreen(page, listed)
 
         await screen._on_open_models()
 
+        picker = page.last_dialog
+        assert isinstance(picker, ModelPicker)
+        assert [model.id for model in picker._models] == [
+            "google/gemini-decision-1",
+            "gemini-decision-test",
+        ]
+        assert "OpenRouter decision models" in rendered(picker)
+
+    async def test_a_fetched_catalogue_is_not_fetched_again(
+        self, page: FakePage, services: Services, catalogue: list[ModelInfo]
+    ) -> None:
+        services._catalogues[DecisionRoute.OPENROUTER] = catalogue
+        services._transport = httpx.MockTransport(
+            lambda _: pytest.fail("should not have been called")
+        )
+        screen = SettingsScreen(page, services)
+
+        await screen._on_open_models()
+
         assert isinstance(page.last_dialog, ModelPicker)
+
+    async def test_a_second_tap_while_loading_is_ignored(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = SettingsScreen(page, services)
+        screen._loading_models = True
+
+        await screen._on_open_models()
+
+        assert page.dialogs == []
 
     async def test_a_catalogue_that_cannot_be_fetched_is_reported(
         self,
@@ -1952,9 +1885,7 @@ class TestSettingsScreen:
             content=content,
             stats=stats,
             config=config,
-            transport=httpx.MockTransport(
-                lambda _: httpx.Response(200, json={"data": [{"id": "vendor/model"}]})
-            ),
+            transport=_listing("gemini-decision-test"),
         )
         screen = SettingsScreen(page, listed)
 
@@ -1962,6 +1893,28 @@ class TestSettingsScreen:
 
         assert page.popped == 1
         assert isinstance(page.last_dialog, ModelPicker)
+
+    async def test_a_failed_reload_is_reported(
+        self,
+        page: FakePage,
+        config_store: ConfigStore,
+        content: ContentLibrary,
+        stats: StatsStore,
+        config: AppConfig,
+    ) -> None:
+        broken = Services(
+            config_store=config_store,
+            content=content,
+            stats=stats,
+            config=config,
+            transport=httpx.MockTransport(lambda _: httpx.Response(401, json={})),
+        )
+        screen = SettingsScreen(page, broken)
+
+        await screen._reload_models()
+
+        assert "rejected the API key" in page.snack_texts()[0]
+        assert screen._loading_models is False
 
     async def test_a_refresh_while_one_is_in_flight_is_ignored(
         self, page: FakePage, services: Services
@@ -1973,6 +1926,91 @@ class TestSettingsScreen:
         await screen._reload_models()
 
         assert page.popped == 0
+
+    async def test_the_route_chooser_offers_both_routes(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = SettingsScreen(page, services)
+
+        chooser = _find(screen.controls[0], ft.SegmentedButton)
+
+        assert [segment.value for segment in chooser.segments] == [
+            "openrouter",
+            "google",
+        ]
+        assert rendered([segment.label for segment in chooser.segments]) == (
+            "OpenRouter\nGoogle AI Studio"
+        )
+        assert chooser.selected == ["openrouter"]
+
+    async def test_switching_route_keeps_each_routes_key_and_model(
+        self, page: FakePage, services: Services
+    ) -> None:
+        screen = SettingsScreen(page, services)
+        screen._check_result = ("OpenRouter answered.", True)
+        screen._stage_api_key(_event(ft.TextField(value="typed-for-openrouter")))
+        await screen._commit_api_key()
+
+        await screen._on_route(_event(_segmented("google")))
+
+        stored = services.config_store.load()
+        assert stored.route is DecisionRoute.GOOGLE
+        assert stored.active.api_key == "google-key"
+        assert stored.routes[DecisionRoute.OPENROUTER].api_key == (
+            "typed-for-openrouter"
+        )
+        assert screen._check_result is None
+        key_field = _find(screen.controls[0], ft.TextField)
+        assert key_field.label == "Google AI Studio API key"
+        assert key_field.value == "google-key"
+        assert "Off - calls go straight to Google AI Studio" in rendered(screen)
+
+        await screen._on_route(_event(_segmented("openrouter")))
+
+        assert _find(screen.controls[0], ft.TextField).value == ("typed-for-openrouter")
+
+    async def test_a_model_is_chosen_for_the_selected_route_only(
+        self, page: FakePage, services: Services, catalogue: list[ModelInfo]
+    ) -> None:
+        services.stage(replace(services.config, route=DecisionRoute.GOOGLE))
+        screen = SettingsScreen(page, services)
+
+        await screen._choose_model(catalogue[1])
+
+        stored = services.config_store.load()
+        assert stored.routes[DecisionRoute.GOOGLE].model == "gemini-decision-lite"
+        assert stored.routes[DecisionRoute.OPENROUTER].model == "gemini-decision-test"
+
+    async def test_the_picker_is_titled_and_filled_by_the_route(
+        self,
+        page: FakePage,
+        config_store: ConfigStore,
+        content: ContentLibrary,
+        stats: StatsStore,
+        config: AppConfig,
+    ) -> None:
+        listed = Services(
+            config_store=config_store,
+            content=content,
+            stats=stats,
+            config=replace(config, route=DecisionRoute.GOOGLE),
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(
+                    200, json={"models": [{"name": "models/gemini-decision-2"}]}
+                )
+            ),
+        )
+        screen = SettingsScreen(page, listed)
+
+        await screen._on_open_models()
+
+        picker = page.last_dialog
+        assert "Google AI Studio decision models" in rendered(picker)
+        assert [model.id for model in picker._models] == [
+            "gemini-decision-1",
+            "gemini-decision-2",
+        ]
+        assert picker._vision.selected is True
 
     def test_the_pickers_callbacks_schedule_work(
         self, page: FakePage, services: Services, catalogue: list[ModelInfo]

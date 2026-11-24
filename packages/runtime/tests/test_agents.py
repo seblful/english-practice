@@ -40,7 +40,7 @@ class _TestAgent(BaseAgent):
     """Concrete agent for testing (not collected by pytest)."""
 
     PROMPT_ANCHOR = "practice_core"
-    PROMPT_TEMPLATE = "evaluate.j2"
+    PROMPT_TEMPLATE = "decision.j2"
 
 
 def _structured_llm(result: object) -> MagicMock:
@@ -57,11 +57,11 @@ class TestRender:
         result = _TestAgent(MagicMock()).render(_context())
 
         assert "Present Tenses" in result
-        assert "<StudentAnswer>is doing</StudentAnswer>" in result
+        assert 'Student\'s answer: "is doing"' in result
 
     def test_a_context_the_template_does_not_fit_is_an_error(self) -> None:
         """Rendering the wrong model used to yield a hollow prompt, not a failure."""
-        with pytest.raises(ConfigurationError, match=r"evaluate\.j2"):
+        with pytest.raises(ConfigurationError, match=r"decision\.j2"):
             _TestAgent(MagicMock()).render(DummyModel(name="test"))
 
     def test_an_agent_without_a_template(self) -> None:
@@ -74,7 +74,7 @@ class TestRender:
         """Naming a template but not its package would read the wrong package."""
 
         class _Anchorless(BaseAgent):
-            PROMPT_TEMPLATE = "evaluate.j2"
+            PROMPT_TEMPLATE = "decision.j2"
 
         with pytest.raises(
             ConfigurationError, match=r"does not declare PROMPT_ANCHOR$"

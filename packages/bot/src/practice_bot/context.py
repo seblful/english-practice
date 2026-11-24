@@ -8,8 +8,8 @@ from practice_core.lesson import ActiveExercise
 from practice_runtime.errors import ConfigurationError
 from telegram.ext import CallbackContext, ContextTypes, ExtBot
 
+from practice_bot.grader import DecisionGrader
 from practice_bot.repositories.database import AuthRepository
-from practice_bot.services.agent_service import AgentService
 from practice_bot.states import SessionStore
 
 _DEPENDENCIES_KEY = "dependencies"
@@ -21,7 +21,7 @@ class BotDependencies:
 
     content: ContentLibrary
     users: AuthRepository
-    agents: AgentService
+    grader: DecisionGrader
     sessions: SessionStore
     admin_user_id: int | None = None
 
@@ -36,13 +36,11 @@ class BotDependencies:
 
     def start_exercise(self, user_id: int, active: ActiveExercise) -> None:
         """Move a user onto a new exercise."""
-        self.agents.start_exercise(user_id, active.exercise.id)
         self.sessions.start_exercise(user_id, active)
 
     def forget_user(self, user_id: int) -> None:
         """Drop everything held in memory for one user."""
         self.sessions.forget(user_id)
-        self.agents.forget_user(user_id)
 
 
 class BotContext(
@@ -66,9 +64,9 @@ class BotContext(
         return self.dependencies.users
 
     @property
-    def agents(self) -> AgentService:
-        """Return the LLM agent service."""
-        return self.dependencies.agents
+    def grader(self) -> DecisionGrader:
+        """Return the decision model that grades answers."""
+        return self.dependencies.grader
 
     @property
     def sessions(self) -> SessionStore:
@@ -76,7 +74,7 @@ class BotContext(
         return self.dependencies.sessions
 
     def start_exercise(self, user_id: int, active: ActiveExercise) -> None:
-        """Move a user onto a new exercise, session and transcripts together."""
+        """Move a user onto a new exercise."""
         self.dependencies.start_exercise(user_id, active)
 
     def forget_user(self, user_id: int) -> None:

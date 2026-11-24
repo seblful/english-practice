@@ -1,4 +1,4 @@
-"""Handling a text message: an answer to grade, or a question to explain."""
+"""Handling a text message: an answer to grade."""
 
 from practice_core.lesson import ActiveExercise
 from practice_core.reveal import Reveal
@@ -16,7 +16,8 @@ logger = get_logger(__name__)
 NO_EXERCISE_HINT = "👋 Use /start to begin practicing English grammar."
 EMPTY_ANSWER_HINT = "✍️ Send me your answer as text."
 GRADING_FAILED = "⚠️ I couldn't grade that right now — here's the book's answer."
-ASSIST_FAILED = "⚠️ Sorry, I couldn't answer that right now. Try asking again."
+STILL_GRADING = "⏳ Still grading your answer — one moment."
+ALREADY_ANSWERED = "✅ This question is done. Pick the next exercise:"
 NEXT_EXERCISE_PROMPT = "Choose next exercise:"
 
 
@@ -50,7 +51,7 @@ async def _grade(
 ) -> None:
     """Grade the user's answer and reveal the book's."""
     try:
-        evaluation = await context.agents.grader.evaluate(
+        evaluation = await context.grader.evaluate(
             active.question,
             user_input=who.text,
             answers=active.answers,
@@ -82,30 +83,9 @@ async def _grade(
     await _reveal(who, session, active.reveal(show_rule=session.show_rule))
 
 
-async def _explain(
-    who: Interaction, context: BotContext, active: ActiveExercise
-) -> None:
-    """Answer a follow-up question about the exercise just answered."""
-    try:
-        result = await context.agents.assist(
-            user_id=who.user.id,
-            exercise_id=active.exercise.id,
-            image=active.image,
-            question_number=active.question.question_id,
-            user_input=who.text,
-            topic_name=active.topic_name,
-        )
-    except AgentError as exc:
-        logger.warning("assist_failed", user_id=who.user.id, error=str(exc))
-        await who.say(ASSIST_FAILED)
-        return
-
-    await who.say(formatter.assistant_answer(result.answer))
-
-
 @handler()
 async def text_message(who: Interaction, context: BotContext) -> None:
-    """Route a text message to grading or to the assistant."""
+    """Grade a text message as the answer to the question on screen."""
     session = context.sessions.get(who.user.id)
     active = session.active
 
@@ -117,8 +97,15 @@ async def text_message(who: Interaction, context: BotContext) -> None:
         await who.say(EMPTY_ANSWER_HINT)
         return
 
-    if active.answered or active.grading:
-        await _explain(who, context, active)
+    if active.grading:
+        await who.say(STILL_GRADING)
+        return
+
+    if active.answered:
+        await who.say(
+            ALREADY_ANSWERED,
+            reply_markup=keyboards.main_menu_keyboard(session.has_previous_topic),
+        )
         return
 
     # Claimed before the first await: two messages at once would both be graded.

@@ -3,13 +3,14 @@
 What the Telegram bot and the offline content pipeline both need, and neither
 should own.
 
-Two programs in this repository run on a machine with an environment, a log
-file and an LLM key. Everything about *that* — not about Telegram, not about
-OpenCV — lives here, so it is written once:
+Two programs in this repository run on a machine with an environment and a log
+file. Everything about *that* — not about Telegram, not about OpenCV — lives
+here, so it is written once. The chat-model client lives here too, though only
+the pipeline calls one now: the bot grades through a decision model of its own.
 
 | Module | What it is |
 | :----- | :--------- |
-| `settings.py` | The settings groups both read (`paths`, `llm`, `langsmith`, `logging`, `app`), how `.env` files seed the environment, and `BaseAppSettings` for each program to extend with its own groups. |
+| `settings.py` | The settings groups both read (`paths`, `langsmith`, `logging`, `app`), how `.env` files seed the environment, `BaseAppSettings` for each program to extend with its own groups, and `LLMAppSettings`, which adds the `llm` group and its key check for a program that calls a chat model. |
 | `logging.py` | One structlog configuration, taking the group it needs rather than reading the environment itself. |
 | `llm.py` | One chat-model client per provider — DashScope, Gemini, OpenRouter — with the timeout and retry policy applied. |
 | `agents.py` | `BaseAgent`: a prompt, an LLM call, a typed result, and one place where a provider failure becomes an `AgentError`. |

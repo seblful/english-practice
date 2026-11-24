@@ -41,9 +41,6 @@ class TestEscaping:
     def test_rule_block_tolerates_missing_section_letter(self) -> None:
         assert "<b>5</b>" in formatter.rule_block("5", "A rule")
 
-    def test_assistant_answer_escapes_reply(self) -> None:
-        assert "&lt;script&gt;" in formatter.assistant_answer("<script>")
-
     def test_access_request_escapes_name_and_username(self) -> None:
         text = formatter.access_request("<b>Eve</b>", "ev<il>", 7)
 
@@ -56,7 +53,7 @@ class TestEscaping:
 
 
 class TestMarkdownConversion:
-    """The book's answers and the assistant use markdown emphasis."""
+    """The book's answers use markdown emphasis."""
 
     def test_bold(self) -> None:
         assert formatter.rich("He **is doing** it") == "He <b>is doing</b> it"
@@ -130,7 +127,6 @@ class TestTheHtmlType:
             formatter.full_answers(answers),
             formatter.rule_block("Unit 12A", "Use the present continuous."),
             formatter.unit_info(12, "Present Continuous"),
-            formatter.assistant_answer("because"),
             formatter.access_request("Alice", "alice", 111),
         ]
 

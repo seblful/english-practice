@@ -1,6 +1,6 @@
 [project]
 name = "english-practice-app"
-description = "Android app that grades English grammar exercises from English Grammar in Use (Murphy) with a vision LLM."
+description = "Android app that grades English grammar exercises from English Grammar in Use (Murphy) with a Gemini decision model."
 readme = "README.md"
 requires-python = ">=3.13"
 version = "0.1.2"
@@ -10,9 +10,9 @@ license = "Apache-2.0"
 authors = [
     { name = "Aliaksei Chymba", email = "alesha.chimba@gmail.com" }
 ]
-keywords = ["android", "flet", "english", "grammar", "llm"]
+keywords = ["android", "flet", "english", "grammar", "gemini"]
 
-# `practice-core` is the domain shared with the bot; no provider SDK fits an APK.
+# `practice-core` is the domain shared with the bot; no Google SDK fits an APK.
 dependencies = [
     "practice-core",
     "flet>=1.0.3",

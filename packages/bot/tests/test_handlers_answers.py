@@ -1,4 +1,4 @@
-"""Tests for grading answers and answering follow-up questions."""
+"""Tests for grading answers."""
 
 import asyncio
 from unittest.mock import Mock
@@ -39,7 +39,7 @@ class TestWithoutAnExercise:
         await answers_handler.text_message(mock_update, mock_context)
 
         assert replies(mock_update.message) == [answers_handler.NO_EXERCISE_HINT]
-        mock_context.agents.grader.evaluate.assert_not_called()
+        mock_context.grader.evaluate.assert_not_called()
 
 
 class TestGrading:
@@ -54,7 +54,7 @@ class TestGrading:
     ) -> None:
         await answers_handler.text_message(mock_update, mock_context)
 
-        call = mock_context.agents.grader.evaluate.await_args
+        call = mock_context.grader.evaluate.await_args
         # The question goes across whole, not taken apart and passed back piecemeal.
         assert call.args == (with_exercise.question,)
         assert call.kwargs["user_input"] == "is doing"
@@ -67,7 +67,7 @@ class TestGrading:
         """The blob was read when the exercise was sent; do not read it again."""
         await answers_handler.text_message(mock_update, mock_context)
 
-        kwargs = mock_context.agents.grader.evaluate.await_args.kwargs
+        kwargs = mock_context.grader.evaluate.await_args.kwargs
         assert kwargs["image"] == b"fake_image_bytes"
         mock_context.content.get_exercise_image.assert_not_called()
 
@@ -92,7 +92,7 @@ class TestGrading:
     async def test_a_wrong_answer_gets_the_whole_sentence(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        mock_context.agents.grader.evaluate.return_value = EvaluateAnswerOutput(
+        mock_context.grader.evaluate.return_value = EvaluateAnswerOutput(
             is_correct=False, answer_idx=[0]
         )
 
@@ -109,7 +109,7 @@ class TestGrading:
         mock_context: Mock,
         with_exercise: ActiveExercise,
     ) -> None:
-        mock_context.agents.grader.evaluate.return_value = EvaluateAnswerOutput(
+        mock_context.grader.evaluate.return_value = EvaluateAnswerOutput(
             is_correct=True, answer_idx=[1]
         )
 
@@ -122,7 +122,7 @@ class TestGrading:
     async def test_falls_back_to_the_canonical_answer_when_nothing_matched(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        mock_context.agents.grader.evaluate.return_value = EvaluateAnswerOutput(
+        mock_context.grader.evaluate.return_value = EvaluateAnswerOutput(
             is_correct=False, answer_idx=[]
         )
 
@@ -135,7 +135,7 @@ class TestGrading:
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
         """A grader that invents an index must not take the bot down."""
-        mock_context.agents.grader.evaluate.return_value = EvaluateAnswerOutput(
+        mock_context.grader.evaluate.return_value = EvaluateAnswerOutput(
             is_correct=True, answer_idx=[7, -1]
         )
 
@@ -148,7 +148,7 @@ class TestGrading:
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
         with_exercise.answers = ()
-        mock_context.agents.grader.evaluate.return_value = EvaluateAnswerOutput(
+        mock_context.grader.evaluate.return_value = EvaluateAnswerOutput(
             is_correct=True, answer_idx=[]
         )
 
@@ -174,7 +174,7 @@ class TestGrading:
 
         await answers_handler.text_message(mock_update, mock_context)
 
-        mock_context.agents.grader.evaluate.assert_not_called()
+        mock_context.grader.evaluate.assert_not_called()
         assert replies(mock_update.message) == [answers_handler.EMPTY_ANSWER_HINT]
 
 
@@ -193,7 +193,7 @@ class TestTwoMessagesAtOnce:
             await finish.wait()
             return EvaluateAnswerOutput(is_correct=True, answer_idx=[0])
 
-        mock_context.agents.grader.evaluate.side_effect = slow
+        mock_context.grader.evaluate.side_effect = slow
 
         first = asyncio.create_task(
             answers_handler.text_message(mock_update, mock_context)
@@ -203,14 +203,14 @@ class TestTwoMessagesAtOnce:
         finish.set()
         await first
 
-        assert mock_context.agents.grader.evaluate.await_count == 1
-        mock_context.agents.assist.assert_awaited_once()
+        assert mock_context.grader.evaluate.await_count == 1
+        assert answers_handler.STILL_GRADING in replies(mock_update.message)
 
     async def test_the_claim_is_released_when_grading_fails(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
         """A failed grading deliberately leaves the question open for a retry."""
-        mock_context.agents.grader.evaluate.side_effect = AgentError("provider down")
+        mock_context.grader.evaluate.side_effect = AgentError("provider down")
 
         await answers_handler.text_message(mock_update, mock_context)
 
@@ -261,7 +261,7 @@ class TestGradingFailure:
     async def test_reveals_the_answer_and_apologises(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        mock_context.agents.grader.evaluate.side_effect = AgentError("provider down")
+        mock_context.grader.evaluate.side_effect = AgentError("provider down")
 
         await answers_handler.text_message(mock_update, mock_context)
 
@@ -273,7 +273,7 @@ class TestGradingFailure:
     async def test_leaves_the_question_open_for_another_attempt(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        mock_context.agents.grader.evaluate.side_effect = AgentError("provider down")
+        mock_context.grader.evaluate.side_effect = AgentError("provider down")
 
         await answers_handler.text_message(mock_update, mock_context)
 
@@ -283,7 +283,7 @@ class TestGradingFailure:
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
         """The book's answer is in the chat, so saying otherwise is a lie."""
-        mock_context.agents.grader.evaluate.side_effect = AgentError("provider down")
+        mock_context.grader.evaluate.side_effect = AgentError("provider down")
 
         await answers_handler.text_message(mock_update, mock_context)
 
@@ -291,10 +291,10 @@ class TestGradingFailure:
         assert with_exercise.ungraded is True
 
 
-class TestFollowUp:
-    """Once answered, further messages go to the assistant."""
+class TestAfterTheVerdict:
+    """Once answered, a message is not graded again: the next exercise is offered."""
 
-    async def test_routes_to_the_assistant(
+    async def test_points_at_the_next_exercise(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
         with_exercise.record(EvaluateAnswerOutput(is_correct=True))
@@ -302,31 +302,18 @@ class TestFollowUp:
 
         await answers_handler.text_message(mock_update, mock_context)
 
-        kwargs = mock_context.agents.assist.await_args.kwargs
-        assert kwargs["user_input"] == "why is it continuous?"
-        assert kwargs["exercise_id"] == with_exercise.exercise.id
-        assert kwargs["question_number"] == "1"
-        assert kwargs["image"] == b"fake_image_bytes"
-        mock_context.content.get_exercise_image.assert_not_called()
-        mock_context.agents.grader.evaluate.assert_not_called()
+        assert replies(mock_update.message) == [answers_handler.ALREADY_ANSWERED]
+        assert mock_update.message.reply_text.call_args.kwargs["reply_markup"]
+        mock_context.grader.evaluate.assert_not_called()
 
-    async def test_renders_the_reply_as_html(
+    async def test_a_failed_grading_can_be_answered_again(
         self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
     ) -> None:
-        with_exercise.record(EvaluateAnswerOutput(is_correct=True))
+        mock_context.grader.evaluate.side_effect = AgentError("provider down")
+        await answers_handler.text_message(mock_update, mock_context)
+        mock_context.grader.evaluate.side_effect = None
 
         await answers_handler.text_message(mock_update, mock_context)
 
-        call = mock_update.message.reply_text.call_args
-        assert "<b>help</b>" in call.args[0]
-        assert call.kwargs["parse_mode"] == "HTML"
-
-    async def test_assistant_failure_is_reported(
-        self, mock_update: Mock, mock_context: Mock, with_exercise: ActiveExercise
-    ) -> None:
-        with_exercise.record(EvaluateAnswerOutput(is_correct=True))
-        mock_context.agents.assist.side_effect = AgentError("provider down")
-
-        await answers_handler.text_message(mock_update, mock_context)
-
-        assert replies(mock_update.message) == [answers_handler.ASSIST_FAILED]
+        assert mock_context.grader.evaluate.await_count == 2
+        assert with_exercise.answered is True

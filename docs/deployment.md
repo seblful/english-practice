@@ -72,19 +72,17 @@ micro .env
 | -------------------------- | ------------------------------------------ | -------- |
 | `TELEGRAM_BOT_TOKEN` | Token from @BotFather | Yes |
 | `TELEGRAM_ADMIN_USER_ID` | Your Telegram user ID; approves new users | Yes |
-| `LLM_PROVIDER` | LLM provider (dashscope/gemini/openrouter) | Yes |
-| `OPENROUTER_API_KEY` | OpenRouter API key | Yes\* |
+| `GEMINI_API_KEY` | Google AI Studio key; the bot grades through Google by default | Yes\* |
 | `APP__ENVIRONMENT` | Set to `production` | Yes |
 | `PATHS_DATABASE_PATH` | Path to the SQLite database | No\*\* |
 
-_\*Required for your chosen provider — use `DASHSCOPE_API_KEY` or `GEMINI_API_KEY` instead if using those providers._
+_\*With `DECISION_ROUTE=openrouter`, set `OPENROUTER_API_KEY` instead. `DECISION_MODEL` picks the decision model (default: Gemini Decision 1 under the route's id); `DECISION_PROXY` routes the calls through a proxy._
 
 _\*\*Defaults to `data/content/english_practice.db`. The old unprefixed
 `DATABASE_PATH` is still accepted._
 
-Optional tuning: `BOT_MAX_HISTORY_MESSAGES` (assistant turns kept per exercise),
-`BOT_SESSION_IDLE_TTL_MINUTES` (when an idle session is dropped),
-`LLM_REQUEST_TIMEOUT` and `LLM_MAX_RETRIES`.
+Optional tuning: `BOT_SESSION_IDLE_TTL_MINUTES` (when an idle session is dropped),
+`DECISION_REQUEST_TIMEOUT` and `DECISION_MAX_RETRIES`.
 
 Variables exported into the container's environment take precedence over the
 `.env` file, so `docker-compose.yml` can override anything the file sets.

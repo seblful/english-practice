@@ -1,6 +1,6 @@
 [project]
 name = "english-practice-bot"
-description = "Telegram bot that grades English grammar exercises from English Grammar in Use (Murphy) with a vision LLM."
+description = "Telegram bot that grades English grammar exercises from English Grammar in Use (Murphy) with a Gemini decision model."
 readme = "README.md"
 requires-python = ">=3.13"
 version = "0.1.0"
@@ -10,7 +10,7 @@ license = "Apache-2.0"
 authors = [
     { name = "Aliaksei Chymba", email = "alesha.chimba@gmail.com" }
 ]
-keywords = ["telegram-bot", "english", "grammar", "llm", "langchain"]
+keywords = ["telegram-bot", "english", "grammar", "gemini"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -22,6 +22,7 @@ classifiers = [
 dependencies = [
     "practice-core",
     "practice-runtime",
+    "httpx>=0.28.1",
     "python-telegram-bot>=21.0",
     "typer>=0.21.1",
 ]

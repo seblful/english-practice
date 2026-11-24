@@ -1,10 +1,10 @@
-"""The model chooser."""
+"""The decision-model chooser."""
 
 from collections.abc import Callable, Sequence
 
 import flet as ft
 
-from practice_app.providers import ModelInfo
+from practice_app.catalogue import ModelInfo
 from practice_app.ui.components import (
     STRETCH,
     filter_chip,
@@ -28,27 +28,22 @@ def visible_models(
     query: str,
     *,
     vision_only: bool = False,
-    thinking_only: bool = False,
-    free_only: bool = False,
 ) -> list[ModelInfo]:
-    """Return the models a set of filters leaves visible."""
+    """Return the models a search and the vision filter leave visible."""
     return [
         model
         for model in models
-        if model.matches(query)
-        and (not vision_only or model.supports_images)
-        and (not thinking_only or model.supports_thinking)
-        and (not free_only or model.price_label == "free")
+        if model.matches(query) and (not vision_only or model.supports_images)
     ]
 
 
 class ModelPicker(ft.AlertDialog):
-    """A searchable list of one provider's models."""
+    """A searchable list of one route's decision models."""
 
     def __init__(
         self,
         *,
-        provider_label: str,
+        title: str,
         models: Sequence[ModelInfo],
         selected: str,
         on_select: Callable[[ModelInfo], None],
@@ -79,10 +74,6 @@ class ModelPicker(ft.AlertDialog):
             selected=any(model.supports_images for model in self._models),
             on_select=self._refilter,
         )
-        self._thinking = filter_chip(
-            "Thinking", selected=False, on_select=self._refilter
-        )
-        self._free = filter_chip("Free", selected=False, on_select=self._refilter)
         self._list = ft.ListView(
             spacing=GAP_SMALL - 2,
             build_controls_on_demand=True,
@@ -93,7 +84,7 @@ class ModelPicker(ft.AlertDialog):
             title=ft.Row(
                 controls=[
                     ft.Text(
-                        f"{provider_label} models",
+                        title,
                         size=16,
                         weight=ft.FontWeight.W_700,
                         max_lines=1,
@@ -125,7 +116,7 @@ class ModelPicker(ft.AlertDialog):
                     controls=[
                         self._search,
                         ft.Row(
-                            controls=[self._vision, self._thinking, self._free],
+                            controls=[self._vision],
                             spacing=GAP_SMALL,
                             wrap=True,
                             run_spacing=GAP_SMALL,
@@ -164,8 +155,6 @@ class ModelPicker(ft.AlertDialog):
             self._models,
             self._search.value or "",
             vision_only=bool(self._vision.selected),
-            thinking_only=bool(self._thinking.selected),
-            free_only=bool(self._free.selected),
         )
 
     def _render(self) -> None:
@@ -211,16 +200,10 @@ class ModelPicker(ft.AlertDialog):
         badges: list[ft.Control] = []
         if model.supports_images:
             badges.append(pill("vision", icon=ft.Icons.IMAGE_ROUNDED))
-        if model.supports_thinking:
-            badges.append(pill("thinking", icon=ft.Icons.PSYCHOLOGY_ROUNDED))
-        # One badge rather than two: two pills of the same numbers wrapped.
-        facts = " - ".join(
-            label for label in (model.context_label, model.price_label) if label
-        )
-        if facts:
+        if model.context_label:
             badges.append(
                 pill(
-                    facts,
+                    model.context_label,
                     bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
                     color=ft.Colors.ON_SURFACE_VARIANT,
                 )

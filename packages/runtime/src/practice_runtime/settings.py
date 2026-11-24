@@ -16,6 +16,7 @@ __all__ = [
     "BaseAppSettings",
     "DashscopeSettings",
     "GeminiSettings",
+    "LLMAppSettings",
     "LLMProvider",
     "LLMSettings",
     "LangSmithSettings",
@@ -261,7 +262,6 @@ class BaseAppSettings(BaseSettings):
     app: AppSettings = Field(default_factory=AppSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     paths: PathSettings = Field(default_factory=PathSettings)
-    llm: LLMSettings = Field(default_factory=LLMSettings)
     langsmith: LangSmithSettings = Field(default_factory=LangSmithSettings)
 
     # "ignore" rather than "forbid": the env files carry the flat variables too.
@@ -276,14 +276,27 @@ class BaseAppSettings(BaseSettings):
         """Return human-readable reasons this process cannot do its work."""
         problems: list[str] = []
 
-        if self.llm.active_api_key is None:
-            problems.append(
-                f"{self.llm.provider.upper()}_API_KEY is not set "
-                f"(LLM_PROVIDER={self.llm.provider})"
-            )
-
         if self.langsmith.tracing and secret_value(self.langsmith.api_key) is None:
             problems.append("LANGSMITH_API_KEY is required when tracing is enabled")
+
+        return problems
+
+
+class LLMAppSettings(BaseAppSettings):
+    """The shared groups, plus a chat model, for a program that calls one."""
+
+    llm: LLMSettings = Field(default_factory=LLMSettings)
+
+    def missing_required(self) -> list[str]:
+        """Return the shared problems, plus a missing provider key."""
+        problems = super().missing_required()
+
+        if self.llm.active_api_key is None:
+            problems.insert(
+                0,
+                f"{self.llm.provider.upper()}_API_KEY is not set "
+                f"(LLM_PROVIDER={self.llm.provider})",
+            )
 
         return problems
 

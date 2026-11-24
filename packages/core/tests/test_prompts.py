@@ -1,4 +1,4 @@
-"""Tests for rendering the shared grading prompt."""
+"""Tests for rendering the text a grading request carries."""
 
 import pytest
 from pydantic import BaseModel
@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from practice_core.errors import ConfigurationError
 from practice_core.grading import EvaluateAnswerInput
 from practice_core.models import QuestionAnswer
-from practice_core.prompts import render_evaluate_prompt
+from practice_core.prompts import render_decision_input
 
 
 def _context(**overrides: object) -> EvaluateAnswerInput:
@@ -14,7 +14,9 @@ def _context(**overrides: object) -> EvaluateAnswerInput:
     fields: dict[str, object] = {
         "question_number": "3",
         "user_input": "is doing",
-        "answers": [QuestionAnswer(short_answer="is doing", full_answer="He is.")],
+        "answers": [
+            QuestionAnswer(short_answer="is doing", full_answer="He **is doing** it.")
+        ],
         "is_open_ended": False,
         "topic_name": "Present Tenses",
         "rule": "Use present continuous",
@@ -23,47 +25,45 @@ def _context(**overrides: object) -> EvaluateAnswerInput:
     return EvaluateAnswerInput.model_validate(fields)
 
 
-class TestRenderEvaluatePrompt:
-    def test_carries_the_attempt_into_the_prompt(self) -> None:
-        prompt = render_evaluate_prompt(_context())
+class TestRenderDecisionInput:
+    def test_carries_the_attempt(self) -> None:
+        text = render_decision_input(_context())
 
-        assert "Present Tenses" in prompt
-        assert "<QuestionNumber>3</QuestionNumber>" in prompt
-        assert "<StudentAnswer>is doing</StudentAnswer>" in prompt
-        assert "Use present continuous" in prompt
+        assert "Topic: Present Tenses" in text
+        assert "Question: 3" in text
+        assert 'Student\'s answer: "is doing"' in text
+        assert "Use present continuous" in text
 
-    def test_a_closed_question_lists_the_expected_answers(self) -> None:
-        prompt = render_evaluate_prompt(_context())
+    def test_a_closed_question_lists_the_accepted_answers(self) -> None:
+        text = render_decision_input(_context())
 
-        # The rules mention the tag by name, so only the closing tag is distinctive.
-        assert "</ExpectedAnswers>" in prompt
-        assert '0: short: "is doing"' in prompt
-        assert "<QuestionType>CLOSED</QuestionType>" in prompt
+        assert "closed" in text
+        assert '0. short: "is doing" | full: "He is doing it."' in text
+
+    def test_the_book_bold_markers_are_dropped(self) -> None:
+        assert "**" not in render_decision_input(_context())
 
     def test_an_open_question_lists_none(self) -> None:
         """Showing a database answer for a free-form question invites matching."""
-        prompt = render_evaluate_prompt(_context(is_open_ended=True))
+        text = render_decision_input(_context(is_open_ended=True))
 
-        assert "</ExpectedAnswers>" not in prompt
-        assert "<QuestionType>OPEN</QuestionType>" in prompt
-        assert "OPEN-ENDED" in prompt
+        assert "Accepted answers" not in text
+        assert "open-ended" in text
 
-    def test_a_question_without_a_rule_omits_the_block(self) -> None:
-        prompt = render_evaluate_prompt(_context(rule=None))
+    def test_a_closed_question_without_answers_reads_as_open(self) -> None:
+        text = render_decision_input(_context(answers=[]))
 
-        assert "</GrammarRule>" not in prompt
+        assert "Accepted answers" not in text
+        assert "open-ended" in text
 
-    def test_always_asks_for_raw_json(self) -> None:
-        prompt = render_evaluate_prompt(_context())
-
-        assert '"is_correct": boolean' in prompt
-        assert "Return ONLY a valid, raw JSON object" in prompt
+    def test_a_question_without_a_rule_omits_it(self) -> None:
+        assert "Grammar rule" not in render_decision_input(_context(rule=None))
 
     def test_a_context_the_template_does_not_fit_is_an_error(self) -> None:
-        """A renamed field used to yield a hollow prompt the provider billed for."""
+        """A renamed field used to yield a hollow request the provider billed for."""
 
         class Mismatched(BaseModel):
             question_number: str
 
-        with pytest.raises(ConfigurationError, match=r"evaluate\.j2"):
-            render_evaluate_prompt(Mismatched(question_number="3"))  # ty: ignore
+        with pytest.raises(ConfigurationError, match=r"decision\.j2"):
+            render_decision_input(Mismatched(question_number="3"))  # ty: ignore

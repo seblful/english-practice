@@ -8,7 +8,7 @@ from practice_core.resources import read_packaged_text
 from practice_core.templates import compiled_template, render_packaged_template
 
 ANCHOR = "practice_core"
-TEMPLATE = "evaluate.j2"
+TEMPLATE = "decision.j2"
 
 
 class _Context(BaseModel):
@@ -19,7 +19,7 @@ class TestReadPackagedText:
     def test_reads_a_file_that_travels_with_the_package(self) -> None:
         text = read_packaged_text(ANCHOR, "prompts", TEMPLATE)
 
-        assert "QuestionNumber" in text
+        assert "Question: {{ question_number }}" in text
 
     def test_a_file_that_was_not_packaged(self) -> None:
         with pytest.raises(FileNotFoundError, match=r"absent\.j2"):
@@ -49,5 +49,5 @@ class TestCompiledTemplate:
 class TestRenderPackagedTemplate:
     def test_a_context_the_template_does_not_fit_is_an_error(self) -> None:
         """A renamed field used to yield a hollow prompt the provider billed for."""
-        with pytest.raises(ConfigurationError, match=r"evaluate\.j2 needs a variable"):
+        with pytest.raises(ConfigurationError, match=r"decision\.j2 needs a variable"):
             render_packaged_template(ANCHOR, TEMPLATE, _Context(question_number="3"))

@@ -27,7 +27,7 @@ class TestDependencies:
         assert context.dependencies is dependencies
         assert context.content is dependencies.content
         assert context.users is dependencies.users
-        assert context.agents is dependencies.agents
+        assert context.grader is dependencies.grader
         assert context.sessions is dependencies.sessions
 
     def test_missing_dependencies_are_a_configuration_error(self) -> None:

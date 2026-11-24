@@ -24,7 +24,9 @@ def info() -> None:
     settings = get_settings()
     typer.echo(f"{settings.app.app_name} v{__version__}")
     typer.echo(f"Environment: {settings.app.environment}")
-    typer.echo(f"LLM provider: {settings.llm.provider}")
+    typer.echo(
+        f"Grader: {settings.decision.active_model} via {settings.decision.route.label}"
+    )
     typer.echo(f"Database: {settings.paths.database_path}")
 
 

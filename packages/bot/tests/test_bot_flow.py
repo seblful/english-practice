@@ -4,23 +4,22 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 import pytest
-from langchain_core.language_models.chat_models import BaseChatModel
 from practice_core import content
 from practice_core.content import ContentLibrary
-from practice_runtime.settings import DashscopeSettings, LLMSettings, PathSettings
+from practice_core.grading import EvaluateAnswerOutput
+from practice_runtime.settings import PathSettings
 from pydantic import SecretStr
 from telegram import CallbackQuery, Chat, Message, MessageEntity, Update, User
 from telegram.ext import ExtBot
 
 from practice_bot.app import BotApplication, build_application
 from practice_bot.context import BotContext, BotDependencies
-from practice_bot.models.agents import AssistantOutput, EvaluateAnswerOutput
+from practice_bot.grader import DecisionGrader
 from practice_bot.repositories.database import AuthRepository
-from practice_bot.services.agent_service import AgentService
-from practice_bot.settings import Settings, TelegramSettings
+from practice_bot.settings import DecisionSettings, Settings, TelegramSettings
 from practice_bot.states import SessionStore
 
 pytestmark = pytest.mark.integration
@@ -39,35 +38,27 @@ def fake_bot() -> AsyncMock:
 
 
 @pytest.fixture
-def agents() -> AgentService:
-    """An agent service whose LLM calls are stubbed."""
-    service = AgentService(llm=Mock(spec=BaseChatModel))
-    service.grader.evaluate = AsyncMock(  # type: ignore[method-assign]
-        return_value=EvaluateAnswerOutput(is_correct=True, answer_idx=[0])
-    )
-    service._assistant_agent.assist = AsyncMock(  # type: ignore[method-assign]
-        return_value=AssistantOutput(answer="Because it is happening **now**.")
-    )
-    return service
+def grader() -> AsyncMock:
+    """A grader whose decision calls are stubbed."""
+    stub = AsyncMock(spec=DecisionGrader)
+    stub.evaluate.return_value = EvaluateAnswerOutput(is_correct=True, answer_idx=[0])
+    return stub
 
 
 @pytest.fixture
 def application(
-    seeded_db_path: Path, agents: AgentService, fake_bot: AsyncMock
+    seeded_db_path: Path, grader: AsyncMock, fake_bot: AsyncMock
 ) -> BotApplication:
     """The real application, wired to the seeded database."""
     settings = Settings(
         telegram=TelegramSettings(bot_token=SecretStr("123:abc"), admin_user_id=1),
-        llm=LLMSettings(
-            provider="dashscope",
-            dashscope=DashscopeSettings(api_key=SecretStr("key")),
-        ),
+        decision=DecisionSettings(google_api_key=SecretStr("key")),
         paths=PathSettings(database_path=seeded_db_path),
     )
     dependencies = BotDependencies(
         content=ContentLibrary(seeded_db_path),
         users=AuthRepository(seeded_db_path),
-        agents=agents,
+        grader=grader,
         sessions=SessionStore(),
         admin_user_id=None,
     )
@@ -235,8 +226,8 @@ class TestPracticeFlow:
         assert any("Correct Answer" in text for text in texts)
         assert texts[-1] == "Choose next exercise:"
 
-    async def test_follow_up_question_reaches_the_assistant(
-        self, application: BotApplication, fake_bot: AsyncMock, agents: AgentService
+    async def test_a_second_message_is_not_graded_again(
+        self, application: BotApplication, fake_bot: AsyncMock, grader: AsyncMock
     ) -> None:
         await _press(application, fake_bot, "topic:1")
         await _send(application, fake_bot, "is doing")
@@ -244,7 +235,8 @@ class TestPracticeFlow:
 
         await _send(application, fake_bot, "why is it continuous?")
 
-        assert any("Because it is happening" in t for t in _sent_text(fake_bot))
+        assert grader.evaluate.await_count == 1
+        assert any("question is done" in t for t in _sent_text(fake_bot))
 
     async def test_show_unit_button_names_the_unit(
         self, application: BotApplication, fake_bot: AsyncMock
@@ -279,12 +271,10 @@ class TestErrorHandling:
     """The application must survive a handler blowing up."""
 
     async def test_unexpected_failure_is_reported_to_the_user(
-        self, application: BotApplication, fake_bot: AsyncMock, agents: AgentService
+        self, application: BotApplication, fake_bot: AsyncMock, grader: AsyncMock
     ) -> None:
         await _press(application, fake_bot, "topic:1")
-        agents.grader.evaluate = AsyncMock(  # type: ignore[method-assign]
-            side_effect=RuntimeError("not an AgentError")
-        )
+        grader.evaluate.side_effect = RuntimeError("not an AgentError")
         fake_bot.reset_mock()
 
         await _send(application, fake_bot, "is doing")

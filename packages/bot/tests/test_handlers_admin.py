@@ -119,7 +119,6 @@ class TestAdminAction:
         await admin.admin_action(mock_callback_update, mock_context)
 
         assert len(mock_context.sessions) == 0
-        mock_context.agents.forget_user.assert_called_once_with(111)
 
     async def test_approving_keeps_the_users_state(
         self, mock_callback_update: Mock, mock_context: Mock
@@ -130,7 +129,6 @@ class TestAdminAction:
         await admin.admin_action(mock_callback_update, mock_context)
 
         assert len(mock_context.sessions) == 1
-        mock_context.agents.forget_user.assert_not_called()
 
     async def test_malformed_payload_is_ignored(
         self, mock_callback_update: Mock, mock_context: Mock

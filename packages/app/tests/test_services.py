@@ -5,6 +5,7 @@ from dataclasses import replace
 import httpx
 import pytest
 from practice_core.content import ContentLibrary
+from practice_core.decisions import DecisionRoute
 from practice_core.errors import ConfigurationError
 
 from practice_app.config import AppConfig, ConfigStore, ProxyConfig
@@ -17,7 +18,13 @@ def _catalogue_transport(counter: list[int]) -> httpx.MockTransport:
 
     def handler(_: httpx.Request) -> httpx.Response:
         counter.append(1)
-        return httpx.Response(200, json={"data": [{"id": "vendor/model"}]})
+        return httpx.Response(
+            200,
+            json={
+                "data": [{"id": "gemini-decision-test"}],
+                "models": [{"name": "models/gemini-decision-google"}],
+            },
+        )
 
     return httpx.MockTransport(handler)
 
@@ -26,11 +33,11 @@ class TestConstruction:
     def test_settings_are_loaded_when_none_are_given(
         self, config_store: ConfigStore, content: ContentLibrary, stats: StatsStore
     ) -> None:
-        config_store.save(replace(AppConfig(), max_tokens=1234))
+        config_store.save(replace(AppConfig(), request_timeout=12.0))
 
         services = Services(config_store=config_store, content=content, stats=stats)
 
-        assert services.config.max_tokens == 1234
+        assert services.config.request_timeout == 12.0
 
 
 class TestClientLifecycle:
@@ -72,7 +79,7 @@ class TestClientLifecycle:
 
 
 class TestStaging:
-    """An edit held in memory still has to reach the provider client."""
+    """An edit held in memory still has to reach the Decisions API client."""
 
     async def test_a_staged_edit_is_not_saved(self, services: Services) -> None:
         services.stage(replace(services.config, show_rules=False))
@@ -111,7 +118,7 @@ class TestStaging:
 
 
 class TestCatalogue:
-    async def test_the_catalogue_is_fetched_once_per_provider(
+    async def test_the_catalogue_is_fetched_once(
         self,
         config_store: ConfigStore,
         content: ContentLibrary,
@@ -155,7 +162,7 @@ class TestCatalogue:
 
     def test_nothing_is_cached_before_the_first_fetch(self, services: Services) -> None:
         assert services.cached_models() == []
-        assert services.model_info("vendor/model") is None
+        assert services.model_info("gemini-decision-test") is None
 
     async def test_a_fetched_model_can_be_looked_up(
         self,
@@ -174,19 +181,48 @@ class TestCatalogue:
 
         await services.models()
 
-        assert services.model_info("vendor/model") is not None
-        assert services.model_info("absent/model") is None
+        assert services.model_info("gemini-decision-test") is not None
+        # The default is offered even when the listing leaves it out.
+        assert services.model_info("google/gemini-decision-1") is not None
+        assert services.model_info("gemini-decision-absent") is None
 
-    async def test_an_unconfigured_provider_refuses_to_fetch(
-        self, config_store: ConfigStore, content: ContentLibrary, stats: StatsStore
+    async def test_each_route_keeps_its_own_catalogue(
+        self,
+        config_store: ConfigStore,
+        content: ContentLibrary,
+        stats: StatsStore,
+        config: AppConfig,
     ) -> None:
-        from practice_app.providers import Provider  # noqa: PLC0415
-
+        fetches: list[int] = []
         services = Services(
             config_store=config_store,
             content=content,
             stats=stats,
-            config=replace(AppConfig(), provider=Provider.GEMINI),
+            config=config,
+            transport=_catalogue_transport(fetches),
+        )
+
+        await services.models()
+        await services.update_config(replace(config, route=DecisionRoute.GOOGLE))
+        assert services.cached_models() == []
+        google = await services.models()
+        await services.update_config(config)
+
+        assert [model.id for model in google] == [
+            "gemini-decision-1",
+            "gemini-decision-google",
+        ]
+        assert services.model_info("gemini-decision-test") is not None
+        assert len(fetches) == 2
+
+    async def test_google_without_a_key_refuses_to_fetch(
+        self, config_store: ConfigStore, content: ContentLibrary, stats: StatsStore
+    ) -> None:
+        services = Services(
+            config_store=config_store,
+            content=content,
+            stats=stats,
+            config=AppConfig(route=DecisionRoute.GOOGLE),
         )
 
         with pytest.raises(ConfigurationError, match="API key"):

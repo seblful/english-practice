@@ -1,26 +1,21 @@
-"""The settings screen: provider, key, model, thinking, proxy, and the rest."""
+"""The settings screen: route, key, decision model, proxy, and the rest."""
 
 from collections.abc import Callable
 from dataclasses import replace
 
 import flet as ft
+from practice_core.decisions import DecisionRoute
 from practice_core.errors import PracticeError
 from practice_core.models import ContentCounts  # noqa: TC002
 
 from practice_app import __version__
+from practice_app.catalogue import ModelInfo
 from practice_app.config import (
-    DEFAULT_MAX_TOKENS,
     DEFAULT_TIMEOUT,
     MAX_PORT,
     PROXY_SCHEMES,
     AppConfig,
     ThemeChoice,
-)
-from practice_app.providers import (
-    ModelInfo,
-    Provider,
-    ThinkingLevel,
-    supported_thinking_levels,
 )
 from practice_app.services import Services
 from practice_app.ui import motion
@@ -29,7 +24,6 @@ from practice_app.ui.components import (
     STRETCH,
     banner,
     collapsible,
-    dropdown,
     field_label,
     hint,
     inline_action,
@@ -49,16 +43,13 @@ from practice_app.ui.theme import GAP, GAP_LARGE, GAP_SMALL, RADIUS_SMALL
 
 __all__ = ["SettingsScreen"]
 
-_MIN_TOKENS = 256
-_MAX_TOKENS = 32768
 _MIN_TIMEOUT = 10.0
 _MAX_TIMEOUT = 600.0
 
 # The panels, named so a saved setting updates one rather than the screen.
 _PANEL_KEYS = (
-    "settings.provider",
+    "settings.route",
     "settings.model",
-    "settings.thinking",
     "settings.practice",
     "settings.proxy",
     "settings.advanced",
@@ -74,14 +65,6 @@ _THEME_LABELS = (
     (ThemeChoice.LIGHT, "Light"),
     (ThemeChoice.DARK, "Dark"),
 )
-
-
-def _clamp_int(raw: str, fallback: int, low: int, high: int) -> int:
-    """Return a whole number from user input, kept inside sane bounds."""
-    try:
-        return max(low, min(high, int(raw)))
-    except ValueError:
-        return fallback
 
 
 def _clamp_float(raw: str, fallback: float, low: float, high: float) -> float:
@@ -147,9 +130,8 @@ class SettingsScreen(Screen):
     def render(self) -> None:
         """Rebuild the screen from the current settings."""
         panels = (
-            self._provider_panel(),
+            self._route_panel(),
             self._model_panel(),
-            self._thinking_panel(),
             self._practice_panel(),
             self._proxy_panel(),
             self._advanced_panel(),
@@ -160,11 +142,11 @@ class SettingsScreen(Screen):
             for panel, key in zip(panels, _PANEL_KEYS, strict=True)
         ]
 
-    def _provider_panel(self) -> ft.Control:
-        """Return the provider choice and its API key field."""
-        provider = self._config.provider
+    def _route_panel(self) -> ft.Control:
+        """Return the route choice, its API key field and the connection test."""
+        route = self._config.route
         key_field = text_field(
-            label=f"{provider.label} API key",
+            label=f"{route.label} API key",
             value=self._config.active.api_key,
             password=True,
             can_reveal_password=True,
@@ -179,14 +161,14 @@ class SettingsScreen(Screen):
 
         return panel(
             segmented(
-                [(known.value, known.short_label) for known in Provider],
-                selected=provider.value,
-                on_change=self._on_provider,
+                [(known.value, known.label) for known in DecisionRoute],
+                selected=route.value,
+                on_change=self._on_route,
             ),
             key_field,
             self._check_row(),
-            hint("Kept on this device only, never sent anywhere else."),
-            title="Provider",
+            hint(f"Kept on this device only, and sent to {route.label} alone."),
+            title="Grading service",
             icon=ft.Icons.CLOUD_ROUNDED,
         )
 
@@ -198,7 +180,7 @@ class SettingsScreen(Screen):
                 ft.Row(
                     controls=[
                         ft.ProgressRing(width=16, height=16, stroke_width=2),
-                        hint("Asking the model to answer..."),
+                        hint("Asking the model for a decision..."),
                     ],
                     spacing=GAP_SMALL,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -274,17 +256,14 @@ class SettingsScreen(Screen):
         if info is not None:
             if info.supports_images:
                 badges.append(pill("vision", icon=ft.Icons.IMAGE_ROUNDED))
-            if info.supports_thinking:
-                badges.append(pill("thinking", icon=ft.Icons.PSYCHOLOGY_ROUNDED))
-            for label in (info.context_label, info.price_label):
-                if label:
-                    badges.append(
-                        pill(
-                            label,
-                            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-                            color=ft.Colors.ON_SURFACE_VARIANT,
-                        )
+            if info.context_label:
+                badges.append(
+                    pill(
+                        info.context_label,
+                        bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                     )
+                )
 
         # The same 18dp slot either way, so this one does not resize.
         trailing = motion.swap(
@@ -354,48 +333,11 @@ class SettingsScreen(Screen):
 
         return panel(*children, title="Model", icon=ft.Icons.AUTO_AWESOME_ROUNDED)
 
-    def _thinking_panel(self) -> ft.Control:
-        """Return the thinking-level control for the selected model."""
-        active = self._config.active
-        reasons = self._model_reasons()
-        levels = supported_thinking_levels(
-            self._config.provider, supports_thinking=reasons
-        )
-        can_think = reasons and len(levels) > 1
-        current = active.thinking if active.thinking in levels else levels[0]
-
-        return panel(
-            dropdown(
-                label="Thinking level",
-                value=current.value,
-                options=[
-                    ft.DropdownOption(key=level.value, text=level.label)
-                    for level in levels
-                ],
-                disabled=not can_think,
-                on_select=self._choose_thinking,
-            ),
-            hint(
-                current.description
-                if can_think
-                else "The selected model has no thinking control to set."
-            ),
-            title="Reasoning",
-            icon=ft.Icons.PSYCHOLOGY_ROUNDED,
-        )
-
-    def _model_reasons(self) -> bool:
-        """Return whether the selected model has reasoning to configure."""
-        info = self._model()
-        if info is not None:
-            return info.supports_thinking
-        return self._config.active.model_supports_thinking
-
     def _proxy_summary(self) -> str:
         """Return the line under the proxy heading, so the fold says its state."""
         proxy = self._config.proxy
         if not proxy.enabled:
-            return "Off - calls go straight to the provider"
+            return f"Off - calls go straight to {self._config.route.label}"
         if not proxy.is_complete:
             return "On, but it has no host and port yet"
         return f"{proxy.scheme}://{proxy.host}:{proxy.port}"
@@ -405,7 +347,7 @@ class SettingsScreen(Screen):
         proxy = self._config.proxy
         children: list[ft.Control] = [
             switch_row(
-                "Route provider calls through a proxy",
+                "Send grading calls through a proxy",
                 value=proxy.enabled,
                 on_change=self._on_proxy_enabled,
             )
@@ -483,35 +425,9 @@ class SettingsScreen(Screen):
         )
 
     def _advanced_panel(self) -> ft.Control:
-        """Return the sampling controls, folded away by default."""
+        """Return the request timeout, folded away by default."""
         config = self._config
         return collapsible(
-            field_label(f"Temperature: {config.temperature:.1f}"),
-            ft.Slider(
-                value=config.temperature,
-                min=0,
-                max=2,
-                divisions=20,
-                label="{value}",
-                on_change_end=self._on_temperature,
-            ),
-            hint(
-                "Lower is stricter and more repeatable. "
-                "Grading rarely wants more than 0.7."
-            ),
-            text_field(
-                label="Answer token limit",
-                value=str(config.max_tokens),
-                keyboard_type=ft.KeyboardType.NUMBER,
-                input_filter=ft.NumbersOnlyInputFilter(),
-                on_change=self._stage_max_tokens,
-                on_blur=self._commit,
-                on_submit=self._commit,
-            ),
-            hint(
-                "Thinking tokens are added on top of this, so a reasoning "
-                "model is never left with nothing to answer with."
-            ),
             text_field(
                 label="Request timeout (seconds)",
                 value=str(int(config.request_timeout)),
@@ -521,14 +437,10 @@ class SettingsScreen(Screen):
                 on_blur=self._commit,
                 on_submit=self._commit,
             ),
+            hint("How long to wait for a verdict before giving up."),
             title="Advanced",
             icon=ft.Icons.TUNE_ROUNDED,
-            # Short enough for one line at 360dp: a wrapped heading is not a heading.
-            summary=(
-                f"{config.temperature:.1f} temp - "
-                f"{config.max_tokens} tokens - "
-                f"{int(config.request_timeout)}s"
-            ),
+            summary=f"{int(config.request_timeout)}s timeout",
             expanded=self._advanced_open,
             on_toggle=self._on_advanced_fold,
         )
@@ -582,8 +494,8 @@ class SettingsScreen(Screen):
     # --- Staged edits ---
 
     async def _open_key_page(self) -> None:
-        """Open the provider's key page in a browser."""
-        await self._url_launcher.launch_url(self._config.provider.console_url)
+        """Open the selected route's key page in a browser."""
+        await self._url_launcher.launch_url(self._config.route.key_url)
 
     def _stage(self, config: AppConfig) -> None:
         """Hold an edit until the field that made it loses focus."""
@@ -620,20 +532,6 @@ class SettingsScreen(Screen):
         """Hold a typed proxy password in memory."""
         self._stage_proxy(password=event.control.value or "")
 
-    def _stage_max_tokens(self, event: ft.Event[ft.TextField]) -> None:
-        """Hold a typed token limit in memory, clamped to something usable."""
-        self._stage(
-            replace(
-                self._config,
-                max_tokens=_clamp_int(
-                    (event.control.value or "").strip(),
-                    DEFAULT_MAX_TOKENS,
-                    _MIN_TOKENS,
-                    _MAX_TOKENS,
-                ),
-            )
-        )
-
     def _stage_timeout(self, event: ft.Event[ft.TextField]) -> None:
         """Hold a typed timeout in memory, clamped to something usable."""
         self._stage(
@@ -654,24 +552,13 @@ class SettingsScreen(Screen):
 
     # --- Immediate edits ---
 
-    async def _on_provider(self, event: ft.Event[ft.SegmentedButton]) -> None:
-        """Switch provider, keeping every provider's own key and model."""
+    async def _on_route(self, event: ft.Event[ft.SegmentedButton]) -> None:
+        """Switch route, keeping each route's own key and model."""
         chosen = next(iter(event.control.selected), None)
         if chosen is None:  # pragma: no cover - empty selection is disallowed
             return
         self._check_result = None
-        await self._apply(replace(self._config, provider=Provider(chosen)))
-
-    def _choose_thinking(self, event: ft.Event[ft.Dropdown]) -> None:
-        """Change how hard the model should think."""
-        level = event.control.value
-        if level is None:  # pragma: no cover - the list always has a value
-            return
-        self._page.run_task(self._on_thinking, level)
-
-    async def _on_thinking(self, level: str) -> None:
-        """Save a thinking level."""
-        await self._apply(self._config.with_active(thinking=ThinkingLevel(level)))
+        await self._apply(replace(self._config, route=DecisionRoute(chosen)))
 
     def _on_proxy_fold(self, event: ft.Event[ft.ExpansionTile]) -> None:
         """Remember whether the proxy fold is open."""
@@ -696,13 +583,6 @@ class SettingsScreen(Screen):
         await self._apply(
             replace(self._config, proxy=replace(self._config.proxy, scheme=scheme))
         )
-
-    async def _on_temperature(self, event: ft.Event[ft.Slider]) -> None:
-        """Change the sampling temperature."""
-        value = event.control.value
-        if value is None:  # pragma: no cover - the slider always reports one
-            return
-        await self._apply(replace(self._config, temperature=round(value, 2)))
 
     async def _on_show_rules(self, event: ft.Event[ft.Switch]) -> None:
         """Turn the grammar rule after each answer on or off."""
@@ -734,7 +614,6 @@ class SettingsScreen(Screen):
             finally:
                 self._loading_models = False
                 self.repaint()
-            await self._reconcile_capabilities()
 
         self._open_picker()
 
@@ -742,7 +621,7 @@ class SettingsScreen(Screen):
         """Show the model picker over the current catalogue."""
         self._page.show_dialog(
             ModelPicker(
-                provider_label=self._config.provider.label,
+                title=f"{self._config.route.label} decision models",
                 models=self._services.cached_models(),
                 selected=self._config.active.model,
                 on_select=self._schedule_choose_model,
@@ -774,45 +653,12 @@ class SettingsScreen(Screen):
         finally:
             self._loading_models = False
             self.repaint()
-        await self._reconcile_capabilities()
         self._open_picker()
 
-    async def _reconcile_capabilities(self) -> None:
-        """Record what a fresh catalogue says about the model already selected."""
-        info = self._model()
-        active = self._config.active
-        if info is None or (
-            info.supports_thinking == active.model_supports_thinking
-            and info.supports_json == active.model_supports_json
-        ):
-            return
-
-        await self._apply(
-            self._config.with_active(
-                model_supports_thinking=info.supports_thinking,
-                model_supports_json=info.supports_json,
-            )
-        )
-
     async def _choose_model(self, model: ModelInfo) -> None:
-        """Select a model, and carry its capabilities into the settings."""
-        levels = supported_thinking_levels(
-            self._config.provider, supports_thinking=model.supports_thinking
-        )
-        thinking = (
-            self._config.active.thinking
-            if self._config.active.thinking in levels
-            else levels[0]
-        )
+        """Select a decision model."""
         self._check_result = None
-        await self._apply(
-            self._config.with_active(
-                model=model.id,
-                model_supports_thinking=model.supports_thinking,
-                model_supports_json=model.supports_json,
-                thinking=thinking,
-            )
-        )
+        await self._apply(self._config.with_active(model=model.id))
 
     async def _on_check(self) -> None:
         """Send one cheap request to prove the settings work."""

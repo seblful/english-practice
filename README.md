@@ -1,17 +1,18 @@
 # English Practice
 
 Practise English grammar against *English Grammar in Use* (Murphy): you get an
-exercise image, you type an answer, a vision LLM grades it, and the book's
-answer and the rule behind it follow.
+exercise image, you type an answer, a decision model (Gemini Decision 1, through
+Google AI Studio by default) grades it, and the book's answer and the rule behind it
+follow.
 
 Two front ends, one book:
 
 | | |
 | :-- | :-- |
-| **[Telegram bot](packages/bot/README.md)** | Sends the exercise, grades the answer, and answers follow-up questions about it. Approves users. |
-| **[Android app](packages/app/README.md)** | The same loop on a phone, shaped as lessons rather than a chat: ten questions a run, a verdict sheet instead of a transcript, plus a progress screen and per-provider settings. |
+| **[Telegram bot](packages/bot/README.md)** | Sends the exercise, grades the answer, and shows the book's answer and rule. Approves users. |
+| **[Android app](packages/app/README.md)** | The same loop on a phone, shaped as lessons rather than a chat: ten questions a run, a verdict sheet instead of a transcript, plus a progress screen and settings. |
 
-Both grade with the same prompt and the same rules, because those live in
+Both send the same decision request and read the verdict the same way, because those live in
 **[`practice-core`](packages/core/README.md)**, which both import. Nothing that
 decides whether an answer is correct is written twice.
 
@@ -25,7 +26,7 @@ english-practice/
 ├── pyproject.toml          the workspace, and the lint rules every package extends
 ├── packages/
 │   ├── core/               practice-core         the shared domain
-│   ├── runtime/            practice-runtime      settings, logging, the LLM client
+│   ├── runtime/            practice-runtime      settings, logging, the pipeline's LLM client
 │   ├── bot/                english-practice-bot  the Telegram bot
 │   ├── app/                english-practice-app  the Flet Android app
 │   └── extraction/         ...-extraction        the offline content pipeline
@@ -42,7 +43,7 @@ Dependencies point one way only:
      ╱            ╲                    flet, httpx
 english-        english-
 practice-bot    practice-extraction
- telegram        opencv, pymupdf, mistral
+ telegram, httpx opencv, pymupdf, mistral
 ```
 
 Two boundaries are the point of this shape:
@@ -57,9 +58,12 @@ Two boundaries are the point of this shape:
   `--package english-practice-bot` and never sees OpenCV, PyMuPDF or Mistral.
 
 `practice-runtime` sits between them: what the bot and the pipeline both need
-and neither should own — how settings are read, how logs are written, how a
-chat-model client is built, and what an LLM call with a prompt and a typed
-result looks like.
+and neither should own — how settings are read and how logs are written — plus
+the chat-model client and agent base that only the pipeline's extraction steps
+still use. Grading is not an LLM call: both front ends post the request
+`practice-core` builds to a decision model — Gemini Decision 1 through
+Google AI Studio by default, or through OpenRouter — which returns calibrated
+probabilities rather than text.
 
 ## Getting started
 
